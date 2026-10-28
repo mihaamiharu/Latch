@@ -1,0 +1,6 @@
+node_modules/
+.playwright/
+.playwright-cli/
+install/
+work/
+dist/

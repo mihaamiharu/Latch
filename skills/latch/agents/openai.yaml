@@ -1,0 +1,7 @@
+interface:
+  display_name: "Latch"
+  short_description: "Verify existing work tabs with Latch and Playwright"
+  default_prompt: "Use $latch to verify the requested behavior in my existing Work browser tab and collect evidence."
+  icon_small: "./assets/icon.png"
+  icon_large: "./assets/icon.png"
+  brand_color: "#56E3B0"

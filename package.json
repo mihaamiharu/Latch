@@ -1,0 +1,20 @@
+{
+  "name": "latch-browser-bridge",
+  "version": "0.1.2",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "qa-browser": "src/cli.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "prepare-install": "node src/install.mjs prepare",
+    "build": "node src/build.mjs",
+    "skills:install": "node src/install-skills.mjs install",
+    "skills:status": "node src/install-skills.mjs status",
+    "skills:uninstall": "node src/install-skills.mjs uninstall"
+  }
+}
