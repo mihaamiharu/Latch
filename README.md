@@ -4,6 +4,10 @@ A macOS Chrome companion extension and local CLI for connecting existing Work-pr
 
 **Status:** installed compatibility prototype. The native host is registered and the Work profile is paired. Direct Chrome → native messaging → companion → Playwright CLI attachment has been verified using a temporary local fixture in the actual Work profile. Browser/worker restart recovery remains prototype work. The official Playwright extension is still required.
 
+The proposed next version removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, compatibility experiments, acceptance gates and rollback. This is planned work; the installed transport is unchanged.
+
+The isolated [native transport experiment](experiments/native-transport/README.md) now proves real Chrome native messaging and unmodified CLI attachment without the official extension or remote-debugging flags. Run `npm ci` followed by `npm run test:native-spike` on macOS with Chrome for Testing. This is a single-tab compatibility proof; production integration and multi-agent recovery remain later gates.
+
 ## Build the extension
 
 ```bash

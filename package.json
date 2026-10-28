@@ -11,10 +11,14 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
+    "test:native-spike": "LATCH_NATIVE_SPIKE=1 node --test test/native-browser.test.mjs",
     "prepare-install": "node src/install.mjs prepare",
     "build": "node src/build.mjs",
     "skills:install": "node src/install-skills.mjs install",
     "skills:status": "node src/install-skills.mjs status",
     "skills:uninstall": "node src/install-skills.mjs uninstall"
+  },
+  "dependencies": {
+    "ws": "8.22.0"
   }
 }
