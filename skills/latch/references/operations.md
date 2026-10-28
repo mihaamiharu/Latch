@@ -52,6 +52,18 @@ When the extension is connected but Codex reports `BRIDGE_ACCESS_DENIED` with `E
 
 If the current Codex session supports approval requests, request an approved rerun of the same read-only diagnostic outside its command sandbox, explaining that it connects to the paired local browser bridge. If approval is unavailable or denied, report the blocked socket path. Do not edit global permissions, disable sandboxing, or use another tool to evade the boundary. A successful diagnostic verifies bridge access only; subsequent Playwright attachment may require its own local transport permission.
 
+## Native-mode preview
+
+The source branch supports `connect --transport native` through the same helper, profile pairing, workspace and named-session contract. It requires a bridge/extension build with debugger capability; the installed daily 0.1.2 build does not gain that permission merely because this skill was updated. Check `doctor --profile work --transport native` first. Keep the official adapter as the default until the migration's installation and Work-profile gates pass. Do not reinstall, re-pair or change browser permissions automatically to enable this preview.
+
+Each native session currently owns one tab. Use distinct session names for different tasks in the same workspace. The same name in different canonical workspaces is isolated. Reconnecting the same tab is idempotent; adding another tab returns `SESSION_TAB_LIMIT`. Native mode preserves existing windows/groups and verifies the actual CDP target identity, including when two tabs share a URL.
+
+`--focus-emulation on` is an explicit native-connect option for background interactions. It simulates an active/focused page for the selected target and is cleared when its debugger detaches. It does not activate the Chrome tab, but can change the page's perceived focus/visibility; leave it off for checks that depend on real focus or background behavior. Changing it on an active session requires disconnect/reconnect. It is off by default and retained in the session record when later commands omit the flag.
+
+`release` in native mode closes that session's single-target transport, detaches the CLI and preserves the tab. It returns `sessionClosed: true`; run the normal `disconnect` afterward to remove the released record. A failed connection revokes its new lease and cleans up only the task's session. If cleanup cannot be confirmed, `NATIVE_CLEANUP_FAILED` keeps the record for explicit disconnect. Stale epochs, unsupported state schemas and explicit transport changes fail rather than being repaired silently.
+
+Native access is coordination between authorized local agents, not isolation from arbitrary programs running as the same OS user. Endpoint credentials stay out of Latch reports/records, but are passed to the local Playwright subprocess; private CLI registry files may retain attachment options. Protect task/daemon directories and do not publish their contents as evidence.
+
 ## Release one tab
 
 Use fresh IDs from Latch and the same task session/workspace:

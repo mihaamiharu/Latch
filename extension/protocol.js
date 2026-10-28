@@ -1,7 +1,9 @@
 export const VERSION = 1;
 export const HOST = 'com.qa_browser.bridge';
 export const OFFICIAL_ID = 'mmlmfjhmonkocbjadbfplnigmagldckm';
-export const OPERATIONS = new Set(['status', 'tabs', 'register', 'claim', 'verify', 'release', 'forget']);
+export const OPERATIONS = new Set(['status', 'tabs', 'register', 'claim', 'verify', 'release', 'forget',
+  'native-connect', 'native-verify', 'native-disconnect', 'native-status',
+  'native-reserve', 'native-open', 'native-check', 'native-release']);
 export function fault(code, message) {
   return Object.assign(new Error(message), {code});
 }

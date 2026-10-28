@@ -5,7 +5,8 @@ import crypto from 'node:crypto';
 import {bridgeLocator, fault} from '../extension/protocol.js';
 
 export function redact(text) {
-  return String(text).replace(/([?&](?:token|access_token|key)=)[^\s&"<>]+/gi, '$1[redacted]');
+  return String(text).replace(/([?&](?:token|access_token|key)=)[^\s&"<>]+/gi, '$1[redacted]')
+    .replace(/(\/(?:cdp|extension)\/)[a-f0-9]{64}/gi, '$1[redacted]');
 }
 export async function workspaceAt(start = process.cwd()) {
   return await fs.realpath(start);

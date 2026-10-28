@@ -1,7 +1,7 @@
 import {checkRequest, bridgeLocator, fault, safeError, webUrl} from './protocol.js';
 
 // This controller uses Chrome APIs only. It never evaluates code in another extension.
-export function createController(api, identity) {
+export function createController(api, identity, {nativeTransport} = {}) {
   const sessions = new Map();
   const owners = new Map();
   let queue = Promise.resolve();
@@ -14,6 +14,7 @@ export function createController(api, identity) {
   async function liveSession(key) {
     const session = sessions.get(key);
     if (!session) throw fault('SESSION_UNAVAILABLE', 'Register this CLI session before claiming a tab.');
+    if (session.transport === 'native') throw fault('TRANSPORT_MISMATCH', 'This session uses native transport.');
     try { await api.tabGroups.get(session.groupId); } catch {
       sessions.delete(key);
       for (const [tabId, owner] of owners) if (owner === key) owners.delete(tabId);
@@ -22,10 +23,40 @@ export function createController(api, identity) {
     return session;
   }
   async function operate(op, p) {
-    if (op === 'status') return {...identity, sessions: [...sessions].map(([key, s]) => ({key, groupId: s.groupId, windowId: s.windowId}))};
+    if (op === 'status') return {...identity, sessions: [...sessions].map(([key, s]) => ({key, transport: s.transport || 'official',
+      groupId: s.groupId, windowId: s.windowId, tabId: s.tabId}))};
     if (op === 'tabs') return (await api.tabs.query({})).filter(t => !t.incognito && webUrl(t.url)).map(plainTab);
     if (typeof p.sessionKey !== 'string' || !/^[a-f0-9]{64}$/.test(p.sessionKey)) throw fault('INVALID_SESSION', 'Invalid workspace/session key.');
+    if (['native-reserve', 'native-open', 'native-check', 'native-release'].includes(op)) {
+      if (!nativeTransport?.available) throw fault('DEBUGGER_PERMISSION_REQUIRED', 'This extension build has no debugger permission.');
+      const old = sessions.get(p.sessionKey);
+      if (old && old.transport !== 'native') throw fault('TRANSPORT_MISMATCH', 'A different transport owns this session.');
+      if (op === 'native-release') {
+        if (old && p.tabId !== undefined && old.tabId !== p.tabId) throw fault('TAB_NOT_OWNED', 'This session does not own that tab.');
+        await nativeTransport.release(p.sessionKey);
+        if (old && owners.get(old.tabId) === p.sessionKey) owners.delete(old.tabId);
+        sessions.delete(p.sessionKey);
+        return {released: true, alreadyReleased: !old};
+      }
+      const tab = await tabById(p.tabId);
+      if (tab.incognito || !webUrl(tab.url)) throw fault('TAB_UNSUPPORTED', 'Only ordinary HTTP(S) tabs are supported.');
+      if (tab.url !== p.expectedUrl) throw fault('TAB_CHANGED', 'The tab URL changed after discovery.');
+      if (owners.has(tab.id) && owners.get(tab.id) !== p.sessionKey) throw fault('TAB_OWNED', 'Another session owns this tab.');
+      if (op === 'native-reserve') {
+        if (old && old.tabId !== tab.id) throw fault('SESSION_TAB_LIMIT', 'Native transport currently supports one tab per named session. Use another session.');
+        if (!old && sessions.size >= 32) throw fault('SESSION_LIMIT', 'Too many browser sessions.');
+        sessions.set(p.sessionKey, {transport: 'native', tabId: tab.id, windowId: tab.windowId});
+        owners.set(tab.id, p.sessionKey);
+        return {...plainTab(tab), alreadyConnected: !!old};
+      }
+      if (!old || old.tabId !== tab.id || owners.get(tab.id) !== p.sessionKey)
+        throw fault('TAB_NOT_OWNED', 'Reserve this tab before connecting.');
+      if (op === 'native-open') await nativeTransport.connect(p.sessionKey, tab, p.endpoint, {focusEmulation: p.focusEmulation === true});
+      else if (!nativeTransport.isAttached(p.sessionKey)) throw fault('SESSION_STALE', 'The native debugger session is no longer attached.');
+      return plainTab(tab);
+    }
     if (op === 'register') {
+      if (sessions.get(p.sessionKey)?.transport === 'native') throw fault('TRANSPORT_MISMATCH', 'This session uses native transport.');
       const locator = bridgeLocator(p.connectUrl);
       if (!locator) throw fault('SESSION_LOCATOR_INVALID', 'A protocol-v2 official Playwright connection locator is required.');
       const matches = (await api.tabs.query({})).filter(t => !t.incognito && bridgeLocator(t.url) === locator);
@@ -45,6 +76,7 @@ export function createController(api, identity) {
       sessions.delete(p.sessionKey);
       return {forgotten: true};
     }
+    if (!['claim', 'verify', 'release'].includes(op)) throw fault('INVALID_REQUEST', 'Unsupported browser operation.');
     const session = await liveSession(p.sessionKey);
     const tab = await tabById(p.tabId);
     if (op === 'release') {
@@ -92,6 +124,13 @@ export function createController(api, identity) {
   }
   return {
     handle(request) { const result = queue.then(() => run(request)); queue = result.catch(() => {}); return result; },
-    removeTab(id) { owners.delete(id); },
+    removeTab(id) {
+      const key = owners.get(id);
+      owners.delete(id);
+      if (sessions.get(key)?.transport === 'native') {
+        sessions.delete(key);
+        void nativeTransport.release(key).catch(() => {});
+      }
+    },
   };
 }

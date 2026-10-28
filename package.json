@@ -12,6 +12,7 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "test:native-spike": "LATCH_NATIVE_SPIKE=1 node --test test/native-browser.test.mjs",
+    "test:native-workflow": "LATCH_NATIVE_WORKFLOW=1 node --test test/native-workflow-browser.test.mjs",
     "prepare-install": "node src/install.mjs prepare",
     "build": "node src/build.mjs",
     "skills:install": "node src/install-skills.mjs install",

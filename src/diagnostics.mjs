@@ -32,7 +32,8 @@ export async function diagnose(profileAlias = 'work') {
       result.socket = {exists: true, isSocket: stat.isSocket(), ownerUid: stat.uid, mode: (stat.mode & 0o777).toString(8)};
     } catch (error) { result.socket = {exists: error.code === 'ENOENT' ? false : null, error: safeError(error)}; }
     const live = await request(profile.instanceId, 'status', {}, 2500);
-    result.connection = {ok: true, instanceId: live.instanceId, epoch: live.epoch, extensionVersion: live.extensionVersion};
+    result.connection = {ok: true, instanceId: live.instanceId, epoch: live.epoch, extensionVersion: live.extensionVersion,
+      capabilities: live.capabilities || {nativeTransport: false}};
     result.healthy = true;
   } catch (error) { result.connection = {ok: false, error: safeError(error)}; }
   return result;

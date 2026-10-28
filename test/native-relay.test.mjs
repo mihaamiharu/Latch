@@ -25,7 +25,7 @@ test('native target model exposes only its selected tab and rejects global/forei
   model.onEvent({source: {tabId: 43}, method: 'Runtime.consoleAPICalled', params: {}});
   assert.equal(events.length, 1);
   model.onEvent({source: {tabId: 42}, method: 'Target.attachedToTarget', params: {sessionId: 'child'}});
-  await model.command({method: 'Runtime.enable', sessionId: 'child'});
+  await model.command({method: 'Runtime.enable', sessionId: events.at(-1).params.sessionId});
   assert.equal(calls.at(-1).params.sessionId, 'child');
   const browser = await model.command({method: 'Target.attachToBrowserTarget'});
   await assert.rejects(model.command({method: 'Target.attachToTarget', sessionId: browser.sessionId,

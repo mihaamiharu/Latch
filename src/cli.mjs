@@ -6,6 +6,7 @@ import {diagnose} from './diagnostics.mjs';
 import {fault, safeError} from '../extension/protocol.js';
 import {workspaceAt, sessionKey, runCLI, assertVersion, connectionURL, selectAndVerify, redact} from './playwright.mjs';
 import {readSession, writeSession, forgetSession, locked} from './state.mjs';
+import {nativeWorkflow} from './native-workflow.mjs';
 
 const usage = `Latch 0.1.2
   qa-browser discover
@@ -13,7 +14,7 @@ const usage = `Latch 0.1.2
   qa-browser doctor --profile work
   qa-browser diagnose --profile work
   qa-browser tabs --profile work
-  qa-browser connect --profile work --session <name> --tab <id> [--workspace <path>]
+  qa-browser connect --profile work --session <name> --tab <id> [--workspace <path>] [--transport official|native] [--focus-emulation on|off]
   qa-browser release --profile work --session <name> --tab <id> [--workspace <path>]
   qa-browser disconnect --profile work --session <name> [--workspace <path>]
 All results are JSON. Work-profile extension installation/authorization is a one-time prerequisite.
@@ -21,7 +22,7 @@ All results are JSON. Work-profile extension installation/authorization is a one
 function parse(argv) {
   const command = argv.shift() || 'help';
   const flags = {};
-  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'workspace', 'json']);
+  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'workspace', 'json', 'transport', 'focus-emulation']);
   while (argv.length) {
     const flag = argv.shift();
     if (!flag.startsWith('--') || !allowed.has(flag.slice(2))) throw fault('INVALID_ARGUMENT', 'Unknown argument. Use qa-browser help.');
@@ -45,6 +46,9 @@ async function main() {
   if (['help', '--help'].includes(command)) { console.log(usage); return; }
   if (command === 'discover') return await discoverDetailed();
   const alias = f.profile || 'work';
+  if (f.transport && !['official', 'native'].includes(f.transport)) throw fault('INVALID_ARGUMENT', 'Transport must be official or native.');
+  if (f['focus-emulation'] && (command !== 'connect' || !['on', 'off'].includes(f['focus-emulation'])))
+    throw fault('INVALID_ARGUMENT', 'Use --focus-emulation on|off with native connect.');
   if (!/^[a-zA-Z0-9_-]{1,40}$/.test(alias)) throw fault('INVALID_PROFILE', 'Use a simple profile alias.');
   if (command === 'diagnose') return await diagnose(alias);
   if (command === 'pair') {
@@ -61,10 +65,14 @@ async function main() {
   }
   const profile = await paired(alias);
   const payload = {instanceId: profile.instanceId, epoch: profile.epoch};
-  const call = (op, p = {}) => request(profile.instanceId, op, {...payload, ...p});
+  const call = (op, p = {}) => request(profile.instanceId, op, {...payload, ...p}, op.startsWith('native-') ? 35000 : 12000);
   const workspace = await workspaceAt(f.workspace || process.cwd());
   const options = {workspace, chromeProfileDir: profile.chromeProfileDir};
-  if (command === 'doctor') return {profile: alias, ...profile, cliVersion: await assertVersion(options), workspace};
+  if (command === 'doctor') {
+    if (f.transport === 'native' && !profile.capabilities?.nativeTransport)
+      throw fault('NATIVE_TRANSPORT_UNAVAILABLE', 'This bridge/extension has no native debugger transport.');
+    return {profile: alias, ...profile, transport: f.transport || 'official', cliVersion: await assertVersion(options), workspace};
+  }
   if (command === 'tabs') return {profile: alias, instanceId: profile.instanceId, epoch: profile.epoch, tabs: await call('tabs')};
   if (!['connect', 'release', 'disconnect'].includes(command)) throw fault('INVALID_COMMAND', 'Unknown command. Use qa-browser help.');
   const session = f.session;
@@ -73,6 +81,16 @@ async function main() {
   const tabId = Number(f.tab);
   if (command !== 'disconnect' && (!Number.isSafeInteger(tabId) || tabId < 0)) throw fault('INVALID_TAB', 'Specify a numeric --tab ID.');
   return await locked(key, async () => {
+    const existing = await readSession(key);
+    const transport = f.transport || existing?.transport || 'official';
+    if (existing && transport !== (existing.transport || 'official')) throw fault('TRANSPORT_MISMATCH', 'Disconnect before changing this session transport.');
+    if (existing && existing.v !== undefined && existing.v !== 2) throw fault('SESSION_STATE_UNSUPPORTED', 'Unsupported recorded session version. Inspect before repair.');
+    if (transport === 'native') {
+      if (!profile.capabilities?.nativeTransport) throw fault('NATIVE_TRANSPORT_UNAVAILABLE', 'The paired bridge/extension is not native-capable. Continue using official mode until the native build is installed.');
+      return nativeWorkflow({command, call, payload, alias, workspace, session, key, tabId, options,
+        requestedFocusEmulation: f['focus-emulation'] === undefined ? undefined : f['focus-emulation'] === 'on'});
+    }
+    if (f['focus-emulation']) throw fault('INVALID_ARGUMENT', 'Focus emulation is available only in native mode.');
     if (command === 'connect') {
       await assertVersion(options);
       const targets = await call('tabs');

@@ -1,6 +1,6 @@
 # Latch: one-extension migration plan
 
-Prepared October 28, 2026. Status: Phase 0 contract and Phase 1 compatibility experiment implemented on `feat/latch-native-transport`. The remaining phases are planned; the installed Work transport is unchanged. See `NATIVE-TRANSPORT-CONTRACT.md` and `experiments/native-transport/README.md` for the bounded proof and how to run it.
+Prepared October 28, 2026. Status: Phases 0–2 implemented on `feat/latch-native-transport`, including normal CLI/helper integration and disposable-browser multi-agent verification. Phases 3–6 remain planned; the installed Work transport and daily default are unchanged. See `NATIVE-TRANSPORT-CONTRACT.md` for the original proof and `NATIVE-SESSION-WORKFLOW.md` for the current opt-in workflow and its one-tab-per-session boundary.
 
 ## Outcome
 

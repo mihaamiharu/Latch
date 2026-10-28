@@ -4,10 +4,12 @@ Recorded October 28, 2026. Experimental implementation on
 `feat/latch-native-transport`, based on checkpoint
 `ad4819827f0fc994a1df39aed930a2bab8f44972`.
 
-This freezes the compatibility proof's scope, not a public production protocol.
-The installed 0.1.2 extension, native host and shared skill still use the official
-Playwright extension. Experiment code is outside `extension/` and `src/` so it
-cannot activate when the installed service worker restarts.
+This records Phase 1's compatibility scope, not a public production protocol.
+Phase 2 subsequently graduated its relay/model into `src/` and added an opt-in
+native path to the normal helper/controller. See `NATIVE-SESSION-WORKFLOW.md` for
+current behavior. The installed Work manifest still lacks debugger permission
+and the official adapter remains the default; this source update does not grant
+new browser permissions.
 
 ## Versions and transport
 

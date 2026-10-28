@@ -1,5 +1,8 @@
 import {HOST} from './protocol.js';
 import {createController} from './controller.js';
+import {createDebuggerTransport} from './debugger-transport.js';
+
+const nativeTransport = createDebuggerTransport(chrome);
 
 let port;
 let controller;
@@ -29,7 +32,7 @@ async function connectOnce() {
   const instanceId = stored.instanceId || crypto.randomUUID();
   if (!stored.instanceId) await chrome.storage.local.set({instanceId});
   epoch ||= crypto.randomUUID();
-  controller ||= createController(chrome, {instanceId, epoch, extensionVersion: chrome.runtime.getManifest().version});
+  controller ||= createController(chrome, {instanceId, epoch, extensionVersion: chrome.runtime.getManifest().version}, {nativeTransport});
   const next = chrome.runtime.connectNative(HOST);
   port = next;
   next.onMessage.addListener(async request => {
@@ -42,10 +45,12 @@ async function connectOnce() {
     if (port !== next) return;
     lastError = error;
     port = undefined;
+    void nativeTransport.releaseAll();
     clearTimeout(reconnect);
     reconnect = setTimeout(connect, 10000);
   });
-  next.postMessage({v: 1, type: 'hello', instanceId, epoch, extensionVersion: chrome.runtime.getManifest().version});
+  next.postMessage({v: 1, type: 'hello', instanceId, epoch, extensionId: chrome.runtime.id,
+    capabilities: {nativeTransport: nativeTransport.available}, extensionVersion: chrome.runtime.getManifest().version});
   lastError = '';
 }
 chrome.runtime.onInstalled.addListener(connect);

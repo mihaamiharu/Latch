@@ -1,12 +1,12 @@
 # Latch
 
-A macOS Chrome companion extension and local CLI for connecting existing Work-profile tabs to Playwright CLI. Runtime code uses Node built-ins and Chrome APIs; no package installation is required to run it.
+A macOS Chrome companion extension and local CLI for connecting existing Work-profile tabs to Playwright CLI. Run `npm ci` after cloning/updating this source branch: the native host now depends on the pinned `ws` transport library.
 
 **Status:** installed compatibility prototype. The native host is registered and the Work profile is paired. Direct Chrome → native messaging → companion → Playwright CLI attachment has been verified using a temporary local fixture in the actual Work profile. Browser/worker restart recovery remains prototype work. The official Playwright extension is still required.
 
-The proposed next version removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, compatibility experiments, acceptance gates and rollback. This is planned work; the installed transport is unchanged.
+The next version removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, acceptance gates and rollback. Migration is in progress; the installed daily transport is unchanged.
 
-The isolated [native transport experiment](experiments/native-transport/README.md) now proves real Chrome native messaging and unmodified CLI attachment without the official extension or remote-debugging flags. Run `npm ci` followed by `npm run test:native-spike` on macOS with Chrome for Testing. This is a single-tab compatibility proof; production integration and multi-agent recovery remain later gates.
+The [native session preview](docs/NATIVE-SESSION-WORKFLOW.md) now integrates the normal CLI/helper with paired profiles and independent agent workspaces. It has passed disposable-browser multi-agent verification without the official extension or remote-debugging flags. Run `npm ci` followed by `npm run test:native-workflow` on macOS with Chrome for Testing. Native mode is opt-in and supports one tab per session; the installed Work build, installer permissions and daily default have not changed. Advanced command coverage, recovery and cutover remain later gates.
 
 ## Build the extension
 

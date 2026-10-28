@@ -46,8 +46,11 @@ agent attachment API.
 - `test/native-browser.test.mjs`: actual Chrome/native/CLI integration.
 - `test/native-relay.test.mjs`: access-boundary and routing regression checks.
 
-The WebSocket dependency is pinned in the project lockfile. Production 0.1.2
-modules still use Node built-ins; they do not import this experiment.
+The WebSocket dependency is pinned in the project lockfile. Phase 2 graduated the
+relay/model into `src/`; this experiment now re-exports those shared modules.
+The current native host requires `npm ci`, including when using the official
+adapter after a host restart. The installed browser manifest/default transport
+are unchanged. See `docs/NATIVE-SESSION-WORKFLOW.md` for the newer integration.
 
 ## Evidence and boundaries
 

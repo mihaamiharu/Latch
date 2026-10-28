@@ -26,7 +26,7 @@ async function prepare() {
     action: {default_popup: 'popup.html', default_title: 'Latch', default_icon: {'16': 'icons/latch-16.png', '32': 'icons/latch-32.png'}}, key};
   await fs.writeFile(path.join(root, 'extension/manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   const launcher = path.join(installDir, 'native-host');
-  await fs.writeFile(launcher, `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(path.join(root, 'src/native-host.mjs'))}\n`, {mode: 0o755});
+  await fs.writeFile(launcher, `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(path.join(root, 'src/native-host.mjs'))} "$@"\n`, {mode: 0o755});
   await fs.chmod(launcher, 0o755);
   const cli = path.join(installDir, 'qa-browser');
   await fs.writeFile(cli, `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(path.join(root, 'src/cli.mjs'))} "$@"\n`, {mode: 0o755});
