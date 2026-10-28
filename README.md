@@ -6,7 +6,7 @@ A macOS Chrome companion extension and local CLI for connecting existing Work-pr
 
 The next version removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, acceptance gates and rollback. Migration is in progress; the installed daily transport is unchanged.
 
-The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus verified popup descendants. The [Gate C work](docs/GATE-C-FRAMES-WORKERS-PLAN.md) adds bounded child-session lifetimes, nested frame routing, dedicated-worker checks and targeted cancellation. Headless comparison covers same-origin/cross-origin/OOPIF forms, navigation, replacement and frame evidence. The pinned CLI does not backfill already-running workers into `page.workers()` in these tests; new dedicated workers are observable and evaluable. See the [Phase 3 acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md). Native mode remains opt-in; the Work installation and daily default are unchanged. File transfers, large payloads, recovery and cutover remain later gates.
+The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus verified popup descendants. The [Gate C work](docs/GATE-C-FRAMES-WORKERS-PLAN.md) adds bounded child-session lifetimes, nested frame routing, dedicated-worker checks and targeted cancellation. Headless comparison covers same-origin/cross-origin/OOPIF forms, navigation, replacement and frame evidence. The pinned CLI does not backfill already-running workers into `page.workers()` in these tests; new dedicated workers are observable and evaluable. See the [Phase 3 acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md). Native mode remains opt-in; the Work installation and daily default are unchanged. Gate D verifies byte-preserving uploads and separates browser download receipt from unsupported managed retrieval. Large payloads, recovery and cutover remain later gates.
 
 ## Build the extension
 
@@ -130,11 +130,34 @@ npm run test:attachment-compat
 npm run test:popups
 npm run test:frames-workers
 npm run test:frame-isolation
+npm run test:files
+npm run test:file-isolation
 ```
 
 Set `QA_BROWSER_OFFICIAL_EXTENSION` to an unpacked official extension if it is not at `work/browser-bridge/official-extension`. Official authorization is provisioned once in the disposable profile, then that setup browser closes; the comparison runtime launches without a driver or remote-debugging flags. Native runs omit the official extension. Both launches use mock-keychain flags. Reports, fixture observations and screenshots are retained under `work/attachment-compat/<adapter>-*/evidence/`. Private profiles and CLI registries alongside them are diagnostic data, not publishable evidence.
 
 Headless fixtures disable background throttling. Frame tests additionally use browser-local test-host mappings and site isolation, recorded in reports; no system hosts file is changed. On macOS, the official headless fixture adapts connection-page URL delivery through a private, bounded loopback queue consumed by its provisioning code. It opens the normal official connect page; the official extension, CLI, automation relay and actual native-messaging path remain unmodified. This is test infrastructure, not a Work-browser runtime fallback or a claim of headed focus parity. The repository's `AGENTS.md` keeps future browser tests headless.
+
+## File support
+
+Gate D uses ordinary Playwright file-input APIs and CLI pending-chooser `upload`.
+Text, empty/binary files, duplicate basenames, spaces/Unicode and same-origin/OOPIF
+inputs are checked against the bytes received by a real multipart server. Clear
+and reselect work; use fresh locators after input/frame replacement.
+
+Browser download receipt is distinct from agent retrieval. Both pinned adapters
+receive basic, redirected, duplicate-name and slow downloads in private fixture
+inboxes. Low-level Page events are observable, but normal Playwright Download
+objects and exact `saveAs` retrieval are unavailable in this attachment baseline.
+Native mode rejects managed download configuration explicitly. There is no file
+broker and no latest-file/filename guessing. Ordinary screenshot/snapshot evidence
+still works. See [the Gate D plan and dispositions](docs/GATE-D-FILES-PLAN.md) and
+[shared agent instructions](skills/latch/references/operations.md#uploads-and-downloads).
+
+The test corpus is at most 256 KiB per file and 1 MiB per case. These are fixture
+bounds, not production transfer-size promises; larger evidence remains Gate E.
+The tests configure only private disposable-profile download directories before
+launch. They add no downloads permission and do not change the Work profile.
 
 ## Prototype limits
 

@@ -21,7 +21,9 @@
     "skills:status": "node src/install-skills.mjs status",
     "skills:uninstall": "node src/install-skills.mjs uninstall",
     "test:frames-workers": "LATCH_FRAMES_WORKERS=1 node --test test/frame-worker-compat.test.mjs",
-    "test:frame-isolation": "LATCH_FRAME_ISOLATION=1 node --test test/frame-worker-isolation.test.mjs"
+    "test:frame-isolation": "LATCH_FRAME_ISOLATION=1 node --test test/frame-worker-isolation.test.mjs",
+    "test:files": "LATCH_FILES=1 node --test test/file-transfer-compat.test.mjs",
+    "test:file-isolation": "LATCH_FILE_ISOLATION=1 node --test test/file-transfer-isolation.test.mjs"
   },
   "dependencies": {
     "ws": "8.22.0"

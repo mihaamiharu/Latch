@@ -66,7 +66,7 @@ playwright-cli -s="$LATCH_SESSION" --json run-code 'async(page)=>{const waiting=
 
 Use actual locators from the page. A child can open another child. Closing a parent preserves surviving owned children. To select a child for later CLI commands, refresh Latch `tabs`, then use the same helper `connect --transport native --session ... --tab ... --workspace ...`; its result includes `rootTabId`, active `targets` and ownership warnings. CLI `tab-select` indexes are temporary and differ from Chrome tab IDs.
 
-Chrome must supply a verifiable opener. A `noopener` tab may remain unclaimed; a blocked popup creates no owned child. Report the popup wait timeout and current inventory instead of assigning ownership by URL, timing or window. Limits are 16 active top-level tabs, four child generations and 256 recorded tab identities per session. Limit/attachment/opener warnings leave the affected tab unclaimed. File transfers, large evidence payloads and restart recovery remain separate acceptance gates.
+Chrome must supply a verifiable opener. A `noopener` tab may remain unclaimed; a blocked popup creates no owned child. Report the popup wait timeout and current inventory instead of assigning ownership by URL, timing or window. Limits are 16 active top-level tabs, four child generations and 256 recorded tab identities per session. Limit/attachment/opener warnings leave the affected tab unclaimed. Upload support and download limitations are described below. Large evidence payloads and restart recovery remain separate acceptance gates.
 
 Native frame interactions have been compared with the official adapter using headless Chrome for Testing: same-origin, cross-origin, nested out-of-process frames, insertion/removal, navigation and replacement. Use standard `page.frameLocator(...)` and fresh locators after replacement. An iframe remains inside its owning tab/session; do not create a separate tab claim for it. Removed frame/child-session identities cannot be reused for a replacement.
 
@@ -81,6 +81,50 @@ Focus emulation does not establish every background popup/input flow. After a ch
 `release` detaches only the specified owned tab and preserves it. Other owned pages keep their session. Explicitly released children are not automatically reclaimed. Releasing the last target returns `sessionClosed: true` and detaches the CLI; run normal `disconnect` afterward to remove the record. `disconnect` releases the whole task session, including surviving children. A failed new connection revokes its lease and cleans up only that task's session. If cleanup cannot be confirmed, `NATIVE_CLEANUP_FAILED` keeps the record for explicit disconnect. Popup-capable records use schema 3; a schema-2 preview session must be disconnected before reconnecting, rather than silently migrated. Stale epochs, unsupported schemas and explicit transport changes fail rather than being repaired silently.
 
 Native access is coordination between authorized local agents, not isolation from arbitrary programs running as the same OS user. Endpoint credentials stay out of Latch reports/records, but are passed to the local Playwright subprocess; private CLI registry files may retain attachment options. Protect task/daemon directories and do not publish their contents as evidence.
+
+## Uploads and downloads
+
+Gate D compared the pinned CLI 0.1.20 with official 0.4.0 and native attachment
+in disposable headless Chrome for Testing 153.0.8010.12. Use absolute paths to
+files authorized for the task. Latch does not sandbox local file reads by other
+programs running as the same OS user.
+
+For an ordinary file input, use its observed locator:
+
+```bash
+playwright-cli -s="$LATCH_SESSION" --json run-code 'async(page)=>{await page.getByLabel("Attachment").setInputFiles("/absolute/task/inputs/sample.txt")}'
+```
+
+An array selects multiple files on a multiple input; `setInputFiles([])` clears
+it. Frame inputs use normal `page.frameLocator(...)` locators, including OOPIFs.
+For a custom chooser, first click its observed control, then run:
+
+```bash
+playwright-cli -s="$LATCH_SESSION" upload "/absolute/task/inputs/sample.txt"
+```
+
+The CLI requires a pending chooser and calls its `FileChooser.setFiles` API.
+Verify the application result after submission; a populated input alone does not
+prove an upload. Replaced inputs need fresh locators. In the pinned baseline an
+old handle can set files on a detached input without an error, while leaving the
+fresh replacement empty. Detached frames and missing files fail.
+
+Downloads have three distinct results: browser receipt, lifecycle observation and
+exact agent retrieval. Both tested attachment adapters receive files under their
+existing browser settings and expose low-level `Page.download*` events, but do
+not expose a normal Playwright `Download` object in these tests. `saveAs`, `path`
+and `cancel` are consequently unavailable through that object. Native mode now
+rejects `Browser.setDownloadBehavior` explicitly instead of acknowledging a no-op.
+Do not promise that clicking a download produced a task artifact.
+
+There is no Latch download-retrieval broker. Low-level GUID/frame metadata does
+not identify the exact file saved under the browser's default naming rules.
+Do not guess a file from URL, filename, timestamp or the newest item in Downloads,
+or export a fixture observer's inbox path as agent evidence. If a requested check
+requires retrieval, report that capability as unsupported. Leave browser download
+settings and permissions unchanged unless a separate setup change is authorized.
+Screenshots, snapshots, console and request reports still use the normal task
+evidence directory; this download limitation does not block those artifacts.
 
 ## Release one tab
 

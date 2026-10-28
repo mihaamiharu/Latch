@@ -13,7 +13,7 @@ export async function frameWorkerApp() {
     const instance=crypto.randomUUID();
     if(url.pathname==='/worker.js'){
       res.setHeader('Content-Type','application/javascript');res.setHeader('Cache-Control','no-store');
-      res.end(`self.fixture={instance:${JSON.stringify(instance)},actor:null};onmessage=async e=>{if(e.data.init){self.fixture.actor=e.data.actor;self.fixture.parent=e.data.parent;await fetch('/state',{method:'POST',body:JSON.stringify({...self.fixture,role:'worker',result:'ready'})});postMessage({ready:true,...self.fixture})}else postMessage({reply:e.data, ...self.fixture})};`);return;
+      res.end(`self.fixture={instance:${JSON.stringify(instance)},actor:null};onmessage=async e=>{if(e.data.init){self.fixture.actor=e.data.actor;self.fixture.parent=e.data.parent;await fetch('/state',{method:'POST',body:JSON.stringify({...self.fixture,role:'worker',result:'ready'})});self.fixture.ready=true;postMessage({ready:true,...self.fixture})}else postMessage({reply:e.data, ...self.fixture})};`);return;
     }
     const root=url.pathname==='/root',kind=root?'root':url.searchParams.get('kind')||'same';
     res.setHeader('Content-Type','text/html');res.setHeader('Cache-Control','no-store');

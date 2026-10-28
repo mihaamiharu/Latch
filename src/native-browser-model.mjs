@@ -154,7 +154,8 @@ export class BrowserModel {
           if (sessionId) return {}; throw new Error('Runtime command requires an owned target.');
         }
         case 'Browser.getVersion': return {protocolVersion: '1.3', product: 'Chrome/Latch-Preview', userAgent: 'Latch-CDP-Preview', revision: 'phase-3', jsVersion: ''};
-        case 'Browser.setDownloadBehavior': return {}; // No managed download claim.
+        case 'Browser.setDownloadBehavior':
+          throw new Error('Managed downloads are unsupported by Latch native transport: no Download lifecycle or exact-file retrieval. Browser-owned downloads follow the existing profile settings.');
         case 'Target.getBrowserContexts': return {browserContextIds: []};
         case 'Target.setDiscoverTargets': return {};
         case 'Target.setAutoAttach': await this.initialize(); return {};

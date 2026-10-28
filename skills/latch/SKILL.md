@@ -43,7 +43,7 @@ playwright-cli -s="$LATCH_SESSION" snapshot
 
 ## Verify the requested behavior
 
-Use fresh snapshots/locators and the user's acceptance criteria to drive ordinary Playwright CLI operations: inspect, click, fill, evaluate, screenshots and relevant console/network checks. Run each command in the same workspace and with the explicit session name. Read `references/operations.md` when you need evidence command examples, command limitations or error recovery.
+Use fresh snapshots/locators and the user's acceptance criteria to drive ordinary Playwright CLI operations: inspect, click, fill, evaluate, screenshots and relevant console/network checks. Run each command in the same workspace and with the explicit session name. Read `references/operations.md` when you need evidence command examples, uploads, download limitations or error recovery.
 
 Attaching successfully or completing clicks is not proof of a pass. Check the observable result, including negative behavior when relevant. Separate application failures from unavailable environments, missing test data and ambiguous observations. Follow the user's requested scope and existing authorization for application changes.
 

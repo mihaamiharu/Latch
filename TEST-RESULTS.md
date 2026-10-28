@@ -333,3 +333,84 @@ updated two-session official test. Regression evidence is at
 `work/native-workflow/run-wRyJ3o/evidence/` and
 `work/native-spike/run-J0XERP/evidence/`. The explicit official two-session log is
 `work/official-multi-headless-final.log`.
+
+# Gate D — file workflows, October 29, 2026 (Asia/Jakarta)
+
+Gate D implements the approved file plan with byte-verified uploads and explicit
+separation of browser download receipt, low-level lifecycle and agent retrieval.
+Node 22.21.1, unmodified CLI 0.1.20, full Chrome for Testing 153.0.8010.12 and
+unmodified official extension 0.4.0 remain pinned. All browser runs are headless
+and use disposable profiles, real native messaging and mock-keychain flags.
+The official fixture retains the documented private connection-URL delivery shim.
+
+| Capability | Official / native result |
+| --- | --- |
+| Single/multiple input files, duplicate basenames, empty, binary, spaces/Unicode | Compatible; independent multipart receiver matches filenames, byte counts and SHA-256. |
+| CLI pending chooser (`FileChooser.setFiles`), same-origin and actual OOPIF inputs/choosers | Compatible. No OS picker or synthetic File substitution. |
+| Clear/reselect | Compatible; zero or exactly selected files reach the receiver. |
+| Missing file / retired iframe | Rejected. Frame negatives wait for the actual detach event before using the old handle. |
+| Replaced input | An old detached input handle can still accept files in both adapters. Its fresh replacement remains empty; no unintended request is submitted. Use fresh locators. |
+| Basic, redirect, repeated filename, slow downloads | Browser receipts match the independent response hashes in a private inbox configured before Chrome starts. Repeated names retain both distinct contents. |
+| Interrupted response | Server interruption is verified and no complete matching artifact is claimed. It does not establish browser API cancellation or a terminal state by itself. |
+| Low-level download lifecycle | Page events expose GUID/frame metadata and observed progress/completion. They provide no exact saved path in these tests. |
+| Normal Playwright Download event/object, saveAs/path/cancel | Unavailable in both pinned attachment adapters. No task artifact is manufactured from the browser inbox. |
+| Concurrent native agents | Same-name uploads preserve actor bytes; identical download URL/suggested name retains both browser receipts. Foreign/retired target attachment and retired frame inputs fail. |
+| Frame/popup download and popup retirement | Receipts verified. Native exact-target selection/upload and release during a slow transfer preserve the physical popup and peer session. |
+
+Native `Browser.setDownloadBehavior` now rejects managed configuration with an
+explicit unsupported error instead of acknowledging a no-op. No downloads
+permission, Browser/IO fallback or arbitrary file broker was added. A Page GUID
+without the authoritative file path is insufficient for a safe exact-file copy.
+Screenshots, snapshots and existing console/request artifacts remain available.
+
+The receiver bounds the streamed body before using Node's built-in multipart
+parser: request 1 MiB + 64 KiB, eight files, 256 KiB per file. This is bounded
+buffering rather than a new streaming-parser dependency. Corpus cases total at
+most 1 MiB. Inbox observation also has finite count/file bounds. These bounds
+are fixture scope, not production size claims; Gate E remains open.
+
+Validation: default suite **44 passed, 12 browser cases skipped** there. The new
+file comparisons and isolation suite are enabled separately with `test:files`
+and `test:file-isolation`. All nine earlier browser cases were also exercised;
+the final frame/worker comparison and isolation rerun passed three of three.
+The final file-suite run passes **3/3** with no failures or skips. Across the
+explicit runs, all **12** opt-in browser cases pass; the three corrected frame/worker
+cases supersede their initial readiness failures. Curated evidence is recorded in
+the chat's `outputs/latch-gate-d/` report. Skill validation and whitespace checks pass.
+
+Initial failed fixture attempts are retained under ignored `work/` paths. They
+included cloning a selected input, pointer-based concurrent form triggers that
+submitted no request, a cross-site DOM-triggered download without a completed
+browser file, and requiring an interrupted response to have an immediate canceled
+browser state. Final frame download checks use foreground clicks; concurrent
+root-download triggers and popup/replacement/removal lifecycle controls use scoped
+fixture DOM controls. Uploads always use actual Playwright file APIs and server
+bytes. This is not universal background-pointer or headed-focus parity.
+
+Regression testing also exposed an older worker fixture readiness race: actor
+initialization was visible before its asynchronous ready response completed, and
+a late ready message could overwrite the checked reply. The fixture now publishes
+an explicit ready marker after that response; worker polling handles evaluation
+before its script initializes. Both adapters and native isolation pass afterward.
+An attempted extra official popup CDP inspector was rejected by the official
+relay; the final comparison uses the actual Page returned by the standard popup
+waiter instead. Native identity/retirement tests retain explicit target checks.
+
+The final read-only Work diagnostic reports a healthy paired bridge, installed
+version 0.1.2, with nativeTransport false. It claims no page/tab and makes no setup
+changes. No Work restart, re-pairing, registration/permission change, native cutover
+or global security change was performed. All source changes are a local checkpoint;
+no push is part of Gate D.
+
+Final Gate D file evidence:
+`work/attachment-compat/official-1I2MwZ/evidence/`,
+`work/attachment-compat/native-kAfI79/evidence/` and
+`work/attachment-compat/native-kT6XrI/evidence/`.
+Final frame regression evidence:
+`work/attachment-compat/official-lj98jX/evidence/`,
+`work/attachment-compat/native-Rwyzrd/evidence/` and
+`work/attachment-compat/native-rZPrzF/evidence/`.
+Validation logs: `work/gate-d-acceptance.log`,
+`work/gate-d-default-final.log`, `work/gate-d-frame-regression.log` and
+`work/gate-d-regression.log` (the latter retains the two superseded frame failures).
+All project fixture browsers are stopped after validation.

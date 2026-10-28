@@ -1,6 +1,6 @@
 # Phase 3: browser behavior and attachment compatibility
 
-Prepared October 28, 2026. Status: Gates A–C implemented; final acceptance results and the worker-inventory limitation are recorded in `../TEST-RESULTS.md`. Gates D/E remain planned. This is not full Phase 3 completion.
+Prepared October 28, 2026. Status: Gates A–D implemented; final acceptance results and the worker-inventory limitation are recorded in `../TEST-RESULTS.md`. Gate E remains planned. This is not full Phase 3 completion.
 Starting checkpoint: `3e6303e` on `feat/latch-native-transport`.
 
 ## Acceptance status
@@ -16,7 +16,12 @@ Starting checkpoint: `3e6303e` on `feat/latch-native-transport`.
   comparison plus native lifecycle/isolation checks. Already-running worker
   inventory is an explicit pinned-CLI limitation; application round trips and
   actual worker targets are observed, and new-worker APIs are verified.
-- **Gates D/E pending:** file transfers and large-result transport/evidence.
+- **Gate D implemented:** byte-verified standard uploads, private browser download
+  receipt and low-level lifecycle observations. Normal Playwright Download objects,
+  saveAs/path/cancel and managed retrieval remain explicitly unsupported in both
+  pinned adapters. Native rejects managed configuration rather than acknowledging
+  a no-op. See `GATE-D-FILES-PLAN.md` for every acceptance disposition.
+- **Gate E pending:** large-result transport/evidence.
 
 ## Outcome
 
@@ -161,6 +166,9 @@ frame replacement. Any remaining worker limitation is explicit in the matrix.
 
 ### 3D — Uploads and downloads as separate capabilities
 
+The fixture matrix, capability split and conditional retrieval design are in
+[the Gate D execution plan](GATE-D-FILES-PLAN.md).
+
 For uploads, use existing CLI `upload` and Playwright file-input/file-chooser APIs
 where applicable. Test a small file, multiple files, a binary file and filenames
 with spaces/Unicode. The fixture server must verify filename, byte length and
@@ -264,8 +272,9 @@ policy so its artifacts can be interpreted correctly.
 
 The new entry points are `npm run test:popups` and
 `npm run test:attachment-compat`, alongside the existing default, native-workflow
-and official regression tests. Frame, file and large-payload fixtures remain to
-be added for Gates C–E.
+and official regression tests. Frame and file suites are now available as `test:frames-workers`,
+`test:frame-isolation`, `test:files` and `test:file-isolation`. Large-payload
+fixtures remain Gate E.
 
 Phase 3 is complete when gates A–E have evidence, required baseline-supported
 cases have no unresolved Latch gaps, popup ownership/cleanup tests pass under
@@ -273,8 +282,8 @@ concurrent sessions, and any unsupported file/worker behavior is stated precisel
 Keep restart recovery (Phase 4), installation/permissions and UI cutover (Phase 5),
 and actual Work-profile rollout (Phase 6) separate.
 
-The first implementation milestone establishes Gates A/B. Continue with Gate C
-before broadening to file transfers and large traffic. Work-profile installation
+The first implementation milestone establishes Gates A/B. Gates C/D have since been implemented; continue with Gate E before
+claiming large-evidence capacity. Work-profile installation
 and the daily transport default remain separate migration gates.
 
 ## References

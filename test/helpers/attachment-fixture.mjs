@@ -17,6 +17,16 @@ export async function attachmentFixture(t, app, transport) {
   const base=path.join(root,'work/attachment-compat');await fs.mkdir(base,{recursive:true});
   const temp=await fs.mkdtemp(path.join(base,transport+'-'));
   const profile=path.join(temp,'profile'), extension=path.join(temp,'extension'), evidence=path.join(temp,'evidence');
+  const browserInbox=app.privateDownloads?path.join(temp,'browser-inbox'):undefined;
+  if(browserInbox){
+    await fs.mkdir(browserInbox,{mode:0o700});await fs.mkdir(path.join(profile,'Default'),{recursive:true});
+    await fs.writeFile(path.join(profile,'Default/Preferences'),JSON.stringify({download:{default_directory:browserInbox,prompt_for_download:false,directory_upgrade:true}}),{mode:0o600});
+  }
+  const verifyInbox=async()=>{
+    if(!browserInbox)return;
+    const prefs=JSON.parse(await fs.readFile(path.join(profile,'Default/Preferences'),'utf8'));
+    if(prefs.download?.default_directory!==browserInbox||prefs.download?.prompt_for_download!==false)throw new Error('Private download inbox was not retained; refusing to trigger downloads.');
+  };
   const runtime=`/tmp/latch-ab-${crypto.randomBytes(5).toString('hex')}`;
   const cliBrowser=path.join(temp,'headless-browser');
   await fs.mkdir(evidence);await fs.cp(path.join(root,'extension'),extension,{recursive:true});
@@ -99,6 +109,8 @@ export async function attachmentFixture(t, app, transport) {
           events.push({daemon:dir,method:m.method,sessionId:m.sessionId,childSessionId:p.sessionId,targetId:info.targetId||p.targetId,type:info.type});
         if(['Page.frameAttached','Page.frameDetached'].includes(m.method))
           events.push({daemon:dir,method:m.method,sessionId:m.sessionId,frameId:p.frameId,parentFrameId:p.parentFrameId,reason:p.reason});
+        if(['Page.fileChooserOpened','Page.downloadWillBegin','Page.downloadProgress','Browser.downloadWillBegin','Browser.downloadProgress'].includes(m.method))
+          events.push({daemon:dir,method:m.method,sessionId:m.sessionId,frameId:p.frameId,guid:p.guid,state:p.state,suggestedFilename:p.suggestedFilename,receivedBytes:p.receivedBytes,totalBytes:p.totalBytes,mode:p.mode,filePathPresent:!!p.filePath});
       }
     }
     if(events.length>4096)throw new Error('Protocol metadata exceeded fixture bound.');
@@ -134,6 +146,7 @@ export async function attachmentFixture(t, app, transport) {
   };
   const close=async()=>{
     if(closed)return;closed=true;
+    await app.saveEvidence?.(evidence);
     await fs.writeFile(path.join(evidence,'fixture-state.json'),JSON.stringify([...app.states.values()].filter(state=>state.actor.startsWith(run)),null,2));
     for(let i=0;i<2;i++)await captureTrace(i);
     for(let i=0;i<workspaces.length;i++){
@@ -155,7 +168,8 @@ export async function attachmentFixture(t, app, transport) {
   await latch(0,['pair','--profile','work','--instance',identity.instanceId,'--chrome-profile-dir','Default']);
   await eventually(()=>app.seeds.has(run)&&[...app.states.values()].filter(s=>s.actor.startsWith(run)&&s.role===(app.rootRole||'/root')).length===3);
   const seedInfo=app.seeds.get(run);
-  return {run,temp,profile,evidence,identity,workspaces,env,transport,versions,headless:true,connectionPageDelivery:deliveryURL?'fixture-only URL delivery shim':'not needed',launchArgs:[...HEADLESS_ARGS,...(app.launchArgs||[])],protocolEvents,tabs:seedInfo.tabs,latch,pw,close,
+  await verifyInbox();
+  return {run,temp,profile,evidence,identity,workspaces,env,transport,versions,headless:true,browserInbox,verifyInbox,connectionPageDelivery:deliveryURL?'fixture-only URL delivery shim':'not needed',launchArgs:[...HEADLESS_ARGS,...(app.launchArgs||[])],protocolEvents,tabs:seedInfo.tabs,latch,pw,close,
     connect:async(index,tabId,{background=false}={})=>latch(index,['connect','--profile','work','--transport',transport,
       ...(background&&transport==='native'?['--focus-emulation','on']:[]),'--session','agent','--tab',String(tabId)]),
     states:()=>[...app.states.values()].filter(state=>state.actor.startsWith(run))};
