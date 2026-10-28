@@ -7,10 +7,12 @@
  * per-target lifecycle and no browser-wide command fallback.
  */
 import crypto from 'node:crypto';
+import {ChildSessions} from '../extension/child-sessions.js';
 
 export class BrowserModel {
-  constructor(send, emit) {
+  constructor(send, emit, {onRetire=()=>{}}={}) {
     this.send = send; this.emit = emit;
+    this.onRetire=onRetire;
     this.namespace = `latch-${crypto.randomBytes(12).toString('hex')}`;
     this.records = new Map(); this.routes = new Map(); this.browserSessions = new Set();
     this.nextId = 0; this.autoAttach = false;
@@ -23,7 +25,7 @@ export class BrowserModel {
     this.root = this.record(tab); this.records.set(tab.id, this.root);
   }
   record(tab, parent) {
-    return {tab, parent, sessionId: `${this.namespace}-page-${++this.nextId}`, children: new Map(), aliases: new Set(), info: null};
+    return {tab, parent, sessionId: `${this.namespace}-page-${++this.nextId}`, children: new ChildSessions(), aliases: new Set(), info: null};
   }
   async addTab(tab) {
     if (this.records.has(tab.id)) return;
@@ -69,8 +71,13 @@ export class BrowserModel {
     const record = this.records.get(tabId);
     if (!record) return;
     this.records.delete(tabId);
+    this.onRetire(tabId);
     record.frameTreeResolve?.();
-    for (const [id, route] of this.routes) if (route.record === record) this.routes.delete(id);
+    for (const [id, route] of this.routes) if (route.record === record) {
+      if(route.alias)this.emit({...(route.parentSessionId?{sessionId:route.parentSessionId}:{}),method:'Target.detachedFromTarget',
+        params:{sessionId:id,targetId:route.nativeSession?record.children.get(route.nativeSession)?.targetId:record.info?.targetId}});
+      this.routes.delete(id);
+    }
     if (record.info) this.emit({method: 'Target.detachedFromTarget', params: {
       sessionId: record.sessionId, targetId: record.info.targetId}});
   }
@@ -89,24 +96,32 @@ export class BrowserModel {
     let translated = params;
     if (method === 'Target.attachedToTarget' && params?.sessionId) {
       const wire = `${this.namespace}-child-${++this.nextId}`;
-      record.children.set(params.sessionId, {wire, parent: source.sessionId});
+      const {duplicate}=record.children.add({id:params.sessionId,wire,parent:source.sessionId,
+        targetId:params.targetInfo?.targetId,type:params.targetInfo?.type,info:params.targetInfo},
+        [...this.records.values()].reduce((n,r)=>n+r.children.size,0));
+      if(duplicate)return;
       this.routes.set(wire, {record, nativeSession: params.sessionId});
       translated = {...params, sessionId: wire};
     } else if (method === 'Target.detachedFromTarget' && params?.sessionId) {
       const child = record.children.get(params.sessionId);
       if (!child) return;
       translated = {...params, sessionId: child.wire};
-      const remove = raw => {
-        for (const [id, child] of record.children) if (child.parent === raw) remove(id);
-        this.routes.delete(record.children.get(raw)?.wire); record.children.delete(raw);
-      };
-      remove(params.sessionId);
+      const removedChildren=record.children.remove(params.sessionId);
+      this.onRetire(record.tab.id,removedChildren.map(child=>child.id));
+      for(const removed of removedChildren){
+        this.routes.delete(removed.wire);
+        for(const alias of removed.aliases){
+          const route=this.routes.get(alias);this.routes.delete(alias);
+          this.emit({...(route?.parentSessionId?{sessionId:route.parentSessionId}:{}),method:'Target.detachedFromTarget',params:{sessionId:alias,targetId:removed.targetId}});
+        }
+      }
     }
     if (method === 'Page.frameNavigated' && !source.sessionId && !params?.frame?.parentId && record.info)
       record.info.url = params.frame.url;
     this.emit({sessionId: parentId, method, params: translated});
     // Inspection sessions are separate CDP clients for the same owned page.
-    if (!source.sessionId) for (const alias of record.aliases) this.emit({sessionId: alias, method, params: translated});
+    const aliases=source.sessionId?record.children.get(source.sessionId)?.aliases:record.aliases;
+    for (const alias of aliases||[]) this.emit({sessionId: alias, method, params: translated});
   }
   async command({method, params, sessionId}) {
     if (!sessionId || this.browserSessions.has(sessionId)) {
@@ -116,15 +131,17 @@ export class BrowserModel {
           const id = `${this.namespace}-browser-${++this.nextId}`; this.browserSessions.add(id); return {sessionId: id};
         }
         case 'Target.attachToTarget': {
-          const record = [...this.records.values()].find(record => record.info?.targetId === params?.targetId);
+          const record = [...this.records.values()].find(record => record.info?.targetId === params?.targetId||[...record.children.values()].some(c=>c.targetId===params?.targetId));
           if (!record) throw new Error('Target is not owned by this session.');
-          if (record.aliases.size >= 64) throw new Error('Too many inspection sessions.');
+          const child=[...record.children.values()].find(c=>c.targetId===params?.targetId);
+          const aliases=child?child.aliases:record.aliases;
+          if (aliases.size >= 64) throw new Error('Too many inspection sessions.');
           const id = `${this.namespace}-inspector-${++this.nextId}`;
-          record.aliases.add(id); this.routes.set(id, {record, alias: true}); return {sessionId: id};
+          aliases.add(id); this.routes.set(id, {record, alias: true,parentSessionId:sessionId,...(child?{nativeSession:child.id}:{})}); return {sessionId: id};
         }
         case 'Target.detachFromTarget': {
           const route = this.routes.get(params?.sessionId);
-          if (route?.alias) { route.record.aliases.delete(params.sessionId); this.routes.delete(params.sessionId); }
+          if (route?.alias) { (route.nativeSession?route.record.children.get(route.nativeSession)?.aliases:route.record.aliases)?.delete(params.sessionId); this.routes.delete(params.sessionId); }
           else if (!this.browserSessions.delete(params?.sessionId)) throw new Error('Inspection session is not owned.');
           return {};
         }

@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {OFFICIAL_ID} from '../extension/protocol.js';
+import {HEADLESS_ARGS} from './helpers/native-browser.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const enabled = process.env.LATCH_NATIVE_SPIKE === '1' && process.platform === 'darwin';
@@ -148,9 +149,9 @@ test('Latch alone: real native bootstrap and unmodified CLI over CDP without Chr
     path: launcher, type: 'stdio', allowed_origins: [`chrome-extension://${extensionId}/`]}, null, 2) + '\n';
   await fs.mkdir(hostsDirectory, {recursive: true});
   await fs.writeFile(hostManifest, registration, {flag: 'wx', mode: 0o600});
-  const launchArgs = [`--user-data-dir=${path.join(temp, 'profile')}`, '--profile-directory=Default', '--no-first-run', '--no-default-browser-check',
+  const launchArgs = [...HEADLESS_ARGS, `--user-data-dir=${path.join(temp, 'profile')}`, '--profile-directory=Default', '--no-first-run', '--no-default-browser-check',
     '--enable-logging=stderr', '--use-mock-keychain', '--password-store=basic', '--disable-background-networking',
-    `--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--no-startup-window'];
+    `--disable-extensions-except=${extension}`, `--load-extension=${extension}`];
   assert.ok(!launchArgs.some(arg => arg.startsWith('--remote-debugging')));
   const log = await fs.open(path.join(temp, 'chrome.stderr.log'), 'w');
   browser = spawn(chrome, launchArgs, {stdio: ['ignore', 'ignore', log.fd]});

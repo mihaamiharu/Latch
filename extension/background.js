@@ -2,7 +2,10 @@ import {HOST} from './protocol.js';
 import {createController} from './controller.js';
 import {createDebuggerTransport} from './debugger-transport.js';
 
-const nativeTransport = createDebuggerTransport(chrome, {onTargetGone: (key, id) => { void controller?.nativeDetached(key, id); }});
+const nativeTransport = createDebuggerTransport(chrome, {
+  onTargetGone: (key, id) => { void controller?.nativeDetached(key, id); },
+  onWarning: (key, warning) => { void controller?.nativeWarning(key, warning); },
+});
 
 let port;
 let controller;

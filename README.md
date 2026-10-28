@@ -6,7 +6,7 @@ A macOS Chrome companion extension and local CLI for connecting existing Work-pr
 
 The next version removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, acceptance gates and rollback. Migration is in progress; the installed daily transport is unchanged.
 
-The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus new tabs with a verified opener in that session. Standard Playwright popup events, exact child selection, per-tab release and surviving-child cleanup use the same named session. See the [Phase 3 plan and acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md); the [Phase 2 workflow](docs/NATIVE-SESSION-WORKFLOW.md) records the earlier single-tab checkpoint. Native mode remains opt-in; the installed Work build, installer permissions and daily default have not changed. Frames, file transfers, large evidence payloads, recovery and cutover remain later gates.
+The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus verified popup descendants. The [Gate C work](docs/GATE-C-FRAMES-WORKERS-PLAN.md) adds bounded child-session lifetimes, nested frame routing, dedicated-worker checks and targeted cancellation. Headless comparison covers same-origin/cross-origin/OOPIF forms, navigation, replacement and frame evidence. The pinned CLI does not backfill already-running workers into `page.workers()` in these tests; new dedicated workers are observable and evaluable. See the [Phase 3 acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md). Native mode remains opt-in; the Work installation and daily default are unchanged. File transfers, large payloads, recovery and cutover remain later gates.
 
 ## Build the extension
 
@@ -110,7 +110,7 @@ Once registered, the group ID remains usable after the Welcome page closes, whil
 npm test
 ```
 
-The native/controller tests have no external dependencies. The real-browser test skips unless these three paths are set:
+After `npm ci`, the default tests run without browser prerequisites and skip opt-in browser cases. The two-session official-browser test is enabled by these three paths:
 
 ```bash
 QA_BROWSER_PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
@@ -119,9 +119,7 @@ QA_BROWSER_OFFICIAL_EXTENSION=/absolute/path/to/unpacked-official-playwright-ext
 npm test
 ```
 
-The browser test opens and closes a disposable **headed** Chrome for Testing profile. It uses two local fixture pages with a fixture sign-in cookie. The official extension used here was the unmodified Chrome Web Store 0.4.0 package. The test provisions initial authorization only in its disposable profile, then runs ordinary CLI attachment.
-
-Chrome native messaging registration is intentionally not changed by the automated browser test. A test driver replaces only Chrome's native-pipe delivery using our extension's same scoped dispatcher; the real native framing/socket host, companion code, Chrome APIs, unmodified official extension and real Playwright CLI all execute. A separate native test covers fragmented frames, local socket request/response, permissions and cleanup. The direct installed Work-profile smoke test was completed separately on October 28, 2026; see `TEST-RESULTS.md`.
+All maintained browser tests now use disposable **headless** full Chrome for Testing profiles. Both adapters use real Chrome native messaging and private fixture-only registrations. Official authorization is provisioned only in the disposable profile, then its setup browser closes before runtime attachment. The earlier driver-substituted official test has been replaced by the shared actual-native-messaging fixture. Historical headed/Work results remain in `TEST-RESULTS.md`.
 
 No user browser profiles, real login cookies or production mutations are needed for these tests. Intermediate browser fixtures are retained under this workspace's `work/browser-bridge/` for diagnosis. Unix sockets use short temporary paths because macOS limits their length, and are removed after tests.
 
@@ -130,15 +128,19 @@ The newer comparison harness uses real Chrome native messaging for **both** adap
 ```bash
 npm run test:attachment-compat
 npm run test:popups
+npm run test:frames-workers
+npm run test:frame-isolation
 ```
 
 Set `QA_BROWSER_OFFICIAL_EXTENSION` to an unpacked official extension if it is not at `work/browser-bridge/official-extension`. Official authorization is provisioned once in the disposable profile, then that setup browser closes; the comparison runtime launches without a driver or remote-debugging flags. Native runs omit the official extension. Both launches use mock-keychain flags. Reports, fixture observations and screenshots are retained under `work/attachment-compat/<adapter>-*/evidence/`. Private profiles and CLI registries alongside them are diagnostic data, not publishable evidence.
 
+Headless fixtures disable background throttling. Frame tests additionally use browser-local test-host mappings and site isolation, recorded in reports; no system hosts file is changed. On macOS, the official headless fixture adapts connection-page URL delivery through a private, bounded loopback queue consumed by its provisioning code. It opens the normal official connect page; the official extension, CLI, automation relay and actual native-messaging path remain unmodified. This is test infrastructure, not a Work-browser runtime fallback or a claim of headed focus parity. The repository's `AGENTS.md` keeps future browser tests headless.
+
 ## Prototype limits
 
 - Compatibility is pinned to Playwright CLI **0.1.20**; other versions fail explicitly until tested. The official extension tested is **0.4.0**.
-- Each session is scoped to one window. Inventory spans Work windows, but cross-window claims fail rather than move user tabs.
-- Tabs in unrelated groups are rejected. Duplicate URLs inside a controlled group fail page verification rather than selecting arbitrarily.
+- Official sessions use one window's tab group; cross-window claims fail rather than relocate tabs. Native descendants can open another window when their opener is verified.
+- Official claims reject unrelated groups and ambiguous duplicate URLs. Native mode preserves existing groups and selects owned pages by exact target identity.
 - Two bridge sessions cannot own the same tab. Other tools and agents must still avoid concurrent actions within one shared session.
 - Browser/extension-worker restart recovery is not automated yet. Epoch mismatch fails closed; stale state needs deliberate reconciliation. This is not a production-ready recovery system.
 - Process termination during a session operation can leave a lock directory. Its `owner.json` records the PID. Inspect the process before removing a stale lock; no automatic lock stealing is implemented.

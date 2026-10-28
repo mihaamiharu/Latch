@@ -1,6 +1,6 @@
 # Latch: one-extension migration plan
 
-Prepared October 28, 2026. Status: Phases 0–2 implemented on `feat/latch-native-transport`; Phase 3 is in progress with genuine attachment comparison and popup ownership implemented. See `PHASE-3-COMPATIBILITY-PLAN.md` for acceptance status and remaining gates. The installed Work transport and daily default are unchanged. `NATIVE-TRANSPORT-CONTRACT.md` and `NATIVE-SESSION-WORKFLOW.md` preserve the earlier proof and single-tab checkpoint.
+Prepared October 28, 2026. Status: Phases 0–2 implemented on `feat/latch-native-transport`; Phase 3 Gates A–C add attachment comparison, popup ownership and headless frame/dedicated-worker verification. See `PHASE-3-COMPATIBILITY-PLAN.md` for acceptance status, the existing-worker inventory limitation and remaining Gates D/E. The installed Work transport and daily default are unchanged. `NATIVE-TRANSPORT-CONTRACT.md` and `NATIVE-SESSION-WORKFLOW.md` preserve the earlier proof and single-tab checkpoint.
 
 ## Outcome
 

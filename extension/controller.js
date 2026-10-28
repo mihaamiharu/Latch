@@ -173,6 +173,10 @@ export function createController(api, identity, {nativeTransport} = {}) {
     handle(request) { return enqueue(() => run(request)); },
     observeTab(tab) { return enqueue(() => observe(tab)); },
     nativeDetached(key, id) { return enqueue(() => forgetNativeTab(key, id)); },
+    nativeWarning(key, warning) { return enqueue(() => {
+      const session=sessions.get(key);
+      if(session?.transport==='native'&&session.warnings.length<32)session.warnings.push(warning);
+    }); },
     removeTab(id) {
       return enqueue(async () => {
         releasedTabs.delete(id);

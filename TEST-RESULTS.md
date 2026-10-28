@@ -222,3 +222,114 @@ permissions, host registration and daily default were not changed.
 Gates C–E (frames/workers, uploads/downloads and large evidence payloads), recovery,
 installer cutover and actual Work native rollout remain open. This checkpoint
 establishes Gates A/B only; it does not mark all of Phase 3 complete.
+
+## Frames and dedicated workers — Gate C, October 28, 2026
+
+Gate C implements related-target lifetimes in both the extension boundary and
+native relay model. Each owned top-level page has a parent-linked child graph;
+wire identities remain namespaced to the lease. The supported child filter admits
+iframe and dedicated-worker targets and preserves caller exclusions. Shared and
+service-worker management is outside native support. A rejected paused child is
+resumed/detached without adopting its page; failure of both cleanup operations
+revokes that lease's debugger attachments while preserving website tabs.
+
+Subtree detach now removes extension and relay descendants, including inspection
+aliases. Reused raw identifiers require a fresh target lifetime. Duplicate/late
+attachment events cannot replace or detach a newer active route. Retiring a child
+cancels its pending browser commands; only known cancelled response IDs may arrive
+late without a protocol failure. Unknown responses keep the previous failure
+behavior. Limits are 64 active child sessions per top-level tab, 256 per lease,
+16 child-target ancestry levels, 1024 retained retirement identities per tab and
+256 known cancelled responses per relay. These are distinct from DOM-frame counts
+and the existing popup limits. History/response exhaustion fails explicitly.
+
+The new fixture uses three loopback-served test sites with browser-local hostname
+mappings and site isolation. Identical frame/worker URLs serve separate actor and
+instance markers. Actual iframe targets and a nested child-session relationship
+are required by the tests; differing ports alone do not establish OOPIF coverage.
+Server observations independently confirm the actor/frame receiving form writes.
+Form checks use normal locator fill/click. Lifecycle controls use scoped page or
+frame evaluation to isolate insertion, worker start/stop and replacement from
+focus-sensitive pointer delivery; no parent-origin DOM bypass is used for frame
+form interactions.
+
+The official/native headless comparison verifies same-origin, cross-origin and
+nested OOPIF forms; dynamic insertion/removal and rejected stale element actions;
+same-site/cross-site navigation and replacement; newly created root and OOPIF
+workers, evaluation, message exchange, termination and recreation; frame console,
+page-error and request markers; and snapshots/screenshots containing expected frame
+results. Both adapters preserve the fixture tabs when disconnected.
+
+W1 has an explicit limitation: workers already running at attachment are visible
+as real protocol targets and answer application messages, but are not backfilled
+into the pinned CLI's page.workers() inventory in either adapter. The fixture
+proves the existing worker is alive through a message round trip and server marker.
+The supported contract therefore covers new-worker event/evaluation APIs and
+existing-worker application observations, without claiming existing Worker-object
+inventory. No application worker is restarted to conceal the limitation. The
+shared skill documents this; shared/service-worker APIs remain unsupported.
+
+The native isolation suite uses two sessions named agent in separate workspaces,
+with identical frame/worker URLs and distinct actor markers. It verifies concurrent
+writes and new-worker observations, rejects another lease's iframe/worker targets,
+replaces a frame during an unresolved Runtime.evaluate, rejects the old inspection
+session and Frame object, and keeps the parent and peer usable. Releasing one root
+retires only its lease and preserves all website tabs, the unrelated root and the
+peer's frame operations. Unit coverage separately checks raw retired/foreign
+session rejection before Chrome execution, caller filters, duplicates, resource
+bounds, bounded retirement history, alias-close notifications and known-late versus
+unknown response behavior. These are coordination guarantees between authorized
+local agents, not a sandbox against arbitrary programs of the same OS user.
+
+All maintained browser launch paths are now headless, including isolated official
+extension authorization. Full Chrome for Testing is used, not headless-shell.
+The fixture disables background throttling; its flags are recorded in new reports.
+Initial manual headless launches exposed startup throttling and unreliable macOS
+connection-page delivery to an already-running headless process. The shared
+fixture now supplies a private bounded loopback URL queue through the CLI's
+configured test launcher. Fixture provisioning opens the unmodified official
+connect page, whose normal token flow and relay perform attachment. The queue
+carries only that connection-page URL; no native-messaging, CDP or browser-command
+response is substituted. Its credentials and raw daemon/protocol logs stay private.
+There is no headed fallback. These results do not establish headed/background
+focus parity or modify the installed Work profile.
+
+The older official browser test has also been moved onto this actual-native,
+headless shared fixture, replacing its historical driver-native-pipe substitution.
+Historical results above retain their original setup descriptions. The default
+suite passes 41 checks with nine opt-in browser cases skipped; those browser cases
+are run explicitly as part of this checkpoint. Skill validation and whitespace
+checks pass. Versions remain Node 22.21.1, CLI 0.1.20, Chrome for Testing
+153.0.8010.12 and official extension 0.4.0. No dependency or installed permission
+upgrade was used to obtain the result.
+
+Other failed fixture attempts included a root-role readiness mismatch, selecting
+an OOPIF by frame name, unsupported console filename flags, and pointer-triggered
+lifecycle controls after worker focus changes. They are retained under ignored
+work paths. They are not presented as transport support or a clean first-run pass.
+
+Gate C leaves Gates D/E (file transfers and large payloads), restart recovery,
+installation cutover and actual Work-profile native rollout open. The final read-only Work diagnostic found pairing configured but its socket absent
+(ENOENT / PROFILE_UNAVAILABLE). It did not establish current Work connectivity or
+its installed capabilities. No Work browser restart, re-pairing or registration
+change was attempted; the cause of its offline state is not established.
+
+
+Final Gate C comparison evidence:
+`work/attachment-compat/official-GjSZsL/evidence/` and
+`work/attachment-compat/native-NS3X6y/evidence/`. Each includes the support result,
+OOPIF graph proof, worker observations, frame events, screenshot/snapshot and
+independent fixture state; the native run also retains its live sanitized trace.
+Native multi-agent cancellation/isolation evidence is at
+`work/attachment-compat/native-gCbqAq/evidence/`.
+
+All nine opt-in browser cases passed headless when executed explicitly: two frame/
+worker comparisons, one isolation test, two basic attachment comparisons, the
+popup suite, normal native multi-agent workflow, original native proof and the
+updated two-session official test. Regression evidence is at
+`work/attachment-compat/official-BJoDBj/evidence/`,
+`work/attachment-compat/native-z4m338/evidence/`,
+`work/attachment-compat/native-eJFlhJ/evidence/`,
+`work/native-workflow/run-wRyJ3o/evidence/` and
+`work/native-spike/run-J0XERP/evidence/`. The explicit official two-session log is
+`work/official-multi-headless-final.log`.

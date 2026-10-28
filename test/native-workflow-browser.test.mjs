@@ -6,7 +6,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {chromePath, eventually, command, stopBrowser} from './helpers/native-browser.mjs';
+import {chromePath, eventually, command, stopBrowser, HEADLESS_ARGS} from './helpers/native-browser.mjs';
 import {request} from '../src/local.mjs';
 import {sessionKey} from '../src/playwright.mjs';
 import {OFFICIAL_ID} from '../extension/protocol.js';
@@ -105,8 +105,8 @@ test('normal Latch CLI: concurrent native workspaces, exact same-URL tabs, isola
     await fs.rm(runtime, {recursive: true, force: true});
     if (oldRuntime === undefined) delete process.env.QA_BROWSER_RUNTIME_DIR; else process.env.QA_BROWSER_RUNTIME_DIR = oldRuntime;
   });
-  const args = [`--user-data-dir=${path.join(temp,'profile')}`, '--profile-directory=Default', '--no-first-run',
-    '--no-default-browser-check', '--no-startup-window', '--enable-logging=stderr', '--use-mock-keychain', '--password-store=basic',
+  const args = [...HEADLESS_ARGS, `--user-data-dir=${path.join(temp,'profile')}`, '--profile-directory=Default', '--no-first-run',
+    '--no-default-browser-check', '--enable-logging=stderr', '--use-mock-keychain', '--password-store=basic',
     '--disable-background-networking', `--disable-extensions-except=${extension}`, `--load-extension=${extension}`];
   assert.ok(!args.some(arg => arg.startsWith('--remote-debugging')));
   const log = await fs.open(path.join(temp, 'chrome.stderr.log'), 'w');

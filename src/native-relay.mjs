@@ -13,6 +13,7 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
     cdp: `/cdp/${crypto.randomBytes(32).toString('hex')}`};
   const trace = [];
   const pending = new Map();
+  const retiredRequests=new Set();
   let sequence = 0, extension, client, stopped = false, initialized = false, stopPromise, stopReason;
   let readyResolve, readyReject;
   const ready = new Promise((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
@@ -33,14 +34,20 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
       const timer = setTimeout(() => {
         pending.delete(id); record('error', method, 'command-timeout'); reject(new Error('Browser command timed out.')); void stop('command-timeout');
       }, 10000);
-      pending.set(id, {resolve, reject, timer});
+      pending.set(id, {resolve, reject, timer,method,params});
       try { send(extension, {id, method, params}); }
       catch (error) { clearTimeout(timer); pending.delete(id); reject(error); }
     });
   }
   const model = new BrowserModel(call, message => {
     try { if (client) send(client, message); } catch { void stop(); }
-  });
+  },{onRetire:(tabId,children)=>{
+    for(const [id,entry]of pending){
+      if(entry.method!=='command'||entry.params?.tabId!==tabId||children&&!children.includes(entry.params.sessionId))continue;
+      clearTimeout(entry.timer);pending.delete(id);retiredRequests.add(id);entry.reject(new Error('Target session retired during command.'));
+    }
+    if(retiredRequests.size>256)void stop('retired-response-limit');
+  }});
   const server = http.createServer((req, res) => { res.writeHead(404); res.end(); });
   server.requestTimeout = 5000;
   server.headersTimeout = 5000;
@@ -62,7 +69,7 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
             const message = JSON.parse(data.toString());
             if (Number.isSafeInteger(message.id)) {
               const entry = pending.get(message.id);
-              if (!entry) throw new Error('Unknown browser response.');
+              if (!entry) {if(retiredRequests.delete(message.id))return;throw new Error('Unknown browser response.');}
               pending.delete(message.id); clearTimeout(entry.timer);
               message.error ? entry.reject(new Error(String(message.error).slice(0, 300))) : entry.resolve(message.result ?? {});
             } else if (message.method === 'ready' && !initialized && Number.isSafeInteger(message.params?.id)) {

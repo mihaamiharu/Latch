@@ -1,4 +1,5 @@
 import {fault} from './protocol.js';
+import {ChildSessions,childFilter} from './child-sessions.js';
 
 const forbidden = new Set(['Network.getAllCookies', 'Network.getCookies', 'Network.setCookies',
   'Network.deleteCookies', 'Network.clearBrowserCookies', 'Network.clearBrowserCache']);
@@ -7,7 +8,7 @@ const domains = new Set(['Accessibility', 'DOM', 'DOMSnapshot', 'CSS', 'Runtime'
 const allowed = method => typeof method === 'string' && !forbidden.has(method) &&
   (domains.has(method.split('.')[0]) || ['Target.getTargetInfo', 'Target.setAutoAttach'].includes(method));
 
-export function createDebuggerTransport(api, {onTargetGone = () => {}} = {}) {
+export function createDebuggerTransport(api, {onTargetGone = () => {}, onWarning = () => {}} = {}) {
   const sessions = new Map(), owners = new Map();
   const available = !!api.debugger;
   function emit(session, value) {
@@ -57,8 +58,31 @@ export function createDebuggerTransport(api, {onTargetGone = () => {}} = {}) {
   api.debugger?.onEvent.addListener((source, method, params) => {
     const session = sessions.get(owners.get(source.tabId)), target = session?.targets.get(source.tabId);
     if (!target || session.closing || target.closing || target.provisional || (source.sessionId && !target.children.has(source.sessionId))) return;
-    if (method === 'Target.attachedToTarget' && params?.sessionId) target.children.set(params.sessionId, params.targetInfo?.targetId);
-    if (method === 'Target.detachedFromTarget' && params?.sessionId) target.children.delete(params.sessionId);
+    if (method === 'Target.attachedToTarget' && params?.sessionId) {
+      try {
+        const {duplicate}=target.children.add({id:params.sessionId,parent:source.sessionId,
+          targetId:params.targetInfo?.targetId,type:params.targetInfo?.type},
+          [...session.targets.values()].reduce((n,t)=>n+t.children.size,0));
+        if(duplicate)return;
+      } catch(error) {
+        onWarning(session.key,{code:'CHILD_TARGET_REJECTED',tabId:source.tabId,type:params.targetInfo?.type,reason:error.message});
+        // A conflicting late attachment must not detach a newer live session
+        // that happens to use the same native identifier.
+        if(target.children.has(params.sessionId))return;
+        // Release only this rejected related-target attachment, never its tab.
+        // Resume before detach so a paused worker/frame cannot block the app.
+        void (async()=>{
+          const resumed=!params.waitingForDebugger||await api.debugger.sendCommand({tabId:source.tabId,sessionId:params.sessionId},'Runtime.runIfWaitingForDebugger').then(()=>true,()=>false);
+          const detached=await api.debugger.sendCommand(source,'Target.detachFromTarget',{sessionId:params.sessionId}).then(()=>true,()=>false);
+          if(!resumed&&!detached){
+            onWarning(session.key,{code:'CHILD_CLEANUP_FAILED',tabId:source.tabId});
+            await release(session.key).catch(()=>{});
+          }
+        })();
+        return;
+      }
+    }
+    if (method === 'Target.detachedFromTarget' && params?.sessionId) target.children.remove(params.sessionId);
     emit(session, {method: 'event', params: {source, method, params}});
   });
   api.debugger?.onDetach.addListener(source => {
@@ -71,7 +95,7 @@ export function createDebuggerTransport(api, {onTargetGone = () => {}} = {}) {
     if (session.targets.has(tab.id)) return true;
     if (owners.has(tab.id) || session.targets.size >= 16 || !session.targets.has(tab.openerTabId))
       throw fault('TAB_NOT_OWNED', 'Popup has no live owned parent or exceeds the session limit.');
-    const target = {tab, attached: false, provisional: true, children: new Map(), focusEmulation: session.focusEmulation};
+    const target = {tab, attached: false, provisional: true, children: new ChildSessions(), focusEmulation: session.focusEmulation};
     session.targets.set(tab.id, target); owners.set(tab.id, key);
     const discard = async () => {
       await detach(target);
@@ -106,7 +130,7 @@ export function createDebuggerTransport(api, {onTargetGone = () => {}} = {}) {
     if (url.protocol !== 'ws:' || url.hostname !== '127.0.0.1' || url.search || url.hash || !/^\/extension\/[a-f0-9]{64}$/.test(url.pathname))
       throw fault('INVALID_ENDPOINT', 'Invalid native relay endpoint.');
     const ws = new WebSocket(url.href);
-    const session = {key, ws, focusEmulation, targets: new Map([[tab.id, {tab, children: new Map(), attached: false, focusEmulation}]])};
+    const session = {key, ws, focusEmulation, targets: new Map([[tab.id, {tab, children: new ChildSessions(), attached: false, focusEmulation}]])};
     sessions.set(key, session); owners.set(tab.id, key);
     ws.onclose = () => { void release(key).catch(() => {}); };
     ws.onerror = () => { void release(key).catch(() => {}); };
@@ -137,10 +161,14 @@ export function createDebuggerTransport(api, {onTargetGone = () => {}} = {}) {
           // The model enforces target metadata scope too. Do not allow this
           // boundary to query a foreign target via Target.getTargetInfo.
           if (request.params.method === 'Target.getTargetInfo' && request.params.params?.targetId) {
-            const info = child ? target.children.get(child) : (await api.debugger.sendCommand({tabId: target.tab.id}, 'Target.getTargetInfo')).targetInfo?.targetId;
+            const info = child ? target.children.get(child).targetId : (await api.debugger.sendCommand({tabId: target.tab.id}, 'Target.getTargetInfo')).targetInfo?.targetId;
             if (info !== request.params.params.targetId) throw new Error('Target is not owned.');
           }
-          result = await api.debugger.sendCommand({tabId: target.tab.id, ...(child ? {sessionId: child} : {})}, request.params.method, request.params.params);
+          const lifetime=child&&target.children.get(child);
+          const params=request.params.method==='Target.setAutoAttach'&&request.params.params?.autoAttach
+            ? {...request.params.params,filter:childFilter(request.params.params.filter)}:request.params.params;
+          result = await api.debugger.sendCommand({tabId: target.tab.id, ...(child ? {sessionId: child} : {})}, request.params.method, params);
+          if(child&&target.children.get(child)!==lifetime)throw new Error('Child session retired during command.');
         } else throw new Error('Unsupported debugger command.');
         emit(session, {id: request.id, result: result ?? {}});
       } catch (error) {

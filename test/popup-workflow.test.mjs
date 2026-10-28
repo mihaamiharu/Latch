@@ -85,7 +85,7 @@ test('native popup ownership: concurrent parents, standard events, redirects and
   assert.ok(after.some(tab=>tab.tabId===nestedTab.tabId&&tab.owner===null));
   assert.ok(after.some(tab=>tab.tabId===f.tabs[2]&&tab.owner===null));
   assert.ok(!after.some(tab=>tab.owner));
-  await fs.writeFile(path.join(f.evidence,'report.json'),JSON.stringify({outcome:'passed',transport:'native',versions:f.versions,realNativeMessaging:true,
+  await fs.writeFile(path.join(f.evidence,'report.json'),JSON.stringify({outcome:'passed',transport:'native',headless:f.headless,launchArgs:f.launchArgs,versions:f.versions,realNativeMessaging:true,
     focusEmulation:true,focusPolicy:'concurrent opening uses focus emulation; sequential popup cases explicitly foreground the parent',officialExtensionInstalled:false,runtimeRemoteDebugging:false,outcomes,
     cleanupPreservedRemainingTabs:true,limits:{ownedTabs:16,popupDepth:4},
     notCovered:['frames and files','large payloads','restart recovery','installed Work rollout']},null,2));

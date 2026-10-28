@@ -1,6 +1,6 @@
 # Phase 3: browser behavior and attachment compatibility
 
-Prepared October 28, 2026. Status: Gates A/B implemented; final acceptance results are recorded in `../TEST-RESULTS.md`. Gates C–E remain planned. This is not full Phase 3 completion.
+Prepared October 28, 2026. Status: Gates A–C implemented; final acceptance results and the worker-inventory limitation are recorded in `../TEST-RESULTS.md`. Gates D/E remain planned. This is not full Phase 3 completion.
 Starting checkpoint: `3e6303e` on `feat/latch-native-transport`.
 
 ## Acceptance status
@@ -12,8 +12,11 @@ Starting checkpoint: `3e6303e` on `feat/latch-native-transport`.
   exact child selection/release, redirects and parent/child closure are covered.
   The blocked case uses a sandbox without `allow-popups`. Missing opener and
   capacity limits fail without adopting or closing the affected tab.
-- **Gates C–E pending:** dedicated frame/worker behavior, file transfers and
-  large-result transport/evidence checks are not established by the popup suite.
+- **Gate C implemented:** headless official/native frame and dedicated-worker
+  comparison plus native lifecycle/isolation checks. Already-running worker
+  inventory is an explicit pinned-CLI limitation; application round trips and
+  actual worker targets are observed, and new-worker APIs are verified.
+- **Gates D/E pending:** file transfers and large-result transport/evidence.
 
 ## Outcome
 
@@ -133,6 +136,9 @@ correct surviving pages. Ambiguous and blocked cases produce bounded, actionable
 outcomes; clicks are never replayed automatically after a timeout.
 
 ### 3C — Frames and dedicated workers
+
+The implementation sequence, case matrix, proposed bounds and completion rule
+are in [the Gate C execution plan](GATE-C-FRAMES-WORKERS-PLAN.md).
 
 Exercise existing Playwright frame locators through the relay: same-origin and
 cross-origin frames, nested frames, dynamic insertion/removal, navigation and

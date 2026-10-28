@@ -25,7 +25,7 @@ test('native target model exposes only its selected tab and rejects global/forei
   assert.equal(calls.length, count);
   model.onEvent({source: {tabId: 43}, method: 'Runtime.consoleAPICalled', params: {}});
   assert.equal(events.length, 1);
-  model.onEvent({source: {tabId: 42}, method: 'Target.attachedToTarget', params: {sessionId: 'child'}});
+  model.onEvent({source: {tabId: 42}, method: 'Target.attachedToTarget', params: {sessionId: 'child',targetInfo:{targetId:'child-target',type:'worker'}}});
   await model.command({method: 'Runtime.enable', sessionId: events.at(-1).params.sessionId});
   assert.equal(calls.at(-1).params.sessionId, 'child');
   const browser = await model.command({method: 'Target.attachToBrowserTarget'});
@@ -83,4 +83,23 @@ test('relay authenticates separate roles, rejects webpage origins and revokes on
   await closed;
   assert.equal(relay.status().stopped, true);
   assert.equal(relay.status().pending, 0);
+});
+
+test('retiring a child cancels only its pending command and consumes only its known late response',async t=>{
+ const relay=await createRelay('a'.repeat(32));t.after(()=>relay.stop());
+ const ext=new WebSocket(relay.extensionEndpoint,{origin:'chrome-extension://'+'a'.repeat(32)});await once(ext,'open');
+ let held,started;const pendingStarted=new Promise(resolve=>started=resolve);
+ ext.on('message',data=>{const m=JSON.parse(data);if(m.method==='command'&&m.params.method==='Runtime.evaluate'){held=m.id;started();return}
+  ext.send(JSON.stringify({id:m.id,result:m.params?.method==='Target.getTargetInfo'?{targetInfo:{targetId:'root',type:'page'}}:{}}));});
+ ext.send(JSON.stringify({method:'ready',params:{id:42,url:'http://fixture'}}));await relay.ready;
+ const cdp=new WebSocket(relay.cdpEndpoint);await once(cdp,'open');
+ const next=predicate=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>{cdp.off('message',listen);reject(new Error('Expected protocol response missing'))},3000);const listen=data=>{const m=JSON.parse(data);if(predicate(m)){clearTimeout(timer);cdp.off('message',listen);resolve(m)}};cdp.on('message',listen)});
+ let waiting=next(m=>m.id===1);cdp.send(JSON.stringify({id:1,method:'Target.setAutoAttach',params:{autoAttach:true}}));await waiting;
+ waiting=next(m=>m.method==='Target.attachedToTarget'&&m.params.targetInfo.type==='iframe');
+ ext.send(JSON.stringify({method:'event',params:{source:{tabId:42},method:'Target.attachedToTarget',params:{sessionId:'raw-child',targetInfo:{targetId:'frame',type:'iframe'}}}}));const child=(await waiting).params.sessionId;
+ waiting=next(m=>m.id===2);cdp.send(JSON.stringify({id:2,sessionId:child,method:'Runtime.evaluate',params:{expression:'new Promise(()=>{})',awaitPromise:true}}));await pendingStarted;
+ ext.send(JSON.stringify({method:'event',params:{source:{tabId:42},method:'Target.detachedFromTarget',params:{sessionId:'raw-child',targetId:'frame'}}}));
+ assert.match((await waiting).error.message,/retired/);ext.send(JSON.stringify({id:held,result:{late:true}}));
+ waiting=next(m=>m.id===3);cdp.send(JSON.stringify({id:3,method:'Browser.getVersion'}));assert.ok((await waiting).result.product);assert.equal(relay.status().stopped,false);assert.equal(relay.status().pending,0);
+ const closed=once(ext,'close');ext.send(JSON.stringify({id:999999,result:{}}));await closed;assert.equal(relay.status().stopped,true);
 });

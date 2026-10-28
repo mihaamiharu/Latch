@@ -24,7 +24,7 @@ for(const transport of ['official','native'])test(`real attachment comparison: $
   const remaining=(await f.latch(0,['tabs'])).tabs;
   assert.ok(remaining.some(tab=>tab.tabId===f.tabs[0]));assert.ok(remaining.some(tab=>tab.url===app.origin+'/child'));
   assert.ok(remaining.every(tab=>tab.owner===null));
-  const result={adapter:transport,outcome:'passed',versions:f.versions,realNativeMessaging:true,runtimeRemoteDebugging:false,
+  const result={adapter:transport,outcome:'passed',headless:f.headless,connectionPageDelivery:f.connectionPageDelivery,launchArgs:f.launchArgs,versions:f.versions,realNativeMessaging:true,runtimeRemoteDebugging:false,
     fixtureAuthorizationSetup:transport==='official'?'isolated pre-provisioning using Playwright, closed before runtime':'not needed',
     focusPolicy:'explicit foreground for both adapters',basic:{result:basic.result},popup:{role:popup.role},cleanupPreservedTabs:true};
   await fs.writeFile(path.join(f.evidence,'report.json'),JSON.stringify(result,null,2));

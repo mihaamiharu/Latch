@@ -3,8 +3,10 @@ import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
 import {spawn} from 'node:child_process';
+export const HEADLESS_ARGS=['--headless=new','--disable-background-timer-throttling','--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding'];
 async function chromePath() {
   if (process.env.LATCH_SPIKE_BROWSER) return process.env.LATCH_SPIKE_BROWSER;
+  if (process.env.QA_BROWSER_CHROME) return process.env.QA_BROWSER_CHROME;
   const cache = path.join(os.homedir(), 'Library/Caches/ms-playwright');
   const versions = (await fs.readdir(cache)).filter(x => /^chromium-\d+$/.test(x)).sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]));
   for (const version of versions) {
