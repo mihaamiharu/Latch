@@ -17,8 +17,9 @@ test('native target model exposes only its selected tab and rejects global/forei
   assert.equal(calls[0].params.tabId, 42);
   assert.deepEqual(await model.command({method: 'Target.getTargets'}), {targetInfos: [{targetId: 'owned', type: 'page'}]});
   const count = calls.length;
-  for (const method of ['Browser.close', 'Storage.clearCookies', 'Target.createTarget', 'Target.closeTarget'])
+  for (const method of ['Browser.close', 'Storage.clearCookies', 'Target.createTarget'])
     await assert.rejects(model.command({method}), /Unsupported browser-level/);
+  await assert.rejects(model.command({method: 'Target.closeTarget', params: {targetId: 'foreign'}}), /not owned/);
   await assert.rejects(model.command({method: 'Runtime.evaluate', sessionId: 'foreign'}), /not owned/);
   await assert.rejects(model.command({method: 'Target.getTargetInfo', params: {targetId: 'foreign'}}), /not owned/);
   assert.equal(calls.length, count);
@@ -32,9 +33,8 @@ test('native target model exposes only its selected tab and rejects global/forei
     params: {targetId: 'foreign'}}), /not owned/);
   const alias = await model.command({method: 'Target.attachToTarget', sessionId: browser.sessionId,
     params: {targetId: 'owned'}});
-  await model.command({method: 'Target.getTargetInfo', sessionId: alias.sessionId});
-  assert.equal(calls.at(-1).params.tabId, 42);
-  assert.ok(!calls.at(-1).params.sessionId);
+  assert.equal((await model.command({method: 'Target.getTargetInfo', sessionId: alias.sessionId})).targetInfo.targetId, 'owned');
+  await assert.rejects(model.command({method: 'Target.getTargetInfo', sessionId: alias.sessionId, params: {targetId: 'foreign'}}), /not owned/);
   await model.command({method: 'Target.detachFromTarget', sessionId: browser.sessionId,
     params: {sessionId: alias.sessionId}});
   await assert.rejects(model.command({method: 'Runtime.enable', sessionId: alias.sessionId}), /not owned/);

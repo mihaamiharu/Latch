@@ -84,9 +84,11 @@ async function main() {
     const existing = await readSession(key);
     const transport = f.transport || existing?.transport || 'official';
     if (existing && transport !== (existing.transport || 'official')) throw fault('TRANSPORT_MISMATCH', 'Disconnect before changing this session transport.');
-    if (existing && existing.v !== undefined && existing.v !== 2) throw fault('SESSION_STATE_UNSUPPORTED', 'Unsupported recorded session version. Inspect before repair.');
+    if (existing && existing.v !== undefined && ![2, 3].includes(existing.v)) throw fault('SESSION_STATE_UNSUPPORTED', 'Unsupported recorded session version. Inspect before repair.');
     if (transport === 'native') {
       if (!profile.capabilities?.nativeTransport) throw fault('NATIVE_TRANSPORT_UNAVAILABLE', 'The paired bridge/extension is not native-capable. Continue using official mode until the native build is installed.');
+      if (command === 'connect' && profile.capabilities.nativeSessionSchema !== 3)
+        throw fault('NATIVE_TRANSPORT_UNAVAILABLE', 'This native bridge needs the popup-capable protocol update. Disconnect old sessions before upgrading.');
       return nativeWorkflow({command, call, payload, alias, workspace, session, key, tabId, options,
         requestedFocusEmulation: f['focus-emulation'] === undefined ? undefined : f['focus-emulation'] === 'on'});
     }

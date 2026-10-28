@@ -1,0 +1,116 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {spawn} from 'node:child_process';
+import {pathToFileURL, fileURLToPath} from 'node:url';
+import {chromePath, eventually, command, stopBrowser, control} from './native-browser.mjs';
+import {redact,sessionKey} from '../../src/playwright.mjs';
+
+const root=fileURLToPath(new URL('../../',import.meta.url));
+const quote=value=>"'"+value.replaceAll("'","'\\''")+"'";
+export const valueOf = value => { try{return JSON.parse(value.result)}catch{return value.result} };
+
+export async function attachmentFixture(t, app, transport) {
+  const chrome=await chromePath(), run=crypto.randomUUID();
+  const versions={node:process.version,playwrightCLI:'0.1.20',chrome:(await command(chrome,['--version'])).out.trim()};
+  const base=path.join(root,'work/attachment-compat');await fs.mkdir(base,{recursive:true});
+  const temp=await fs.mkdtemp(path.join(base,transport+'-'));
+  const profile=path.join(temp,'profile'), extension=path.join(temp,'extension'), evidence=path.join(temp,'evidence');
+  const runtime=`/tmp/latch-ab-${crypto.randomBytes(5).toString('hex')}`;
+  await fs.mkdir(evidence);await fs.cp(path.join(root,'extension'),extension,{recursive:true});
+  const manifest=JSON.parse(await fs.readFile(path.join(extension,'manifest.json')));
+  if(transport==='native')manifest.permissions.push('debugger');
+  await fs.writeFile(path.join(extension,'manifest.json'),JSON.stringify(manifest));
+  const extensionId=[...crypto.createHash('sha256').update(Buffer.from(manifest.key,'base64')).digest().subarray(0,16)]
+    .map(b=>String.fromCharCode(97+(b>>4),97+(b&15))).join('');
+  const hostName=`com.latch.compat_${crypto.randomBytes(5).toString('hex')}`;
+  await fs.writeFile(path.join(extension,'protocol.js'),(await fs.readFile(path.join(extension,'protocol.js'),'utf8')).replace("'com.qa_browser.bridge'",JSON.stringify(hostName)));
+  const env={...process.env,QA_BROWSER_RUNTIME_DIR:runtime,QA_BROWSER_CONFIG:path.join(temp,'config.json'),
+    PWTEST_DAEMON_SESSION_DIR:path.join(temp,'daemon'),NO_UPDATE_NOTIFIER:'1',
+    PLAYWRIGHT_MCP_EXECUTABLE_PATH:chrome,PWTEST_EXTENSION_USER_DATA_DIR:profile};
+  const workspaces=[];for(const name of ['a','b','outsider']){const p=path.join(temp,name);await fs.mkdir(p);workspaces.push(p)}
+  let browser, registration, setupBrowser, identity, closed=false;
+  const hosts=path.join(profile,'NativeMessagingHosts'), hostFile=path.join(hosts,hostName+'.json');
+  const official=process.env.QA_BROWSER_OFFICIAL_EXTENSION||path.join(root,'work/browser-bridge/official-extension');
+  const extensions=[extension];
+  if(transport==='official') {
+    await fs.access(path.join(official,'manifest.json'));
+    versions.officialExtension=JSON.parse(await fs.readFile(path.join(official,'manifest.json'))).version;
+    const which=await command('which',['playwright-cli']);const executable=await fs.realpath(which.out.trim());
+    const module=process.env.QA_BROWSER_PLAYWRIGHT_MODULE||path.join(path.dirname(executable),'node_modules/playwright-core/index.mjs');
+    const {chromium}=await import(pathToFileURL(module).href);
+    const token=crypto.randomUUID();env.PLAYWRIGHT_MCP_EXTENSION_TOKEN=token;
+    // One-time authorization setup in this disposable profile only. The actual
+    // comparison below relaunches Chrome without a driver/debugging connection.
+    setupBrowser=await chromium.launchPersistentContext(profile,{executablePath:chrome,channel:'chromium',headless:false,
+      args:['--use-mock-keychain','--password-store=basic',`--disable-extensions-except=${official}`,`--load-extension=${official}`]});
+    try {
+      const page=await setupBrowser.newPage();await page.goto('chrome-extension://mmlmfjhmonkocbjadbfplnigmagldckm/status.html');
+      await page.evaluate(token=>localStorage.setItem('auth-token',token),token);
+    } finally {await setupBrowser.close();setupBrowser=undefined;}
+    extensions.push(official);
+  }
+  const launcher=path.join(temp,'native-host');
+  await fs.writeFile(launcher,`#!/bin/sh\nexport QA_BROWSER_RUNTIME_DIR=${quote(runtime)}\nexec ${quote(process.execPath)} ${quote(path.join(root,'src/native-host.mjs'))} "$@" 2>>${quote(path.join(temp,'native.stderr.log'))}\n`,{mode:0o700});
+  await fs.mkdir(hosts,{recursive:true});
+  registration=JSON.stringify({name:hostName,description:'Attachment comparison fixture',type:'stdio',path:launcher,allowed_origins:[`chrome-extension://${extensionId}/`]});
+  await fs.writeFile(hostFile,registration,{mode:0o600,flag:'wx'});
+  const seed=`(async()=>{const w=await chrome.windows.create({url:${JSON.stringify(['a','b','outsider'].map(name=>app.origin+'/root#'+encodeURIComponent(run+':'+name)))},type:'normal'});await fetch(${JSON.stringify(app.origin+'/__seed')},{method:'POST',body:JSON.stringify({run,tabs:w.tabs.map(t=>t.id)})})})().catch(e=>console.error('Fixture provisioning failed',e.message));`;
+  await fs.writeFile(path.join(extension,'fixture-seed.js'),`const run=${JSON.stringify(run)};${seed}`);
+  await fs.appendFile(path.join(extension,'background.js'),"\nimport './fixture-seed.js';\n");
+  const progress=(kind,index,operation,event)=>fs.appendFile(path.join(temp,'progress.jsonl'),JSON.stringify({kind,index,operation,event,at:Date.now()})+'\n');
+  const captureTrace=async index=>{
+    if(!identity||transport!=='native')return;
+    const payload={...identity,sessionKey:sessionKey(workspaces[index],'agent')};
+    const trace=await control(path.join(runtime,identity.instanceId+'.sock'),{v:1,id:crypto.randomUUID(),op:'native-trace',payload}).catch(()=>null);
+    // Explicit test disconnects happen before final fixture teardown. Preserve
+    // their live trace; a later empty session must not overwrite it.
+    if(trace?.length)await fs.writeFile(path.join(evidence,`trace-${index}.json`),JSON.stringify(trace,null,2));
+  };
+  const latch=async(index,args,{fail=false}={})=>{
+    if(args[0]==='disconnect')await captureTrace(index);
+    await progress('latch',index,args[0],'start');
+    const result=await command(process.execPath,[path.join(root,'skills/latch/scripts/latch.mjs'),...args,'--workspace',workspaces[index]],{cwd:workspaces[index],env});
+    await progress('latch',index,args[0],'done');
+    const parsed=JSON.parse(result.out||result.err);
+    if(result.code!==(fail?1:0))throw new Error(`Latch ${args[0]} failed: ${redact(JSON.stringify(parsed))}`);
+    return parsed;
+  };
+  const pw=async(index,args,{fail=false}={})=>{
+    await progress('playwright',index,args[0],'start');
+    const result=await command('playwright-cli',['-s=agent','--json',...args],{cwd:workspaces[index],env});
+    await progress('playwright',index,args[0],'done');
+    const parsed=JSON.parse(result.out);
+    if(!fail&&(result.code!==0||parsed.isError)) {
+      await fs.writeFile(path.join(evidence,'last-error.txt'),redact(JSON.stringify(parsed)));
+      throw new Error(`Playwright ${args[0]} failed: ${redact(JSON.stringify(parsed))}`);
+    }
+    return parsed;
+  };
+  const close=async()=>{
+    if(closed)return;closed=true;
+    await fs.writeFile(path.join(evidence,'fixture-state.json'),JSON.stringify([...app.states.values()].filter(state=>state.actor.startsWith(run)),null,2));
+    for(let i=0;i<2;i++)await captureTrace(i);
+    for(let i=0;i<workspaces.length;i++){
+      await latch(i,['disconnect','--profile','work','--session','agent']).catch(()=>{});
+      await pw(i,['detach']).catch(()=>{});
+    }
+    await stopBrowser(browser);await setupBrowser?.close().catch(()=>{});
+    if(await fs.readFile(hostFile,'utf8').catch(()=>'')===registration)await fs.unlink(hostFile);
+    await fs.rm(runtime,{recursive:true,force:true});
+  };
+  t.after(close);
+  const args=[`--user-data-dir=${profile}`,'--profile-directory=Default','--no-first-run','--no-default-browser-check','--no-startup-window',
+    '--use-mock-keychain','--password-store=basic','--disable-background-networking','--enable-logging=stderr',
+    `--disable-extensions-except=${extensions.join(',')}`,`--load-extension=${extensions.join(',')}`];
+  const log=await fs.open(path.join(temp,'chrome.stderr.log'),'w');browser=spawn(chrome,args,{stdio:['ignore','ignore',log.fd]});await log.close();
+  console.log(`${transport} comparison: ${temp}`);
+  identity=await eventually(async()=> (await latch(0,['discover'])).profiles[0],20000);
+  await latch(0,['pair','--profile','work','--instance',identity.instanceId,'--chrome-profile-dir','Default']);
+  await eventually(()=>app.seeds.has(run)&&[...app.states.values()].filter(s=>s.actor.startsWith(run)&&s.role==='/root').length===3);
+  const seedInfo=app.seeds.get(run);
+  return {run,temp,profile,evidence,identity,workspaces,env,transport,versions,tabs:seedInfo.tabs,latch,pw,close,
+    connect:async(index,tabId,{background=false}={})=>latch(index,['connect','--profile','work','--transport',transport,
+      ...(background&&transport==='native'?['--focus-emulation','on']:[]),'--session','agent','--tab',String(tabId)]),
+    states:()=>[...app.states.values()].filter(state=>state.actor.startsWith(run))};
+}

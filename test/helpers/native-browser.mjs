@@ -42,7 +42,9 @@ async function command(executable, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, {...options, stdio: ['ignore', 'pipe', 'pipe']});
     let out = '', err = '';
-    const timer = setTimeout(() => { child.kill(); reject(new Error('Fixture command timed out.')); }, 45000);
+    // Allow the adapter's 45s command deadline to return its structured error
+    // before the outer fixture process deadline kills that diagnostic.
+    const timer = setTimeout(() => { child.kill(); reject(new Error('Fixture command timed out.')); }, 65000);
     child.stdout.on('data', data => out += data);
     child.stderr.on('data', data => err += data);
     child.once('error', error => { clearTimeout(timer); reject(error); });

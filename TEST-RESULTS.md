@@ -139,3 +139,86 @@ Final multi-session evidence: `work/native-workflow/run-XuC1G9/evidence/` (`repo
 The final default test run passed 27 checks, with no failures and three opt-in browser suites skipped. All three browser paths were explicitly executed separately: the multi-session native test above; the original single-tab native proof using the graduated shared model/relay (passed in approximately 11.3 seconds); and the original official-extension compatibility integration (passed in approximately 17.0 seconds). The official integration retains its documented test-driver native-pipe substitution; the native proofs use direct Chrome delivery. Skill validation, dependency audit and whitespace checks passed. Installer coverage verifies that the generated native launcher forwards Chrome's caller origin and preserves arguments; the installed launcher was not rewritten in this phase.
 
 The Work bridge still returned healthy diagnostics on 0.1.2 with native capability unavailable, as expected without an upgraded debugger-capable manifest/launcher. Work registration, browser permission grants and global agent security configuration were not changed. No fixture browsers remained after cleanup. Installer cutover, advanced QA command/frame/popup coverage, large payloads, restart recovery and actual Work-profile native verification remain later gates.
+
+## Attachment comparison and popup ownership — Phase 3 A/B, October 28, 2026
+
+The shared comparison harness now runs the normal skill helper, pairing, native
+host and CLI in separate disposable profiles for official and native transport.
+Both paths use actual Chrome native messaging. Official authorization is
+provisioned once in its disposable profile with Playwright; that setup context
+closes before the runtime browser starts. Runtime browsers have no remote-debugging
+flags. Native runs do not install the official extension. Mock-keychain flags
+are applied at every fixture-browser launch. The Work profile is not a fixture.
+
+The final side-by-side basic QA/popup comparison passed for both adapters:
+`work/attachment-compat/official-hnEebO/evidence/` and
+`work/attachment-compat/native-j6kqwX/evidence/`. It filled/clicked and asserted the
+same fixture result, captured snapshots/screenshots, used a standard popup waiter
+before clicking, checked the child's actor/role against independent server state,
+and disconnected with root, child and unrelated tabs preserved. Versions were
+Node 22.21.1, Playwright CLI 0.1.20, Chrome for Testing 153.0.8010.12 and official
+extension 0.4.0. Both comparison paths explicitly bring the test page forward;
+these results are not a performance comparison.
+
+The original multi-agent native workflow also passed again at
+`work/native-workflow/run-NPqeXe/evidence/`, including claim conflicts, target
+isolation, failed-attachment rollback and preserved active tabs/groups/state.
+
+Native sessions now own one selected starting tab and verified popup descendants.
+Chrome tab/opener metadata nominates a candidate, then the debugger transport
+reads that candidate's target identity and validates its actual opener before
+exposing page domains to the agent. A corrected opener can route the candidate
+to its actual session; missing opener evidence leaves it unclaimed. It does not
+infer ownership from URL, timing or window. Metadata-only provisional attachment
+is detached if verification fails. Each owned page and nested CDP session has
+its own route and bounded identity. Explicit release detaches one page; parent
+closure preserves surviving children. Exact target-ID selection disambiguates
+identical URLs. An already selected page is not brought forward again by connect.
+
+The browser popup suite passed through two concurrent named sessions in separate
+workspaces. Final evidence is at
+`work/attachment-compat/native-hlCD1a/evidence/`, including live sanitized
+per-session protocol traces, the surviving child's screenshot/snapshot and
+independent fixture observations. It covered same-URL children with different actor markers, conflict
+rejection, explicit child selection/release, target=_blank, window.open,
+blank-then-redirect, cross-origin, noopener, authentication-style self-close,
+immediate close and nested children surviving both parent and root closure.
+The controlled blocked case uses a sandboxed fixture frame without allow-popups;
+it checks no popup event or ownership change and a still-usable parent. This is
+not a claim that every site-specific popup-blocker setting has been covered.
+Chrome supplied attributable opener metadata for noopener in the passing run;
+missing metadata remains an explicit limitation, with unit coverage ensuring it
+stays unclaimed. Limits are 16 active top-level targets, four popup generations,
+256 known tab identities and 32 retained warnings per session. Unit checks cover
+active/depth limits, actual-opener correction, explicit-release protection,
+foreign target/session rejection and parent survival.
+
+Focus emulation is enabled for the concurrent opening check. Sequential popup
+cases explicitly foreground the parent. Removing an unnecessary helper tab
+activation exposed a popup timeout after child release; the test must not rely
+on that accidental focus change. This checkpoint does not claim universal
+background popup/input behavior. Agents can request foreground behavior through
+ordinary Playwright APIs, and must inspect ownership after a timeout rather than
+replay a possibly completed action blindly.
+
+Earlier runs exposed two actual initialization races: lifecycle history and
+execution contexts could reach Playwright before its frame-tree response. Startup
+ordering now waits for that response before enabling those domains; a regression
+check covers both. Other failed fixture runs included an unsupported URL global
+inside CLI run-code, slow cleanup from polling pages, and an official popup
+wait expiring before its action completed. The fixture now closes browser
+connections before its server, uses supported code, explicitly activates the page
+before the comparison action and uses a 30-second popup wait within the existing
+45-second command deadline. Failed attempts are retained in ignored work folders.
+
+A default native-host test also caught the socket appearing before asynchronous
+chmod completed. Its creation now uses a process-local restrictive mask, restored
+after binding, so it starts at mode 0600. This changes no global security setting.
+The final default run passed 32 checks, with six opt-in browser cases skipped.
+Shared-skill validation and whitespace checks passed. The Work diagnostic remained
+healthy on installed 0.1.2 with native capability unavailable, as expected; browser
+permissions, host registration and daily default were not changed.
+
+Gates C–E (frames/workers, uploads/downloads and large evidence payloads), recovery,
+installer cutover and actual Work native rollout remain open. This checkpoint
+establishes Gates A/B only; it does not mark all of Phase 3 complete.

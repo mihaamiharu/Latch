@@ -26,22 +26,32 @@ export class NativeSessions {
     if (!this.identity.capabilities?.nativeTransport)
       throw fault('NATIVE_TRANSPORT_UNAVAILABLE', 'This bridge/extension has no native debugger transport. Keep using official mode until the native build is installed.');
     const entry = this.sessions.get(p.sessionKey);
+    if (op === 'native-trace') return entry?.relay.trace() || [];
     if (op === 'native-status') return {sessions: [...this.sessions].map(([key, s]) => ({key, tabId: s.tabId, ...s.relay.status()}))};
     if (op === 'native-disconnect') {
       await this.close(p.sessionKey, entry, p);
       return {disconnected: true, alreadyDisconnected: !entry};
     }
+    if (op === 'native-targets') {
+      if (!entry) throw fault('SESSION_STALE', 'Native session is unavailable.');
+      const inventory = await this.browser('native-inventory', p);
+      return {...inventory, targets: inventory.targets.map(tab => ({...tab, targetId: entry.relay.targets().find(t => t.tabId === tab.tabId)?.targetId}))};
+    }
+    if (op === 'native-release-tab') {
+      if (!entry) throw fault('SESSION_STALE', 'Native session is unavailable.');
+      return this.browser('native-drop', p);
+    }
     if (op === 'native-verify') {
-      if (!entry || entry.relay.status().stopped || !entry.relay.status().targetId)
+      const target = entry?.relay.targets().find(target => target.tabId === p.tabId);
+      if (!entry || entry.relay.status().stopped || !target?.targetId)
         throw fault('SESSION_STALE', 'Native session is unavailable. Disconnect before reconnecting.');
-      if (p.tabId !== entry.tabId) throw fault('TAB_NOT_OWNED', 'This session does not own that tab.');
       await this.browser('native-check', p);
-      return {tabId: entry.tabId, targetId: entry.relay.status().targetId};
+      return {tabId: p.tabId, rootTabId: entry.tabId, targetId: target.targetId};
     }
     if (op !== 'native-connect') throw fault('INVALID_REQUEST', 'Unsupported native session operation.');
     if (p.focusEmulation !== undefined && typeof p.focusEmulation !== 'boolean') throw fault('INVALID_ARGUMENT', 'Focus emulation must be a boolean.');
     if (entry) {
-      if (p.tabId !== entry.tabId) throw fault('SESSION_TAB_LIMIT', 'Native transport currently supports one tab per named session. Use another session.');
+      if (!entry.relay.targets().some(target => target.tabId === p.tabId)) throw fault('SESSION_TAB_LIMIT', 'Only the starting tab and its attributed children belong to this session.');
       if (!!p.focusEmulation !== entry.focusEmulation) throw fault('SESSION_OPTIONS_CHANGED', 'Disconnect before changing focus emulation.');
       if (entry.relay.status().stopped) throw fault('SESSION_STALE', 'Native transport was disconnected. Clean up before reconnecting.');
       await this.browser('native-check', p);

@@ -1,6 +1,6 @@
 # Latch: one-extension migration plan
 
-Prepared October 28, 2026. Status: Phases 0–2 implemented on `feat/latch-native-transport`, including normal CLI/helper integration and disposable-browser multi-agent verification. Phases 3–6 remain planned; the installed Work transport and daily default are unchanged. See `NATIVE-TRANSPORT-CONTRACT.md` for the original proof and `NATIVE-SESSION-WORKFLOW.md` for the current opt-in workflow and its one-tab-per-session boundary.
+Prepared October 28, 2026. Status: Phases 0–2 implemented on `feat/latch-native-transport`; Phase 3 is in progress with genuine attachment comparison and popup ownership implemented. See `PHASE-3-COMPATIBILITY-PLAN.md` for acceptance status and remaining gates. The installed Work transport and daily default are unchanged. `NATIVE-TRANSPORT-CONTRACT.md` and `NATIVE-SESSION-WORKFLOW.md` preserve the earlier proof and single-tab checkpoint.
 
 ## Outcome
 
@@ -15,7 +15,7 @@ Target release: 0.2.0, conditional on the gates below. Keep the installed 0.1.2 
 - Working checkpoint: `ad4819827f0fc994a1df39aed930a2bab8f44972` on `main`.
 - Baseline: Latch 0.1.2; Playwright CLI 0.1.20; runtime Node 22.21.1; official extension 0.4.0. The adapter currently rejects other CLI versions.
 - Existing native host registration, stable Latch extension ID, profile alias, instance identity and CLI entry point must survive the upgrade.
-- The installed CLI's `attach --help` supports `--cdp`. Compatibility with a Latch-owned endpoint is still unproven.
+- The installed CLI's `attach --help` supports `--cdp`. Compatibility was unproven at initial planning; Phases 1–2 subsequently verified the Latch endpoint, normal helper and concurrent sessions in disposable profiles.
 - Current automated baseline: 20 checks passed; the optional real-Chrome test was skipped at checkpoint time. Earlier fixture integration and the user's separate Codex CLI application verification are recorded in `TEST-RESULTS.md` with their limitations.
 - Scope is macOS and Google Chrome, with one explicitly paired Work profile and multiple concurrent agent sessions. Personal-profile access is excluded.
 
@@ -36,7 +36,7 @@ flowchart LR
   Ext <-->|chrome.debugger| Tabs[Explicitly claimed Work tabs]
 ```
 
-The native host owns the relay lifetime. Prefer hosting both in the same process for the first implementation, with one loopback listener and separate credentials/routes per session. No new login daemon or background service is needed.
+The native host owns the relay lifetime. The Phase 2 implementation keeps it in the same process, with a separate loopback listener and credentials/routes per named session. No new login daemon or background service is needed.
 
 The extension connects outward to a relay endpoint delivered over its native port. The Playwright daemon connects to a different session-specific CDP endpoint. The public Latch command constructs that endpoint internally; users and agents do not copy connection secrets into prompts.
 
@@ -125,11 +125,13 @@ Attach unmodified Playwright CLI 0.1.20 through CDP. Read a fixture's existing a
 
 ### Phase 2 — Implement agent ownership and command routing
 
-Integrate reservations with the existing profile/workspace/session model. Add target-ID verification, concurrent sessions, explicit popup handling and deterministic rollback for failed connection stages. Validate endpoint authentication and method scope before treating multi-agent operation as supported.
+Integrate reservations with the existing profile/workspace/session model. Add target-ID verification, concurrent sessions and deterministic rollback for failed connection stages. Popup ownership is deferred to Phase 3; the implemented Phase 2 preview explicitly supports one tab per session. Validate endpoint authentication and method scope before treating multi-agent operation as supported.
 
 **Gate:** two sessions can operate different tabs; neither can enumerate or command the other's targets. Wrong-profile, stale-epoch and malformed-session requests fail without changing browser state. Same-URL tabs are selected correctly by identity. Existing groups/windows are preserved.
 
 ### Phase 3 — Complete the QA verification surface
+
+See [the detailed Phase 3 compatibility plan](PHASE-3-COMPATIBILITY-PLAN.md). Establish a genuine official/native comparison first, then prioritize attributable new tabs and popups. Matching failures are not proof of feature support.
 
 Cover snapshots/locators, assertions, input, navigation, screenshots, relevant console and network inspection, supported file upload/download behavior, popups and cross-origin frames. Record any unsupported commands with explicit errors rather than implying full Chrome CDP compatibility.
 

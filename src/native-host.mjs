@@ -52,7 +52,8 @@ async function start(hello) {
   const nativeAvailable = !!hello.capabilities?.nativeTransport && /^[a-p]{32}$/.test(hello.extensionId || '') &&
     process.argv[2] === `chrome-extension://${hello.extensionId}/`;
   identity = {instanceId: hello.instanceId, epoch: hello.epoch, extensionVersion: hello.extensionVersion,
-    ...(nativeAvailable ? {extensionId: hello.extensionId} : {}), capabilities: {nativeTransport: nativeAvailable}};
+    ...(nativeAvailable ? {extensionId: hello.extensionId} : {}), capabilities: {nativeTransport: nativeAvailable,
+      ...(nativeAvailable ? {nativeSessionSchema: hello.capabilities.nativeSessionSchema || 2} : {})}};
   nativeSessions = new NativeSessions(identity, browser);
   server = net.createServer(socket => {
     sockets.add(socket);
@@ -72,7 +73,7 @@ async function start(hello) {
         request = checkRequest(JSON.parse(data.slice(0, data.indexOf('\n'))));
         // Discovery can ask for status before it knows the current instance epoch.
         if (request.op === 'status' && !request.payload.instanceId) return reply(socket, {v: 1, id: request.id, ok: true, result: identity});
-        if (['native-connect', 'native-verify', 'native-disconnect', 'native-status'].includes(request.op)) {
+        if (['native-connect', 'native-verify', 'native-disconnect', 'native-status', 'native-targets', 'native-release-tab', 'native-trace'].includes(request.op)) {
           socket.setTimeout(40000, () => socket.destroy());
           nativeSessions.handle(request.op, request.payload).then(
             result => reply(socket, {v: 1, id: request.id, ok: true, result}),
@@ -94,7 +95,12 @@ async function start(hello) {
     });
   });
   server.on('error', error => stop(error));
-  await new Promise(resolve => server.listen(address, () => { ownsSocket = true; resolve(); }));
+  // Restrict the socket at creation, before another process can discover it.
+  // This mask is local to the native-host process and restored after binding.
+  const previousMask = process.umask(0o177);
+  try {
+    await new Promise(resolve => server.listen(address, () => { ownsSocket = true; resolve(); }));
+  } finally { process.umask(previousMask); }
   await fs.chmod(address, 0o600);
 }
 async function stop(error) {

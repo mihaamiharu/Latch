@@ -2,7 +2,7 @@ import {HOST} from './protocol.js';
 import {createController} from './controller.js';
 import {createDebuggerTransport} from './debugger-transport.js';
 
-const nativeTransport = createDebuggerTransport(chrome);
+const nativeTransport = createDebuggerTransport(chrome, {onTargetGone: (key, id) => { void controller?.nativeDetached(key, id); }});
 
 let port;
 let controller;
@@ -50,12 +50,14 @@ async function connectOnce() {
     reconnect = setTimeout(connect, 10000);
   });
   next.postMessage({v: 1, type: 'hello', instanceId, epoch, extensionId: chrome.runtime.id,
-    capabilities: {nativeTransport: nativeTransport.available}, extensionVersion: chrome.runtime.getManifest().version});
+    capabilities: {nativeTransport: nativeTransport.available, nativeSessionSchema: 3}, extensionVersion: chrome.runtime.getManifest().version});
   lastError = '';
 }
 chrome.runtime.onInstalled.addListener(connect);
 chrome.runtime.onStartup.addListener(connect);
-chrome.tabs.onRemoved.addListener(id => controller?.removeTab(id));
+chrome.tabs.onRemoved.addListener(id => { void controller?.removeTab(id)?.catch(() => {}); });
+chrome.tabs.onCreated?.addListener(tab => { void controller?.observeTab(tab)?.catch(() => {}); });
+chrome.tabs.onUpdated?.addListener((id, change, tab) => { void controller?.observeTab(tab)?.catch(() => {}); });
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL(''))) return;
   if (message?.type === 'status') status().then(reply);

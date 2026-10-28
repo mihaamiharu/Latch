@@ -6,7 +6,7 @@ A macOS Chrome companion extension and local CLI for connecting existing Work-pr
 
 The next version removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, acceptance gates and rollback. Migration is in progress; the installed daily transport is unchanged.
 
-The [native session preview](docs/NATIVE-SESSION-WORKFLOW.md) now integrates the normal CLI/helper with paired profiles and independent agent workspaces. It has passed disposable-browser multi-agent verification without the official extension or remote-debugging flags. Run `npm ci` followed by `npm run test:native-workflow` on macOS with Chrome for Testing. Native mode is opt-in and supports one tab per session; the installed Work build, installer permissions and daily default have not changed. Advanced command coverage, recovery and cutover remain later gates.
+The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus new tabs with a verified opener in that session. Standard Playwright popup events, exact child selection, per-tab release and surviving-child cleanup use the same named session. See the [Phase 3 plan and acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md); the [Phase 2 workflow](docs/NATIVE-SESSION-WORKFLOW.md) records the earlier single-tab checkpoint. Native mode remains opt-in; the installed Work build, installer permissions and daily default have not changed. Frames, file transfers, large evidence payloads, recovery and cutover remain later gates.
 
 ## Build the extension
 
@@ -124,6 +124,15 @@ The browser test opens and closes a disposable **headed** Chrome for Testing pro
 Chrome native messaging registration is intentionally not changed by the automated browser test. A test driver replaces only Chrome's native-pipe delivery using our extension's same scoped dispatcher; the real native framing/socket host, companion code, Chrome APIs, unmodified official extension and real Playwright CLI all execute. A separate native test covers fragmented frames, local socket request/response, permissions and cleanup. The direct installed Work-profile smoke test was completed separately on October 28, 2026; see `TEST-RESULTS.md`.
 
 No user browser profiles, real login cookies or production mutations are needed for these tests. Intermediate browser fixtures are retained under this workspace's `work/browser-bridge/` for diagnosis. Unix sockets use short temporary paths because macOS limits their length, and are removed after tests.
+
+The newer comparison harness uses real Chrome native messaging for **both** adapters, separate disposable profiles and the normal shared-skill helper. Run on macOS with Chrome for Testing and the pinned CLI on PATH:
+
+```bash
+npm run test:attachment-compat
+npm run test:popups
+```
+
+Set `QA_BROWSER_OFFICIAL_EXTENSION` to an unpacked official extension if it is not at `work/browser-bridge/official-extension`. Official authorization is provisioned once in the disposable profile, then that setup browser closes; the comparison runtime launches without a driver or remote-debugging flags. Native runs omit the official extension. Both launches use mock-keychain flags. Reports, fixture observations and screenshots are retained under `work/attachment-compat/<adapter>-*/evidence/`. Private profiles and CLI registries alongside them are diagnostic data, not publishable evidence.
 
 ## Prototype limits
 

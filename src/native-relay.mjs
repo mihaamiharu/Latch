@@ -69,7 +69,12 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
               if (expectedTabId !== undefined && message.params.id !== expectedTabId) throw new Error('Wrong target.');
               model.setTab(message.params); initialized = true;
               clearTimeout(readyTimer); readyResolve();
-            } else if (message.method === 'event' && initialized) model.onEvent(message.params);
+            } else if (message.method === 'event' && initialized) {
+              if (message.params.method === 'Page.lifecycleEvent') record('event', message.params.method, `${message.params.source.tabId}:${message.params.params?.name}`);
+              model.onEvent(message.params);
+            }
+            else if (message.method === 'tab-created' && initialized) void model.addTab(message.params).catch(() => {});
+            else if (message.method === 'tab-removed' && initialized) model.removeTab(message.params?.tabId);
             else throw new Error('Invalid extension message.');
           } catch { void stop(); }
         });
@@ -84,11 +89,13 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
             record('command', message.method);
             const result = await model.command(message);
             send(ws, {id: message.id, ...(message.sessionId ? {sessionId: message.sessionId} : {}), result});
+            model.didSendResponse(message);
           } catch (error) {
             if (!Number.isSafeInteger(message?.id)) { void stop(); return; }
             record('error', message.method, error.message.slice(0, 300));
             try { send(ws, {id: message.id, ...(message.sessionId ? {sessionId: message.sessionId} : {}),
               error: {code: -32000, message: error.message.slice(0, 300)}}); } catch { void stop(); }
+            model.didSendResponse(message);
           }
         });
       }
@@ -112,6 +119,7 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
   }
   return {extensionEndpoint: base + paths.extension, cdpEndpoint: base + paths.cdp, ready, stop,
     status: () => ({initialized, stopped, reason: stopReason, lastMethod: trace.at(-1)?.method,
-      tabId: model.tab?.id, targetId: model.target?.targetId, pending: pending.size}),
-    trace: () => trace.slice()};
+      tabId: model.tab?.id, targetId: model.inventory().find(target => target.tabId === model.tab?.id)?.targetId,
+      targets: model.inventory(), pending: pending.size}),
+    targets: () => model.inventory(), trace: () => trace.slice()};
 }

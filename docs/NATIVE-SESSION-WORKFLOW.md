@@ -1,5 +1,10 @@
 # Native transport: normal session workflow (Phase 2)
 
+This document records the Phase 2 checkpoint. The popup-capable source now uses
+schema 3 and one starting tab plus verified descendants; see
+[Phase 3 status](PHASE-3-COMPATIBILITY-PLAN.md) and the canonical shared skill's
+`references/operations.md` for current selection and release behavior.
+
 Implemented on `feat/latch-native-transport`, October 28, 2026. This is an opt-in
 preview in source, verified in a disposable Chrome profile. The installed Work
 build has not been upgraded and the official adapter remains the default.
