@@ -1,6 +1,27 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
-import {runCLI} from '../src/playwright.mjs';
+import {runCLI, cliError} from '../src/playwright.mjs';
 const MAX=2*1024*1024;
+test('CLI errors preserve bounded upstream detail, classify zero-exit failures and redact attachment secrets',async t=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'latch-errors-')),script=path.join(dir,'cli'),old=process.env.QA_BROWSER_PLAYWRIGHT_CLI;
+ t.after(async()=>{old===undefined?delete process.env.QA_BROWSER_PLAYWRIGHT_CLI:process.env.QA_BROWSER_PLAYWRIGHT_CLI=old;await fs.rm(dir,{recursive:true,force:true})});
+ process.env.QA_BROWSER_PLAYWRIGHT_CLI=script;
+ const cause='Playwright extension did not connect within 30s after opening the connect page. Profile Default; ws://127.0.0.1:123/extension/secret; chrome-extension://mmlmfjhmonkocbjadbfplnigmagldckm/connect.html?client=secret-client&token=secret-token; PLAYWRIGHT_MCP_EXTENSION_TOKEN=secret-env';
+ for(const exitCode of [0,1]){
+  await fs.writeFile(script,`#!${process.execPath}\nconsole.log(JSON.stringify({isError:true,error:${JSON.stringify(cause)}}));process.exitCode=${exitCode};`,{mode:0o700});
+  await assert.rejects(runCLI('test',['attach','--extension=chrome'],{workspace:dir}),e=>{
+   const error=cliError(e);assert.equal(error.code,'EXTENSION_CONNECTION_FAILED');assert.equal(error.diagnostics.exitCode,exitCode);assert.match(error.diagnostics.upstreamError,/within 30s/);assert.equal(error.diagnostics.command,'attach');assert.ok(error.diagnostics.elapsedMs>=0);assert.doesNotMatch(JSON.stringify(error),/secret|ws:\/\//);return true;
+  });
+ }
+ const action='TimeoutError: locator.click: Timeout exceeded.\nCall log:\n - locator resolved to <div class="cm-content">\n - waiting for element to be visible, enabled and stable\n'+'x'.repeat(5000);
+ await fs.writeFile(script,`#!${process.execPath}\nconsole.log(JSON.stringify({isError:true,error:${JSON.stringify(action)}}));`,{mode:0o700});
+ await assert.rejects(runCLI('test',['run-code','ignored'],{workspace:dir}),e=>{const error=cliError(e);assert.equal(error.code,'PLAYWRIGHT_ERROR');assert.equal(error.diagnostics.exitCode,0);assert.match(error.diagnostics.upstreamError,/visible, enabled and stable/);assert.equal(error.diagnostics.upstreamError.length,4096);return true});
+ await fs.writeFile(script,`#!${process.execPath}\nprocess.stderr.write(${JSON.stringify(cause)});process.exitCode=1;`,{mode:0o700});
+ await assert.rejects(runCLI('test',['attach'],{workspace:dir}),e=>e.code==='EXTENSION_CONNECTION_FAILED'&&e.diagnostics.upstreamError.includes('within 30s'));
+ for(const invalid of ['null','[]','not-json']){
+  await fs.writeFile(script,`#!${process.execPath}\nconsole.log(${JSON.stringify(invalid)});`,{mode:0o700});
+  await assert.rejects(runCLI('test',['snapshot'],{workspace:dir}),{code:'CLI_RESPONSE_INVALID'});
+ }
+});
 test('CLI output uses exact UTF-8 byte boundaries and preserves split multibyte characters',async t=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'latch-output-')),script=path.join(dir,'cli');const old=process.env.QA_BROWSER_PLAYWRIGHT_CLI;
  t.after(async()=>{if(old===undefined)delete process.env.QA_BROWSER_PLAYWRIGHT_CLI;else process.env.QA_BROWSER_PLAYWRIGHT_CLI=old;await fs.rm(dir,{recursive:true,force:true})});

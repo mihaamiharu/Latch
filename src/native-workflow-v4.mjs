@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fault} from '../extension/protocol.js';
 import {assertVersion, runCLI} from './playwright.mjs';
-import {observe, selectTarget} from './native-workflow.mjs';
+import {observe, selectTarget, focusWarnings} from './native-workflow.mjs';
 import {nativeChannel} from './native-channel.mjs';
 
 export async function nativeWorkflowV4({command, profile, call, alias, workspace, session, key, tabId, options, requestedFocusEmulation}) {
@@ -35,7 +35,7 @@ export async function nativeWorkflowV4({command, profile, call, alias, workspace
       const inventory = await channel.send('targets');
       await channel.send('commit'); acquired = false;
       return {connected: true, profile: alias, transport: 'native', session, workspace, tabId, authority: connected.authority,
-        alreadyConnected: !!old, rootTabId: inventory.rootTabId, targets: inventory.targets, warnings: inventory.warnings, focusEmulation, page,
+        alreadyConnected: !!old, rootTabId: inventory.rootTabId, targets: inventory.targets, warnings: [...inventory.warnings, ...focusWarnings(focusEmulation)], focusEmulation, page,
         nextCommand: ['playwright-cli', `-s=${session}`, 'snapshot']};
     }
     if (command === 'release') {

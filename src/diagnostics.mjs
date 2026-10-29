@@ -37,7 +37,7 @@ export async function diagnose(profileAlias = 'work') {
     const live = await request(profile.instanceId, 'status', {}, 2500);
     result.connection = {ok: true, instanceId: live.instanceId, epoch: live.epoch, extensionVersion: live.extensionVersion, releaseVersion: live.releaseVersion,
       hostGeneration: live.hostGeneration, readiness: live.readiness, capabilities: live.capabilities || {nativeTransport: false}};
-    result.layers = {configuration: 'paired', host: 'reachable', controller: live.readiness?.verified ? 'verified-round-trip' : 'legacy-host-report', native: live.capabilities?.nativeTransport ? 'available' : 'unavailable'};
+    result.layers = {configuration: 'paired', host: 'reachable', controller: live.readiness?.verified ? 'verified-round-trip' : 'legacy-host-report', native: live.capabilities?.nativeTransport ? 'available' : 'unavailable', officialAttachment: 'not-checked'};
     result.bridgeHealthy = true;
     result.healthy = !result.transport.error;
   } catch (error) { result.connection = {ok: false, error: safeError(error)}; }

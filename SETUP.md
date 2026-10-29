@@ -1,4 +1,4 @@
-# Latch 0.2.0-rc.2 local setup
+# Latch 0.2.0-rc.3 local setup
 
 This private macOS candidate includes the native extension, host/CLI, shared skill,
 `ws` 8.22.0 and third-party licenses. Node **22.21.1** and Playwright CLI **0.1.20**
@@ -16,7 +16,7 @@ Unzip the complete kit into a permanent local directory. Use the selected Node
 executable, then inspect from that directory:
 
 ```bash
-LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.2'
+LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.3'
 node "$LATCH_KIT/src/install.mjs" inspect --kit "$LATCH_KIT"
 node "$LATCH_KIT/src/install.mjs" stage --kit "$LATCH_KIT"
 ```
@@ -83,7 +83,7 @@ node "$LATCH_KIT/src/install.mjs" verify --profile work
 ```
 
 Verification checks the installed identity/readiness and requires extension
-`0.1.99.2` (display name `0.2.0-rc.2`), release `0.2.0-rc.2`, native schema 4 and
+`0.1.99.3` (display name `0.2.0-rc.3`), release `0.2.0-rc.3`, native schema 4 and
 UI capability 1. It separately reports `applicationSmokeRequired: true`. Complete
 a disposable native CLI smoke against the intended app before calling rollout
 successful; do not silently fall back to another adapter.
@@ -103,7 +103,8 @@ runtime override. Link tests do not prove actual Codex/Claude/Cursor execution;
 run each intended terminal client separately during Phase 6.
 
 Use the skill from the task workspace. Native preview connections use explicit
-`--transport native` during rollout. Profiles without a preference still default
+`--transport native --focus-emulation on` for ordinary background interactions
+during rollout; keep emulation off for real focus/visibility assertions. Profiles without a preference still default
 to official; inspect `qa-browser transport --profile work`. After the installed
 Work and real-client gates pass, the separate authorized cutover command is
 `qa-browser transport --profile work --set native`. Existing sessions retain
@@ -112,6 +113,19 @@ session. The popup shows only this profile's pairing/session metadata and can st
 one schema-4 native session while preserving website tabs and peers. A busy
 operation is not bypassed. “Access stopped; CLI cleanup unconfirmed” requires
 scoped reconciliation. Retry restores bridge readiness, never automation.
+
+RC3 adds an optional error-normalizing adapter for an already attached task:
+
+```bash
+"$LATCH_RUNTIME/bin/qa-browser" pw --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE" -- snapshot
+```
+
+It runs the unmodified pinned Playwright CLI, returning exit 1 for tool errors
+even when upstream exits zero. It never attaches, changes transports, force-clicks
+or retries an action. Direct CLI use remains supported; inspect its JSON `isError`
+as well as its exit code. A successful doctor/diagnose does not verify the separate
+official extension handshake. RC3 attach errors retain bounded redacted upstream
+detail and selected-transport metadata.
 
 Save reports/screenshots/snapshots under the task's chosen directory, normally
 `work/latch/<session>/`. Runtime journals are local recovery state, not exported

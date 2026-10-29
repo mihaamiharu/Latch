@@ -9,6 +9,12 @@ native-default cutover remain pending. The fresh-session default is still offici
 so the prepared native smokes explicitly use `--transport native --focus-emulation on`.
 See [the real Work observations](docs/PHASE-6-IMPLEMENTATION-RESULTS.md#operator-assisted-work-observations).
 
+The source candidate is now **0.2.0-rc.3**. It preserves official-attach causes,
+separates bridge health from attachment verification, warns about native focus-off
+interactions and adds `qa-browser pw` to normalize Playwright action errors.
+See [RC3 failure handling](docs/RC3-FAILURE-HANDLING.md). RC3 preparation does not
+update the installed Work runtime or change its transport/focus defaults.
+
 The native candidate removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, acceptance gates and rollback. Migration is in progress; the fresh-session default remains official until the remaining gates pass.
 
 The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus verified popup descendants. The [Gate C work](docs/GATE-C-FRAMES-WORKERS-PLAN.md) adds bounded child-session lifetimes, nested frame routing, dedicated-worker checks and targeted cancellation. Headless comparison covers same-origin/cross-origin/OOPIF forms, navigation, replacement and frame evidence. The pinned CLI does not backfill already-running workers into `page.workers()` in these tests; new dedicated workers are observable and evaluable. See the [Phase 3 acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md). Native mode remains explicit during the installed Work pilot; its fresh-session default is unchanged. Gate D verifies byte-preserving uploads and separates browser download receipt from unsupported managed retrieval. Gate E adds verified large evidence, finite transport bounds and scoped failure cleanup. Phase 4 adds acknowledged bridge recovery, fenced native leases, host-owned journals and guarded reconciliation; see [the recovery results](docs/PHASE-4-RECOVERY-RESULTS.md). Phase 5 adds a complete local release kit, an owned installer and profile-scoped session popup. See [setup](SETUP.md) and [Phase 5 results](docs/PHASE-5-INSTALLER-POPUP-RESULTS.md). Phase 6 adds explicit per-profile transport preferences; Work cutover remains gated. See [the Phase 6 plan](docs/PHASE-6-WORK-ROLLOUT-PLAN.md).
@@ -19,7 +25,7 @@ The native preview integrates the normal CLI/helper with paired profiles and ind
 npm run build
 ```
 
-This builds `dist/latch/`, its extension ZIP, and the complete `dist/latch-0.2.0-rc.2/` kit plus kit ZIP. It validates the fixed identity, module inventory, permissions, dependency/licenses and file hashes. Build does not modify the source manifest, native registration or installed launchers. Load the built stable installation directory after setup; the source manifest remains the installed-compatibility baseline.
+This builds `dist/latch/`, its extension ZIP, and the complete `dist/latch-0.2.0-rc.3/` kit plus kit ZIP. It validates the fixed identity, module inventory, permissions, dependency/licenses and file hashes. Build does not modify the source manifest, native registration or installed launchers. Load the built stable installation directory after setup; the source manifest remains the installed-compatibility baseline.
 
 Latch 0.1.1 uses the agent-and-latch icon in 16, 32, 48 and 128px sizes. The original generated master and prompt are preserved in `assets/latch/`. The extension ID, `qa-browser` command, native host name and existing config path are preserved.
 

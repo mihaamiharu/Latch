@@ -8,6 +8,10 @@ function validateState(state) {
   if (state && (![2, 3].includes(state.v) || state.transport !== 'native'))
     throw fault('SESSION_STATE_UNSUPPORTED', 'Unsupported native session state. Inspect it before proceeding.');
 }
+export function focusWarnings(enabled) {
+  return enabled ? [] : [{code: 'FOCUS_EMULATION_DISABLED',
+    message: 'Focus emulation is off. Background pages may stall Playwright stability checks. For ordinary background interactions, disconnect and reconnect with --focus-emulation on; keep it off for real focus/visibility checks. Inspect timed-out actions before retrying.'}];
+}
 export async function observe(session, options) {
   const result = await runCLI(session, ['run-code', `async(page)=>{const cdp=await page.context().newCDPSession(page);try{const {targetInfo}=await cdp.send('Target.getTargetInfo');return {url:page.url(),title:await page.title(),targetId:targetInfo.targetId}}finally{await cdp.detach()}}`], options);
   return resultValue(result);
@@ -63,7 +67,7 @@ export async function nativeWorkflow({command, call, payload, alias, workspace, 
         throw fault('TAB_CHANGED', 'The Playwright target does not match the reserved Chrome tab.');
       await writeSession(key, {v: 3, transport: 'native', ...payload, session, workspace, tabId, rootTabId: inventory.rootTabId, targets: inventory.targets, targetId: page.targetId, focusEmulation, status: 'attached'});
       return {connected: true, profile: alias, transport: 'native', session, workspace, tabId,
-        alreadyConnected: !!old, rootTabId: inventory.rootTabId, targets: inventory.targets, warnings: inventory.warnings, focusEmulation, page, nextCommand: ['playwright-cli', `-s=${session}`, 'snapshot']};
+        alreadyConnected: !!old, rootTabId: inventory.rootTabId, targets: inventory.targets, warnings: [...inventory.warnings, ...focusWarnings(focusEmulation)], focusEmulation, page, nextCommand: ['playwright-cli', `-s=${session}`, 'snapshot']};
     } catch (error) {
       if (!old && !acquired && connectAttempted && ['BRIDGE_TIMEOUT', 'BRIDGE_DISCONNECTED', 'BROWSER_TIMEOUT', 'NATIVE_CLEANUP_FAILED'].includes(error.code)) {
         await writeSession(key, {v: 3, transport: 'native', ...payload, session, workspace, tabId, focusEmulation, status: 'interrupted'});

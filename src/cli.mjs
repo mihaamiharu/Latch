@@ -4,7 +4,8 @@ import path from 'node:path';
 import {discoverDetailed, request, readConfig, updateConfig, uuid} from './local.mjs';
 import {diagnose} from './diagnostics.mjs';
 import {fault, safeError} from '../extension/protocol.js';
-import {workspaceAt, sessionKey, runCLI, assertVersion, connectionURL, selectAndVerify, redact} from './playwright.mjs';
+import {workspaceAt, sessionKey, runCLI, assertVersion, connectionURL, selectAndVerify, cliError} from './playwright.mjs';
+import {runSessionCLI, validatePlaywrightArgs} from './playwright-command.mjs';
 import {readSession, writeSession, forgetSession, locked} from './state.mjs';
 import {nativeWorkflow} from './native-workflow.mjs';
 import {nativeWorkflowV4} from './native-workflow-v4.mjs';
@@ -25,14 +26,18 @@ const usage = `Latch ${releaseVersion}
   qa-browser connect --profile work --session <name> --tab <id> [--workspace <path>] [--transport official|native] [--focus-emulation on|off]
   qa-browser release --profile work --session <name> --tab <id> [--workspace <path>]
   qa-browser disconnect --profile work --session <name> [--workspace <path>]
+  qa-browser pw --profile work --session <name> [--workspace <path>] -- <playwright-command> [args...]
 All results are JSON. Work-profile extension installation/authorization is a one-time prerequisite.
+pw normalizes Playwright isError responses to exit 1; it never attaches or retries.
 `;
 function parse(argv) {
   const command = argv.shift() || 'help';
   const flags = {};
+  let playwrightArgs;
   const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'workspace', 'json', 'transport', 'focus-emulation', 'apply', 'expect', 'set']);
   while (argv.length) {
     const flag = argv.shift();
+    if (flag === '--' && command === 'pw') { playwrightArgs = argv.splice(0); break; }
     if (!flag.startsWith('--') || !allowed.has(flag.slice(2))) throw fault('INVALID_ARGUMENT', 'Unknown argument. Use qa-browser help.');
     const key = flag.slice(2);
     if (['json', 'apply'].includes(key)) { if (flags[key]) throw fault('INVALID_ARGUMENT', 'Repeated flag.'); flags[key] = true; continue; }
@@ -40,7 +45,8 @@ function parse(argv) {
     if (!value || value.startsWith('--') || flags[key]) throw fault('INVALID_ARGUMENT', `Missing or repeated --${key}.`);
     flags[key] = value;
   }
-  return {command, flags};
+  if (command === 'pw') validatePlaywrightArgs(playwrightArgs || []);
+  return {command, flags, playwrightArgs};
 }
 async function paired(name) {
   const config = await readConfig();
@@ -50,7 +56,7 @@ async function paired(name) {
   return {...profile, ...live};
 }
 async function main() {
-  const {command, flags: f} = parse(process.argv.slice(2));
+  const {command, flags: f, playwrightArgs} = parse(process.argv.slice(2));
   if (['help', '--help'].includes(command)) { console.log(usage); return; }
   if (['version','--version'].includes(command)) return {version:releaseVersion,nativeSessionSchema:4,uiControl:1,validatedCLI:'0.1.20'};
   if (command === 'discover') return await discoverDetailed();
@@ -108,19 +114,21 @@ async function main() {
   if (command === 'doctor') {
     if (f.transport === 'native' && !profile.capabilities?.nativeTransport)
       throw fault('NATIVE_TRANSPORT_UNAVAILABLE', 'This bridge/extension has no native debugger transport.');
-    return {profile: alias, ...profile, ...doctorSelection, cliVersion: await assertVersion(options), workspace};
+    return {profile: alias, ...profile, ...doctorSelection, cliVersion: await assertVersion(options), workspace,
+      attachment: {verified: false, note: 'Doctor checks bridge access and CLI version, not an official Playwright extension handshake. Connect verifies attachment.'}};
   }
   if (command === 'tabs') return {profile: alias, instanceId: profile.instanceId, epoch: profile.epoch, tabs: await call('tabs')};
-  if (!['connect', 'release', 'disconnect'].includes(command)) throw fault('INVALID_COMMAND', 'Unknown command. Use qa-browser help.');
+  if (!['connect', 'release', 'disconnect', 'pw'].includes(command)) throw fault('INVALID_COMMAND', 'Unknown command. Use qa-browser help.');
   const session = f.session;
   if (!/^[a-zA-Z0-9_-]{1,60}$/.test(session || '')) throw fault('INVALID_SESSION', 'Specify a simple --session name.');
   const key = sessionKey(workspace, session);
   const tabId = Number(f.tab);
-  if (command !== 'disconnect' && (!Number.isSafeInteger(tabId) || tabId < 0)) throw fault('INVALID_TAB', 'Specify a numeric --tab ID.');
+  if (['connect', 'release'].includes(command) && (!Number.isSafeInteger(tabId) || tabId < 0)) throw fault('INVALID_TAB', 'Specify a numeric --tab ID.');
   const legacy = await readSession(key);
   const nativeRecord = await readRecovery(profile.instanceId, key);
   const selection = selectTransport({explicit: f.transport, profile, legacy, nativeRecord, command});
   const selectedTransport = selection.transport;
+  if (command === 'pw') return runSessionCLI({args: playwrightArgs, profile, session, workspace, key, legacy, nativeRecord, selection, call, options});
   if (selectedTransport === 'native' && profile.capabilities?.nativeSessionSchema === 4 && !legacy) {
     return {...selection, ...await nativeWorkflowV4({command, profile, call, alias, workspace, session, key, tabId, options, requestedFocusEmulation: f['focus-emulation'] === undefined ? undefined : f['focus-emulation'] === 'on'})};
   }
@@ -155,7 +163,13 @@ async function main() {
         const inventory = await runCLI(session, ['list'], options);
         const collision = (inventory.browsers || []).some(b => b.name === session && b.status === 'open' && b.workspace === workspace);
         if (collision) throw fault('SESSION_COLLISION', 'A CLI session with this name already exists outside this bridge. Choose a new name.');
-        await runCLI(session, ['attach', '--extension=chrome'], options);
+        try { await runCLI(session, ['attach', '--extension=chrome'], options); }
+        catch (error) {
+          error.diagnostics = {...error.diagnostics, transport: 'official', transportSource: lockedSelection.transportSource,
+            profile: alias, chromeProfileDirectory: profile.chromeProfileDir,
+            nativeAvailable: !!profile.capabilities?.nativeTransport, attachmentVerified: false};
+          throw error;
+        }
         created = true;
         try {
           const connectUrl = await connectionURL(session, options);
@@ -199,8 +213,6 @@ try {
   const result = await main();
   if (result !== undefined) console.log(JSON.stringify({ok: true, ...result}, null, 2));
 } catch (error) {
-  const safe = safeError(error);
-  safe.message = redact(safe.message);
-  console.error(JSON.stringify({ok: false, error: safe}));
+  console.error(JSON.stringify({ok: false, error: cliError(error)}));
   process.exitCode = 1;
 }

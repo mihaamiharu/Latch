@@ -2,11 +2,19 @@ import {spawn} from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import {bridgeLocator, fault} from '../extension/protocol.js';
+import {bridgeLocator, fault, safeError} from '../extension/protocol.js';
 
 export function redact(text) {
-  return String(text).replace(/([?&](?:token|access_token|key)=)[^\s&"<>]+/gi, '$1[redacted]')
+  return String(text).replace(/chrome-extension:\/\/mmlmfjhmonkocbjadbfplnigmagldckm\/connect\.html[^\s"'<>]*/gi, 'chrome-extension://mmlmfjhmonkocbjadbfplnigmagldckm/connect.html?[redacted]')
+    .replace(/wss?:\/\/[^\s"'<>]+/gi, '[endpoint redacted]')
+    .replace(/(PLAYWRIGHT_MCP_EXTENSION_TOKEN=)[^\s"'<>]+/g, '$1[redacted]')
+    .replace(/([?&](?:token|access_token|key)=)[^\s&"<>]+/gi, '$1[redacted]')
     .replace(/(\/(?:cdp|extension)\/)[a-f0-9]{64}/gi, '$1[redacted]');
+}
+// Local CLI failures retain a bounded cause; bridge errors still use safeError.
+export function cliError(error) {
+  return {...safeError(error), message: redact(safeError(error).message),
+    ...(error.diagnostics ? {diagnostics: error.diagnostics} : {})};
 }
 export async function workspaceAt(start = process.cwd()) {
   return await fs.realpath(start);
@@ -14,6 +22,7 @@ export async function workspaceAt(start = process.cwd()) {
 export const sessionKey = (workspace, session) => crypto.createHash('sha256').update(JSON.stringify([workspace, session])).digest('hex');
 export function runCLI(session, args, {workspace, chromeProfileDir, timeout = 45000} = {}) {
   return new Promise((resolve, reject) => {
+    const started = performance.now();
     const env = {...process.env, NO_UPDATE_NOTIFIER: '1'};
     if (chromeProfileDir) env.PLAYWRIGHT_MCP_PROFILE_DIR_NAME = chromeProfileDir;
     const child = spawn(process.env.QA_BROWSER_PLAYWRIGHT_CLI || 'playwright-cli', [`-s=${session}`, '--json', ...args], {
@@ -44,13 +53,22 @@ export function runCLI(session, args, {workspace, chromeProfileDir, timeout = 45
       if (ended) return;
       if (abortError) return finish(abortError);
       const stdout = Buffer.concat(stdoutChunks).toString('utf8'), stderr = Buffer.concat(stderrChunks).toString('utf8');
-      if (code !== 0 && /Playwright extension did not connect/.test(stderr + stdout))
-        return finish(fault('EXTENSION_CONNECTION_FAILED', 'The Playwright extension did not connect. Check the configured Work profile and its initial connection authorization.'));
+      let response;
+      try { response = JSON.parse(stdout); } catch {}
+      const upstream = typeof response?.error === 'string' ? response.error : stderr || (response?.isError ? 'Playwright returned isError: true.' : '');
+      const failed = code !== 0 || response?.isError;
+      const cliFault = (name, message, cause = upstream) => Object.assign(fault(name, message), {diagnostics: {
+        command: args[0], exitCode: code, elapsedMs: Math.round(performance.now() - started),
+        upstreamError: redact(cause).slice(0, 4096),
+      }});
+      if (failed && /Playwright extension did not connect/.test(upstream || stdout))
+        return finish(cliFault('EXTENSION_CONNECTION_FAILED', 'The official Playwright extension did not complete attachment. Bridge health does not verify this separate connection. Check that extension\'s enabled state, profile and authorization.', upstream || stdout));
       try {
-        const response = JSON.parse(stdout);
-        if (code !== 0 || response.isError) throw fault('PLAYWRIGHT_ERROR', redact(response.error || stderr || 'Playwright CLI failed.'));
+        if (!response || typeof response !== 'object' || Array.isArray(response))
+          throw cliFault('CLI_RESPONSE_INVALID', `Playwright CLI (${args[0]}) did not return a JSON object.`, stderr || stdout);
+        if (failed) throw cliFault('PLAYWRIGHT_ERROR', redact(upstream || 'Playwright CLI failed.'));
         finish(null, response);
-      } catch (error) { finish(error.code ? error : fault('CLI_RESPONSE_INVALID', `Playwright CLI (${args[0]}) did not return JSON. ${redact(stderr || stdout).slice(0, 1000)}`)); }
+      } catch (error) { finish(error); }
     });
   });
 }
