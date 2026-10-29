@@ -1,8 +1,12 @@
+import {fault} from './protocol.js';
+
 // One verified native control lifetime. Durable alarms are a wake fallback;
 // short timers are an optimization, never a promise across worker suspension.
 export function createBridgeConnection(api, {host, hello, dispatch, invalidate, activate = async () => {}, timers = globalThis, now = Date.now}) {
   const delays = [1000, 2000, 4000, 8000, 16000, 30000];
   const alarm = 'latch-native-retry', storageKey = 'latchRetry';
+  const uiPending = new Map();
+  let activeNonce;
   let port, deadline, retryTimer, initializing, stopped = false;
   let state = {state: 'offline', connected: false, attempts: 0, nextAttemptAt: null, lastError: '', hostGeneration: null};
   let barrier = Promise.resolve().then(invalidate);
@@ -19,6 +23,7 @@ export function createBridgeConnection(api, {host, hello, dispatch, invalidate, 
   function fail(next, message) {
     if (port !== next) return;
     port = undefined; timers.clearTimeout(deadline);
+    for(const task of uiPending.values()){timers.clearTimeout(task.timer);task.reject(fault('BRIDGE_DISCONNECTED','Bridge disconnected; cleanup outcome may be unknown.'))}uiPending.clear();
     // Fence synchronously before any asynchronous cleanup or new handshake.
     state.connected = false; state.hostGeneration = null; state.lastError = message;
     barrier = barrier.catch(() => {}).then(invalidate);
@@ -38,7 +43,7 @@ export function createBridgeConnection(api, {host, hello, dispatch, invalidate, 
       await barrier;
       if (port || stopped) return;
       next = api.runtime.connectNative(host); port = next;
-      const nonce = crypto.randomUUID(); let generation, ackSent = false;
+      const nonce = crypto.randomUUID(); activeNonce=nonce; let generation, ackSent = false;
       deadline = timers.setTimeout(() => fail(next, 'Native readiness acknowledgment timed out.'), 5000);
       next.onDisconnect.addListener(() => fail(next, api.runtime.lastError?.message || 'Native bridge disconnected.'));
       next.onMessage.addListener(async message => {
@@ -56,9 +61,10 @@ export function createBridgeConnection(api, {host, hello, dispatch, invalidate, 
           return;
         }
         if (message?.type === 'ready' && ackSent && generation && message.nonce === nonce && message.hostGeneration === generation && message.epoch === hello.epoch) {
-          timers.clearTimeout(deadline); state = {...state, state: 'ready', connected: true, hostGeneration: generation, attempts: 0, nextAttemptAt: null, lastError: '', verifiedAt: now()};
+          timers.clearTimeout(deadline); state = {...state, state: 'ready', connected: true, hostGeneration: generation, uiControl: message.capabilities?.uiControl===1, attempts: 0, nextAttemptAt: null, lastError: '', verifiedAt: now()};
           await persist(); return;
         }
+        if(message?.type==='ui-response'&&state.connected&&message.nonce===nonce&&message.hostGeneration===generation){const task=uiPending.get(message.id);if(!task)return;uiPending.delete(message.id);timers.clearTimeout(task.timer);message.ok?task.resolve(message.result):task.reject(fault(message.error?.code||'UI_ERROR',message.error?.message||'Popup request failed.'));return;}
         if (message?.type !== 'request' || !state.connected) return;
         const response = await dispatch(message, generation);
         if (port === next && state.connected) { try { next.postMessage(response); } catch {} }
@@ -92,6 +98,13 @@ export function createBridgeConnection(api, {host, hello, dispatch, invalidate, 
       return initializing;
     },
     status: () => ({...state}),
+    ui(op,payload={}) {
+      if(!port||!state.connected)return Promise.reject(fault('BRIDGE_NOT_READY','Local bridge is not ready.'));
+      if(!state.uiControl)return Promise.reject(fault('UI_UNSUPPORTED','Update the matching Latch host to use session controls.'));
+      if(!['status','revoke'].includes(op)||uiPending.size>=16||JSON.stringify(payload).length>8192)return Promise.reject(fault('UI_REQUEST_INVALID','Unsupported or busy popup request.'));
+      const next=port,id=crypto.randomUUID();
+      return new Promise((resolve,reject)=>{const timer=timers.setTimeout(()=>{uiPending.delete(id);reject(fault('UI_TIMEOUT','The request timed out; refresh to check its outcome.'))},op==='revoke'?35000:12000);uiPending.set(id,{resolve,reject,timer});try{next.postMessage({v:1,type:'ui-request',id,nonce:activeNonce,hostGeneration:state.hostGeneration,op,payload})}catch(e){uiPending.delete(id);timers.clearTimeout(timer);reject(e)}});
+    },
     stop() { stopped = true; clearWake(); if (port) fail(port, 'Bridge stopped.'); },
   };
 }

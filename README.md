@@ -6,7 +6,7 @@ A macOS Chrome companion extension and local CLI for connecting existing Work-pr
 
 The next version removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, acceptance gates and rollback. Migration is in progress; the installed daily transport is unchanged.
 
-The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus verified popup descendants. The [Gate C work](docs/GATE-C-FRAMES-WORKERS-PLAN.md) adds bounded child-session lifetimes, nested frame routing, dedicated-worker checks and targeted cancellation. Headless comparison covers same-origin/cross-origin/OOPIF forms, navigation, replacement and frame evidence. The pinned CLI does not backfill already-running workers into `page.workers()` in these tests; new dedicated workers are observable and evaluable. See the [Phase 3 acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md). Native mode remains opt-in; the Work installation and daily default are unchanged. Gate D verifies byte-preserving uploads and separates browser download receipt from unsupported managed retrieval. Gate E adds verified large evidence, finite transport bounds and scoped failure cleanup. Phase 4 adds acknowledged bridge recovery, fenced native leases, host-owned journals and guarded reconciliation; see [the recovery results](docs/PHASE-4-RECOVERY-RESULTS.md). Installer/popup integration and installed Work cutover remain later gates.
+The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus verified popup descendants. The [Gate C work](docs/GATE-C-FRAMES-WORKERS-PLAN.md) adds bounded child-session lifetimes, nested frame routing, dedicated-worker checks and targeted cancellation. Headless comparison covers same-origin/cross-origin/OOPIF forms, navigation, replacement and frame evidence. The pinned CLI does not backfill already-running workers into `page.workers()` in these tests; new dedicated workers are observable and evaluable. See the [Phase 3 acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md). Native mode remains opt-in; the Work installation and daily default are unchanged. Gate D verifies byte-preserving uploads and separates browser download receipt from unsupported managed retrieval. Gate E adds verified large evidence, finite transport bounds and scoped failure cleanup. Phase 4 adds acknowledged bridge recovery, fenced native leases, host-owned journals and guarded reconciliation; see [the recovery results](docs/PHASE-4-RECOVERY-RESULTS.md). Phase 5 adds a complete local release kit, an owned installer and profile-scoped session popup. See [setup](SETUP.md) and [Phase 5 results](docs/PHASE-5-INSTALLER-POPUP-RESULTS.md). Installed Work cutover remains Phase 6.
 
 ## Build the extension
 
@@ -14,7 +14,7 @@ The native preview integrates the normal CLI/helper with paired profiles and ind
 npm run build
 ```
 
-This regenerates the manifest and produces an unpacked extension in `dist/latch/` plus `dist/latch-<version>.zip`. The editable source remains in `extension/`; reloading an extension already loaded from that directory picks up the rebuilt name and icon. The ZIP contains `manifest.json` at its root.
+This builds `dist/latch/`, its extension ZIP, and the complete `dist/latch-0.2.0-rc.1/` kit plus kit ZIP. It validates the fixed identity, module inventory, permissions, dependency/licenses and file hashes. Build does not modify the source manifest, native registration or installed launchers. Load the built stable installation directory after setup; the source manifest remains the installed-compatibility baseline.
 
 Latch 0.1.1 uses the agent-and-latch icon in 16, 32, 48 and 128px sizes. The original generated master and prompt are preserved in `assets/latch/`. The extension ID, `qa-browser` command, native host name and existing config path are preserved.
 
@@ -22,7 +22,7 @@ Latch 0.1.1 uses the agent-and-latch icon in 16, 32, 48 and 128px sizes. The ori
 
 `qa-browser tabs` discovers ordinary tabs across the paired profile. `connect` places a selected existing tab into the exact Playwright session group, verifies the page through CLI, and selects it for subsequent CLI commands. `release` ungroups it while preserving the page and login. `disconnect` releases this bridge's owned tabs and detaches the CLI session.
 
-The companion has `tabs`, `tabGroups`, `storage` and `nativeMessaging` permissions. It has no debugger permission, content scripts or external-message endpoint. Browser automation stays in the official Playwright extension. Tab metadata is available throughout the paired profile; selected-page content is accessed through Playwright.
+The installed 0.1.2 companion uses the official Playwright extension. The built native candidate adds `alarms` and `debugger` to `tabs`, `tabGroups`, `storage` and `nativeMessaging`. It has no website host permissions, content scripts or external-message endpoint. The candidate can operate selected native sessions without the official extension; native remains explicit opt-in. Tab metadata is available throughout the paired profile; selected-page content is accessed through Playwright.
 
 The design and roadmap are in `BUILD-PLAN.md`. The earlier experimental helper is preserved in `legacy-prototype/`; its research/test artifacts are under `work/`.
 
@@ -36,32 +36,23 @@ The design and roadmap are in `BUILD-PLAN.md`. The earlier experimental helper i
 | `src/native-host.mjs` | Native message framing and per-profile Unix socket |
 | `src/playwright.mjs` | CLI subprocesses, profile pinning, locator correlation and verification |
 | `src/cli.mjs` | User-facing commands |
-| `src/install.mjs` | Prepare/install/uninstall native host registration |
+| `src/install.mjs`, `src/setup.mjs` | Inspect/stage/activate/verify/rollback owned setup |
 | `test/` | Protocol, conflict, identity and real-browser compatibility tests |
 
 ## One-time setup
 
-First review the generated `install/preview.json`, extension manifest and native host manifest. Preparation only writes inside this project:
+Follow [SETUP.md](SETUP.md) for candidate inspect/stage/activate/verify, retained
+0.1.2 upgrade/rollback and explicit managed skill migration. Setup validates Node
+22.21.1 and Playwright CLI 0.1.20 without installing dependencies globally. It uses
+a versioned local runtime and a stable physical extension directory. Chrome
+restart/permission acceptance is a one-time operator step, separate from daily
+agent operation. Work rollout has not been performed.
 
-```bash
-node src/install.mjs prepare
-```
-
-Installation registers `com.qa_browser.bridge` in the current user's macOS Chrome NativeMessagingHosts directory. Its allowed origin is this companion's own extension ID. The launcher uses an absolute Node executable path. Run from this project only after deciding to grant the extension Work-profile tab access:
-
-```bash
-node src/install.mjs apply
-```
-
-Load this project's `extension/` directory as an unpacked extension in the Work profile's `chrome://extensions` page. This is an initial installation step, not part of routine agent operation. Leave the official Playwright extension installed and authorized in that same profile.
-
-Find the Chrome profile directory once using Profile Path on `chrome://version`. Use the final path component, such as `Profile 1`, rather than the visible profile label. Find our instance UUID via the companion popup or the discovery command. If several instances are present, identify the intended Work-profile instance explicitly.
-
-```bash
-./install/qa-browser discover
-./install/qa-browser pair --profile work --instance <uuid> --chrome-profile-dir 'Profile 1'
-./install/qa-browser doctor --profile work
-```
+`node src/install.mjs prepare` now writes an **unregistered development preview**
+under `dist/setup-preview/` only. The historical `apply` command is replaced by
+reviewed `activate`. Existing `install/qa-browser` commands below describe the
+unchanged installed 0.1.2 compatibility prototype; new managed installations use
+`<runtime>/bin/qa-browser` instead.
 
 If one coding agent cannot reach Latch while another can, run `./install/qa-browser diagnose --profile work` **inside the failing agent's shell environment** and compare it with the same command in a normal local terminal. The output separates configured pairing, caller/runtime paths, socket visibility and actual connection errors. `BRIDGE_ACCESS_DENIED` preserves `EPERM`/`EACCES`; `PROFILE_UNAVAILABLE` preserves `ENOENT`/`ECONNREFUSED`. Discovery also retains unreachable-socket warnings. An empty discovery list alone does not establish that the profile is unpaired. This diagnostic does not read web pages or change browser/client settings.
 
@@ -71,7 +62,7 @@ The bridge is intended for regular, already open Chrome windows. Initial automat
 
 ## Terminal workflow
 
-For reusable agent instructions, run `npm run skills:install` once. It links the canonical `skills/latch/` directory into the local user's `.agents/skills/latch` for Codex/Cursor and `.claude/skills/latch` for Claude Code. Existing unrelated skills are not overwritten. The same skill contains the workflow, wrapper and recovery reference; clients do not need an MCP server configuration for Latch.
+For a managed release installation, use `node src/install.mjs skills` from its kit after verification. For checkout-based development only, run `npm run skills:install` once. It links the canonical `skills/latch/` directory into the local user's `.agents/skills/latch` for Codex/Cursor and `.claude/skills/latch` for Claude Code. Existing unrelated skills are not overwritten. The same skill contains the workflow, wrapper and recovery reference; clients do not need an MCP server configuration for Latch.
 
 Start a fresh local agent session, then invoke `$latch` in Codex, `/latch` in Claude Code, or select Latch from Cursor's skill menu. Natural requests such as “Use Latch to verify my existing staging tab” can also trigger it. Runtime capabilities still depend on shell permissions and the installed browser connection.
 

@@ -14,11 +14,11 @@ test('generated native launcher preserves Chrome caller origin and argument boun
   t.after(()=>fs.rm(temp,{recursive:true,force:true}));
   const project=path.join(temp,'project with spaces');
   await fs.mkdir(path.join(project,'src'),{recursive:true}); await fs.mkdir(path.join(project,'extension'));
-  for(const file of ['package.json','src/install.mjs','extension/protocol.js','extension/manifest.json'])
-    await fs.copyFile(path.join(root,file),path.join(project,file));
+  await fs.cp(path.join(root,'src'),path.join(project,'src'),{recursive:true});
+  for(const file of ['package.json','extension/protocol.js','extension/manifest.json'])await fs.copyFile(path.join(root,file),path.join(project,file));
   await fs.writeFile(path.join(project,'src/native-host.mjs'),"console.log(JSON.stringify(process.argv.slice(2)));\n");
   const prepared=JSON.parse((await exec(process.execPath,[path.join(project,'src/install.mjs'),'prepare'])).stdout);
   const caller=`chrome-extension://${prepared.extensionId}/`;
-  const result=await exec(path.join(project,'install/native-host'),[caller,'argument with spaces']);
+  const result=await exec(prepared.nativeHostLauncher,[caller,'argument with spaces']);
   assert.deepEqual(JSON.parse(result.stdout),[caller,'argument with spaces']);
 });

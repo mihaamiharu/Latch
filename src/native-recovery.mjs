@@ -138,7 +138,7 @@ export class NativeRecovery {
       g.cleanupRequested = false; return result;
     }
     if (p.action === 'disconnect' || p.action === 'rollback') {
-      const unknownOutcome = old.outcome === 'unknown' || this.sessions.sessions.get(g.key)?.relay.status().stopped === true;
+      const unknownOutcome = old.outcome === 'unknown' || this.sessions.sessions.get(g.key)?.relay.status().stopped === true || (this.sessions.sessions.get(g.key)?.relay.status().pending || 0) > 0;
       g.cleanupRequested = true;
       await this.save(g, {status: 'interrupted', stage: 'revoking', outcome: 'unknown'}, check);
       await this.sessions.handle('native-disconnect', base); check();

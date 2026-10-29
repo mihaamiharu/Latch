@@ -10,8 +10,10 @@ import {nativeWorkflow} from './native-workflow.mjs';
 import {nativeWorkflowV4} from './native-workflow-v4.mjs';
 import {readRecovery} from './recovery-state.mjs';
 import {reconcile} from './reconcile.mjs';
+import {ROOT} from './release.mjs';
+const releaseVersion=JSON.parse(await fs.readFile(path.join(ROOT,'package.json'),'utf8')).version;
 
-const usage = `Latch 0.1.2
+const usage = `Latch ${releaseVersion}
   qa-browser discover
   qa-browser pair --profile work --instance <uuid> --chrome-profile-dir <directory>
   qa-browser doctor --profile work
@@ -48,6 +50,7 @@ async function paired(name) {
 async function main() {
   const {command, flags: f} = parse(process.argv.slice(2));
   if (['help', '--help'].includes(command)) { console.log(usage); return; }
+  if (['version','--version'].includes(command)) return {version:releaseVersion,nativeSessionSchema:4,uiControl:1,validatedCLI:'0.1.20'};
   if (command === 'discover') return await discoverDetailed();
   const alias = f.profile || 'work';
   if (f.transport && !['official', 'native'].includes(f.transport)) throw fault('INVALID_ARGUMENT', 'Transport must be official or native.');

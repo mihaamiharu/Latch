@@ -222,3 +222,25 @@ beside the selected configuration (`QA_BROWSER_CONFIG` applies). They contain
 bounded task/lease metadata, never endpoint credentials or page bodies. They are
 host-owned state, separate from task evidence. Completed evidence remains in the
 same task directory; partial files are not promoted after recovery.
+
+
+## Installed preview and popup controls
+
+The local RC kit can include native debugger permission and a matching host while
+the installed Work profile still uses 0.1.2 compatibility mode. Check reported
+versions and negotiated capabilities; updating source/skill text does not upgrade
+Chrome. Keep explicit `--transport native` for the preview. Installation, one-time
+permission acceptance, rollback and transport-default changes are setup tasks,
+not automatic responses to an application-test failure.
+
+The popup shows only its own profile's pairing and task metadata. Its **Stop
+session** action revokes one current schema-4 native lease through the host,
+preserving website tabs and peers. It does not replay pending application actions.
+A busy task has not been stopped; a cleanup-unconfirmed result means native access
+was stopped but exact CLI detachment remains unproven. Inspect/reconcile the same
+workspace/session rather than deleting registries or changing adapters. Refresh
+a stale row before acting on it. Official/legacy tasks use normal CLI disconnect.
+
+Managed installation skill links follow the selected release. A separately copied
+skill still uses `LATCH_HOME` to locate a complete runtime. Keep that override
+intentional; do not silently substitute another checkout after a version error.

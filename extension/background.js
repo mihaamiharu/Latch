@@ -15,7 +15,7 @@ const initialized = (async () => {
   identity = {instanceId, epoch: crypto.randomUUID(), extensionVersion: chrome.runtime.getManifest().version};
   controller = createController(chrome, identity, {nativeTransport, nativeRecovery: true});
   connection = createBridgeConnection(chrome, {host: HOST,
-    hello: {v: 1, type: 'hello', ...identity, extensionId: chrome.runtime.id, capabilities: {nativeTransport: nativeTransport.available, nativeSessionSchema: 4}},
+    hello: {v: 1, type: 'hello', ...identity, extensionId: chrome.runtime.id, capabilities: {nativeTransport: nativeTransport.available, nativeSessionSchema: 4, uiControl: 1}},
     invalidate: async () => { await controller.invalidateNative(); await nativeTransport.recoverOwned(); },
     activate: generation => controller.activateNative(generation),
     dispatch: (request, generation) => {
@@ -35,7 +35,10 @@ chrome.tabs.onCreated?.addListener(tab => { void controller?.observeTab(tab)?.ca
 chrome.tabs.onUpdated?.addListener((id, change, tab) => { void controller?.observeTab(tab)?.catch(() => {}); });
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL(''))) return;
-  if (message?.type === 'status') status().then(reply);
+  if(message?.type==='ui'){
+    if(sender.url!==chrome.runtime.getURL('popup.html'))return;
+    initialized.then(()=>connection.ui(message.op,message.payload)).then(result=>reply({ok:true,result}),error=>reply({ok:false,error:safeError(error)}));
+  } else if (message?.type === 'status') status().then(reply);
   else if (message?.type === 'retry') initialized.then(() => connection.start({reset: true})).then(status).then(reply);
   else if (message?.type === 'request') dispatch(message).then(reply);
   else return;

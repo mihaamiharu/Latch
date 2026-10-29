@@ -36,3 +36,9 @@ test('missing acknowledgments exhaust a finite retry budget with durable alarms 
 test('worker restart honors a persisted due time and degraded state',async t=>{
   const f=fixture(t,{attempts:2,nextAttemptAt:4000,degraded:false});await f.bridge.start();assert.equal(f.ports.length,0);await f.tick(4000);assert.equal(f.ports.length,1);await f.ack();assert.equal(f.bridge.status().attempts,0);
 });
+
+test('popup control correlates the verified generation, rejects obsolete replies and settles on bridge loss',async t=>{
+ const f=fixture(t);await f.bridge.start();const port=f.ports[0],generation=crypto.randomUUID(),nonce=port.sent[0].nonce;port.onMessage.emit({type:'challenge',nonce,hostGeneration:generation,epoch:f.hello.epoch});await f.flush();port.onMessage.emit({type:'ready',nonce,hostGeneration:generation,epoch:f.hello.epoch,capabilities:{uiControl:1}});await f.flush();
+ const request=f.bridge.ui('status');const message=port.sent.at(-1);let finished=false;request.then(()=>finished=true);port.onMessage.emit({type:'ui-response',id:message.id,nonce,hostGeneration:crypto.randomUUID(),ok:true,result:{wrong:true}});await f.flush();assert.equal(finished,false);port.onMessage.emit({type:'ui-response',id:message.id,nonce,hostGeneration:generation,ok:true,result:{paired:true}});assert.deepEqual(await request,{paired:true});
+ const pending=f.bridge.ui('revoke',{key:'example'}),rejected=assert.rejects(pending,{code:'BRIDGE_DISCONNECTED'});port.onDisconnect.emit();await rejected;
+});

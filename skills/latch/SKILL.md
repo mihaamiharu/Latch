@@ -11,7 +11,7 @@ Use the user's existing paired Work browser. Latch discovers tabs and assigns a 
 
 Resolve the absolute directory containing this `SKILL.md` from the client-provided skill path. Below, `LATCH_SKILL_DIR` means that directory, `LATCH_WORKSPACE` means the current task's canonical project root, and `LATCH_SESSION` is a fresh, unique name for this task. Keep those exact values throughout the workflow, including cleanup. Shell variables may need to be reassigned in each tool call.
 
-The helper locates the Latch checkout relative to this skill, preserves your working directory, and forwards to its CLI. If the skill was copied separately from the checkout, the user can configure `LATCH_HOME` to locate the installed runtime. Do not assume `qa-browser` is globally on PATH or change into the Latch source checkout to work on another project.
+The helper locates the matching Latch runtime relative to this skill, preserves your working directory, and forwards to its CLI. In a managed release installation it uses the installed launcher and its selected configuration. If the skill was copied separately from the checkout, the user can configure `LATCH_HOME` to locate the installed runtime. Do not assume `qa-browser` is globally on PATH or change into the Latch source checkout to work on another project.
 
 ```bash
 node "$LATCH_SKILL_DIR/scripts/latch.mjs" doctor --profile work --workspace "$LATCH_WORKSPACE"

@@ -1,9 +1,6 @@
 <!doctype html>
-<html lang="en"><meta charset="utf-8"><title>Latch</title>
-<style>body{font:14px system-ui;width:330px;padding:16px;color:#183229}h1{font-size:18px;display:flex;align-items:center;gap:10px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f0f5f2;padding:10px}p{line-height:1.5}</style>
-<h1><img src="icons/latch-32.png" width="32" height="32" alt="">Latch</h1>
-<p>This extension lets your local terminal discover tabs in this profile and connect selected tabs to Playwright.</p>
-<p id="connection" role="status">Checking local bridge…</p>
-<details><summary>Connection details</summary><pre id="status"></pre></details>
-<p>Pair the instance ID below using <code>qa-browser pair</code>. Install in your Work profile.</p>
-<script type="module" src="popup.js"></script></html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Latch</title><link rel="stylesheet" href="popup.css"></head>
+<body><header><img src="icons/latch-48.png" width="40" height="40" alt=""><div><h1>Latch</h1><p>Your browser, connected to your agents.</p></div><span id="badge">Checking</span></header>
+<main><section class="connection"><h2 id="connection" role="status">Checking local bridge…</h2><p id="profile">Finding this profile</p><div class="actions"><button id="refresh" type="button">Refresh</button><button id="retry" type="button" hidden>Retry connection</button></div></section>
+<p id="notice" role="status" aria-live="polite"></p><section aria-labelledby="sessions-heading"><div class="section-title"><h2 id="sessions-heading">Agent sessions</h2><span id="count">0</span></div><p id="empty">Loading sessions…</p><div id="sessions"></div></section>
+<details><summary>Connection details</summary><pre id="status"></pre></details><footer>Stopping automation keeps your website tabs open.</footer></main><script type="module" src="popup.js"></script></body></html>

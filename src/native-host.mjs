@@ -7,6 +7,9 @@ import {rootDir, socketPath, privateDirectory, uuid} from './local.mjs';
 import {checkRequest, safeError} from '../extension/protocol.js';
 import {NativeSessions} from './native-sessions.mjs';
 import {NativeRecovery} from './native-recovery.mjs';
+import {NativeUI} from './native-ui.mjs';
+import {ROOT} from './release.mjs';
+import path from 'node:path';
 
 let identity;
 let address;
@@ -16,6 +19,10 @@ let ownsSocket = false;
 let stopping = false;
 let nativeSessions;
 let recovery;
+let ui;
+let controlNonce;
+const uiPending=new Set();
+const uiTasks=new Set();
 let handshake;
 let ready = false;
 const hostGeneration = crypto.randomUUID();
@@ -57,11 +64,14 @@ async function start(hello) {
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
   const nativeAvailable = !!hello.capabilities?.nativeTransport && /^[a-p]{32}$/.test(hello.extensionId || '') &&
     process.argv[2] === `chrome-extension://${hello.extensionId}/`;
-  identity = {instanceId: hello.instanceId, epoch: hello.epoch, hostGeneration, extensionVersion: hello.extensionVersion,
+  const releaseVersion=JSON.parse(await fs.readFile(path.join(ROOT,'package.json'),'utf8')).version;
+  controlNonce=hello.nonce;
+  identity = {releaseVersion,instanceId: hello.instanceId, epoch: hello.epoch, hostGeneration, extensionVersion: hello.extensionVersion,
     ...(nativeAvailable ? {extensionId: hello.extensionId} : {}), capabilities: {nativeTransport: nativeAvailable,
-      ...(nativeAvailable ? {nativeSessionSchema: hello.capabilities.nativeSessionSchema || 2} : {}), ...(hello.capabilities?.recoveryContract === 1 ? {recoveryContract: 1} : {})}};
+      ...(nativeAvailable ? {nativeSessionSchema: hello.capabilities.nativeSessionSchema || 2} : {}), ...(hello.capabilities?.recoveryContract === 1 ? {recoveryContract: 1} : {}), ...(hello.capabilities?.uiControl===1 ? {uiControl:1} : {})}};
   nativeSessions = new NativeSessions(identity, browser);
   if (nativeAvailable && identity.capabilities.nativeSessionSchema === 4) recovery = new NativeRecovery(identity, nativeSessions, browser);
+  ui=new NativeUI(identity,nativeSessions,recovery,browser);
   server = net.createServer(socket => {
     if (sockets.size >= 128) { socket.destroy(); return; }
     sockets.add(socket);
@@ -171,6 +181,7 @@ async function start(hello) {
 async function stop(error) {
   if (stopping) return;
   stopping = true; ready = false; clearTimeout(handshake?.timer);
+  ui?.stop();
   const drains = [...operationDrains.values()].map(drain => drain());
   for (const socket of sockets) socket.destroy();
   if (error) process.stderr.write(`Latch: ${error.message}\n`);
@@ -179,7 +190,7 @@ async function stop(error) {
   }
   pending.clear();
   await nativeSessions?.stop();
-  await Promise.allSettled(drains);
+  await Promise.allSettled([...drains,...uiTasks]);
   // Keep the old listening inode occupied until all journal tails settle.
   // Unlink while still listening, then close; there is no later unlink which
   // could erase a successor's newly bound socket.
@@ -189,7 +200,12 @@ async function stop(error) {
 }
 const consume = decoder(message => {
   if (message?.type === 'ack' && handshake && message.nonce === handshake.nonce && message.epoch === identity?.epoch && message.hostGeneration === hostGeneration) {
-    clearTimeout(handshake.timer); ready = true; write({v: 1, type: 'ready', nonce: handshake.nonce, epoch: identity.epoch, hostGeneration}); handshake = undefined; return;
+    clearTimeout(handshake.timer); ready = true; write({v: 1, type: 'ready', capabilities:identity.capabilities, nonce: handshake.nonce, epoch: identity.epoch, hostGeneration}); handshake = undefined; return;
+  }
+  if(message?.type==='ui-request'){
+    if(!ready||!identity?.capabilities.uiControl||message.v!==1||message.nonce!==controlNonce||message.hostGeneration!==hostGeneration||!uuid.test(message.id||'')||!['status','revoke'].includes(message.op)||uiPending.size>=16||uiPending.has(message.id)||JSON.stringify(message.payload||{}).length>8192)return;
+    uiPending.add(message.id);
+    const job=(async()=>{let response;try{const result=await(message.op==='status'?ui.status():ui.revoke(message.payload||{}));if(Buffer.byteLength(JSON.stringify(result))>65536)throw Object.assign(new Error('Popup status exceeded its bound.'),{code:'UI_MESSAGE_TOO_LARGE'});response={ok:true,result}}catch(error){response={ok:false,error:safeError(error)}}finally{uiPending.delete(message.id)}if(ready)write({v:1,type:'ui-response',id:message.id,nonce:controlNonce,hostGeneration,...response})})();uiTasks.add(job);void job.finally(()=>uiTasks.delete(job)).catch(()=>{});return;
   }
   if (message?.type === 'hello') { void start(message).catch(stop); return; }
   if (message?.v !== 1 || typeof message.id !== 'string') return;

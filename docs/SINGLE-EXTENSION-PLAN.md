@@ -4,7 +4,10 @@ Prepared October 28, 2026; status updated October 29. Phases 0–3 are implement
 on `feat/latch-native-transport`, within the Phase 3 declared support matrix.
 See `PHASE-3-COMPATIBILITY-PLAN.md` for acceptance and baseline limitations.
 Phase 4 recovery is implemented in the native source preview; see
-`PHASE-4-RECOVERY-RESULTS.md` for verification and explicit limits. The installed Work transport and daily default are unchanged.
+`PHASE-4-RECOVERY-RESULTS.md` for verification and explicit limits. Phase 5 now provides a local release candidate, installer and popup; see
+`PHASE-5-INSTALLER-POPUP-RESULTS.md`. Tab-preserving real update/permission acceptance
+and actual client rollout remain unverified. The installed Work transport and daily
+default are unchanged.
 `NATIVE-TRANSPORT-CONTRACT.md` and `NATIVE-SESSION-WORKFLOW.md` preserve the
 earlier proof and single-tab checkpoint.
 
@@ -159,6 +162,11 @@ On epoch changes, revoke old endpoints and mark old sessions stale. Reconnect th
 **Gate:** no abandoned debugger access, hanging pending requests or valid old credentials remain after terminal failure. Doctor/diagnose distinguish profile pairing, native readiness, relay readiness, debugger conflicts and caller permission denials.
 
 ### Phase 5 — Integrate installer, popup and shared skill
+
+The concrete stages, release decisions and acceptance matrix are in
+[the Phase 5 execution plan](PHASE-5-INSTALLER-POPUP-PLAN.md). This phase verifies
+the packaged candidate in disposable profiles; installed Work rollout remains
+Phase 6.
 
 Update manifest generation/build packaging, local dependency setup, help and version checks. Preserve the Latch ID, native registration and existing profile configuration. Explain Chrome's one-time debugger permission grant during extension upgrade.
 
