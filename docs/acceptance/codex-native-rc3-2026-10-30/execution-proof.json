@@ -1,0 +1,42 @@
+{
+  "selectedToolResults": [
+    {
+      "check": "connect",
+      "approvalPolicy": "never",
+      "sandboxPolicy": {
+        "type": "danger-full-access"
+      },
+      "processExitCode": 1,
+      "shellReportingError": "zsh:1: read-only variable: status"
+    },
+    {
+      "check": "error-normalization",
+      "approvalPolicy": "never",
+      "sandboxPolicy": {
+        "type": "danger-full-access"
+      },
+      "processExitCode": 1,
+      "capturedError": {
+        "ok": false,
+        "error": {
+          "code": "PLAYWRIGHT_ERROR",
+          "message": "Error: LATCH_RC3_EXPECTED_FAILURE",
+          "diagnostics": {
+            "command": "run-code",
+            "exitCode": 1,
+            "elapsedMs": 158,
+            "upstreamError": "Error: LATCH_RC3_EXPECTED_FAILURE"
+          }
+        }
+      }
+    },
+    {
+      "check": "disconnect",
+      "approvalPolicy": "never",
+      "sandboxPolicy": {
+        "type": "danger-full-access"
+      },
+      "processExitCode": 0
+    }
+  ]
+}

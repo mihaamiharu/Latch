@@ -1,5 +1,9 @@
 # RC3 attachment and action failure handling
 
+This is the preparation record before Work activation. For the later RC3 update,
+native Work preference and actual terminal-client result, see the
+[current release review](RELEASE-READINESS-2026-10-30.md).
+
 Prepared October 30, 2026, Asia/Jakarta. Candidate: `0.2.0-rc.3`; Chrome version
 `0.1.99.3`. The active Work installation remains RC2. This work changes no live
 pairing, transport preference, browser permission or client security setting.

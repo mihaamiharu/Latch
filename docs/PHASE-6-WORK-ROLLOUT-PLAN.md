@@ -1,7 +1,9 @@
 # Phase 6: Work rollout and native default
 
-Prepared October 29, 2026. Implementation in progress; no Work rollout performed. See
-`PHASE-6-IMPLEMENTATION-RESULTS.md` for completed preparation and pending gates.
+Historical execution plan prepared October 29, 2026, before Work rollout. See
+`PHASE-6-IMPLEMENTATION-RESULTS.md` and `RELEASE-READINESS-2026-10-30.md` for current
+RC3 installation, scoped Codex acceptance, user-directed native preference and
+remaining gates. The baseline below describes the state at plan creation.
 Starting checkpoint: `0f52cf98b321a1546f452c6ca00d855ae1805e2a`.
 Baseline: Phase 5 local candidate 0.2.0-rc.1, Chrome version 0.1.99.1,
 112 distinct passing checks across selected runs. Installed Work last reported

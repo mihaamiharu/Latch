@@ -1,6 +1,15 @@
 # Phase 6 implementation and rollout status
 
-Starting checkpoint: `0f52cf9`, October 29, 2026. Candidate: **0.2.0-rc.2**,
+**Current update, October 30, 2026:** RC3 is installed/healthy in Work, its pairing
+configuration was preserved on the stable-path update and Work now explicitly
+defaults to native. An actual Codex CLI native navigation/evidence/error/cleanup
+smoke passed with per-session Full Access. Restricted workspace-write, other
+coding clients and remaining live Work gates are not established. See the
+[acceptance record](acceptance/codex-native-rc3-2026-10-30/README.md) and
+[release-readiness review](RELEASE-READINESS-2026-10-30.md). The RC2 preparation and
+pilot sections below remain historical observations, not the current installation.
+
+Historical starting checkpoint: `0f52cf9`, October 29, 2026. Candidate: **0.2.0-rc.2**,
 Chrome version **0.1.99.2**, native schema 4 and UI control 1.
 
 The automated preparation and operator-assisted Work installation are implemented.

@@ -5,10 +5,13 @@ This private macOS candidate includes the native extension, host/CLI, shared ski
 are external prerequisites. Setup validates them without installing anything
 globally. Keep the full kit together; the extension ZIP alone is insufficient.
 
-Phase 5 tests use disposable headless profiles. The installed Work profile remains
-on 0.1.2. Applying this procedure to Work, accepting Chrome permissions and testing
-actual terminal clients belong to Phase 6. Keep the official extension and the
-existing transport default until that smoke test passes.
+Automated browser tests use disposable headless profiles. The current operator-
+assisted Work installation is RC3 with native selected explicitly for that profile.
+Its actual Codex CLI smoke passed under per-session Full Access; other client and
+permission modes remain unverified. The procedure below also serves first installs,
+whose profile/default selection must be verified explicitly. See the current
+release-readiness review in the source repository. The frozen installed RC3 kit
+is not rewritten when this source document is updated.
 
 ## Inspect and stage
 

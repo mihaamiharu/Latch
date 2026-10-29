@@ -1,15 +1,18 @@
 # Latch: one-extension migration plan
 
-Prepared October 28, 2026; status updated October 29. Phases 0–3 are implemented
+Prepared October 28, 2026; status updated October 30. Phases 0–3 are implemented
 on `feat/latch-native-transport`, within the Phase 3 declared support matrix.
 See `PHASE-3-COMPATIBILITY-PLAN.md` for acceptance and baseline limitations.
 Phase 4 recovery is implemented in the native source preview; see
 `PHASE-4-RECOVERY-RESULTS.md` for verification and explicit limits. Phase 5 now provides a local release candidate, installer and popup; see
-`PHASE-5-INSTALLER-POPUP-RESULTS.md`. RC2 is now installed in Work, and a local native pilot plus two-workspace
-isolation passed with focus emulation. The real UI update changed the instance ID
-and required an explicitly approved rebind; full pre-update state preservation
-remains unverified. Actual coding-client runs/default cutover are pending. See
-`PHASE-6-IMPLEMENTATION-RESULTS.md`; the fresh-session default remains official.
+`PHASE-5-INSTALLER-POPUP-RESULTS.md`. RC3 is installed in Work and that profile now
+explicitly defaults to native. A local native pilot/two-workspace isolation passed,
+and an actual Codex CLI native smoke passed with focus emulation under per-session
+Full Access. Restricted execution modes, other clients and remaining live Work
+gates are unverified. The earlier RC2 folder migration required an explicitly
+approved rebind; full original state preservation remains unverified. See
+`PHASE-6-IMPLEMENTATION-RESULTS.md` and `RELEASE-READINESS-2026-10-30.md`.
+Unconfigured profiles retain the legacy official default.
 `NATIVE-TRANSPORT-CONTRACT.md` and `NATIVE-SESSION-WORKFLOW.md` preserve the
 earlier proof and single-tab checkpoint.
 
@@ -19,7 +22,7 @@ Install only Latch in the Work Chrome profile. A local coding agent discovers an
 
 Latch will own browser attachment as well as profile discovery and agent session ownership. Playwright CLI remains the automation engine for snapshots, locators, actions, assertions and evidence.
 
-Target release: 0.2.0, conditional on the gates below. Keep the installed 0.1.2 workflow available until its replacement passes.
+Target release: 0.2.0, conditional on the gates below and current release-readiness findings. Retain the owned rollback payloads through release acceptance.
 
 ## Starting point and constraints
 

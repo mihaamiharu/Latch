@@ -2,22 +2,25 @@
 
 A macOS Chrome companion extension and local CLI for connecting existing Work-profile tabs to Playwright CLI. Run `npm ci` after cloning/updating this source branch: the native host now depends on the pinned `ws` transport library.
 
-**Status:** RC2 is installed in Work. The native local-fixture pilot passed through
-Latch and unmodified Playwright CLI with focus emulation enabled; Playwright's
-official extension was disabled for the pilot. Actual coding-agent CLI runs and
-native-default cutover remain pending. The fresh-session default is still official,
-so the prepared native smokes explicitly use `--transport native --focus-emulation on`.
-See [the real Work observations](docs/PHASE-6-IMPLEMENTATION-RESULTS.md#operator-assisted-work-observations).
+**Status (October 30, 2026):** RC3 is installed and healthy in Work; that profile's
+default is native and the official Playwright extension is off. An actual Codex
+CLI smoke passed connect, evidence, navigation, error normalization and cleanup
+with focus emulation on. Its recorded execution policy was per-session Full
+Access; restricted workspace-write, Claude Code and Cursor CLI workflows remain
+unverified. Unconfigured profiles still use the legacy official default.
+See the [portable acceptance evidence](docs/acceptance/codex-native-rc3-2026-10-30/README.md)
+and [release/agent/artifact review](docs/RELEASE-READINESS-2026-10-30.md).
 
 The source candidate is now **0.2.0-rc.3**. It preserves official-attach causes,
 separates bridge health from attachment verification, warns about native focus-off
 interactions and adds `qa-browser pw` to normalize Playwright action errors.
-See [RC3 failure handling](docs/RC3-FAILURE-HANDLING.md). RC3 preparation does not
-update the installed Work runtime or change its transport/focus defaults.
+See [RC3 failure handling](docs/RC3-FAILURE-HANDLING.md) for the preparation record.
+The later operator-assisted update and Work-default change are recorded separately;
+the installed payload remains the frozen software checkpoint `b0891c1`.
 
-The native candidate removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, acceptance gates and rollback. Migration is in progress; the fresh-session default remains official until the remaining gates pass.
+The native candidate removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, acceptance gates and rollback. Broader release acceptance remains in progress; Work's explicit native preference does not change the default for other unconfigured profiles.
 
-The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus verified popup descendants. The [Gate C work](docs/GATE-C-FRAMES-WORKERS-PLAN.md) adds bounded child-session lifetimes, nested frame routing, dedicated-worker checks and targeted cancellation. Headless comparison covers same-origin/cross-origin/OOPIF forms, navigation, replacement and frame evidence. The pinned CLI does not backfill already-running workers into `page.workers()` in these tests; new dedicated workers are observable and evaluable. See the [Phase 3 acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md). Native mode remains explicit during the installed Work pilot; its fresh-session default is unchanged. Gate D verifies byte-preserving uploads and separates browser download receipt from unsupported managed retrieval. Gate E adds verified large evidence, finite transport bounds and scoped failure cleanup. Phase 4 adds acknowledged bridge recovery, fenced native leases, host-owned journals and guarded reconciliation; see [the recovery results](docs/PHASE-4-RECOVERY-RESULTS.md). Phase 5 adds a complete local release kit, an owned installer and profile-scoped session popup. See [setup](SETUP.md) and [Phase 5 results](docs/PHASE-5-INSTALLER-POPUP-RESULTS.md). Phase 6 adds explicit per-profile transport preferences; Work cutover remains gated. See [the Phase 6 plan](docs/PHASE-6-WORK-ROLLOUT-PLAN.md).
+The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus verified popup descendants. The [Gate C work](docs/GATE-C-FRAMES-WORKERS-PLAN.md) adds bounded child-session lifetimes, nested frame routing, dedicated-worker checks and targeted cancellation. Headless comparison covers same-origin/cross-origin/OOPIF forms, navigation, replacement and frame evidence. The pinned CLI does not backfill already-running workers into `page.workers()` in these tests; new dedicated workers are observable and evaluable. See the [Phase 3 acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md). Work now explicitly defaults to native; transport/focus flags remain useful for reproducible smokes and other profiles retain their own preferences. Gate D verifies byte-preserving uploads and separates browser download receipt from unsupported managed retrieval. Gate E adds verified large evidence, finite transport bounds and scoped failure cleanup. Phase 4 adds acknowledged bridge recovery, fenced native leases, host-owned journals and guarded reconciliation; see [the recovery results](docs/PHASE-4-RECOVERY-RESULTS.md). Phase 5 adds a complete local release kit, an owned installer and profile-scoped session popup. See [setup](SETUP.md) and [Phase 5 results](docs/PHASE-5-INSTALLER-POPUP-RESULTS.md). Phase 6 adds explicit per-profile transport preferences; Work cutover remains gated. See [the Phase 6 plan](docs/PHASE-6-WORK-ROLLOUT-PLAN.md).
 
 ## Build the extension
 
