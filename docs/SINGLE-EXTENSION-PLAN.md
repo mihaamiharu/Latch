@@ -5,9 +5,11 @@ on `feat/latch-native-transport`, within the Phase 3 declared support matrix.
 See `PHASE-3-COMPATIBILITY-PLAN.md` for acceptance and baseline limitations.
 Phase 4 recovery is implemented in the native source preview; see
 `PHASE-4-RECOVERY-RESULTS.md` for verification and explicit limits. Phase 5 now provides a local release candidate, installer and popup; see
-`PHASE-5-INSTALLER-POPUP-RESULTS.md`. Tab-preserving real update/permission acceptance
-and actual client rollout remain unverified. The installed Work transport and daily
-default are unchanged.
+`PHASE-5-INSTALLER-POPUP-RESULTS.md`. RC2 is now installed in Work, and a local native pilot plus two-workspace
+isolation passed with focus emulation. The real UI update changed the instance ID
+and required an explicitly approved rebind; full pre-update state preservation
+remains unverified. Actual coding-client runs/default cutover are pending. See
+`PHASE-6-IMPLEMENTATION-RESULTS.md`; the fresh-session default remains official.
 `NATIVE-TRANSPORT-CONTRACT.md` and `NATIVE-SESSION-WORKFLOW.md` preserve the
 earlier proof and single-tab checkpoint.
 

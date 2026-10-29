@@ -3,10 +3,12 @@
 Starting checkpoint: `0f52cf9`, October 29, 2026. Candidate: **0.2.0-rc.2**,
 Chrome version **0.1.99.2**, native schema 4 and UI control 1.
 
-The automated preparation is implemented. **The real Work update, Chrome
-permission acceptance, actual client application runs and live native-default
-cutover remain pending.** Availability/version commands are not client smoke tests.
-The existing Work profile and registration have not been activated or reloaded.
+The automated preparation and operator-assisted Work installation are implemented.
+**The local native Work pilot passed with focus emulation enabled. Actual coding-
+agent CLI application runs and native-default cutover remain pending.** The real
+UI folder move changed the instance ID; the operator explicitly approved a backed-
+up one-field Work rebind. Full original tab/login preservation is unverified.
+The headless preparation and real Work observations below have separate scopes.
 
 ## Implemented
 
@@ -25,7 +27,9 @@ The existing Work profile and registration have not been activated or reloaded.
   unrelated profile fields and refusing to reclaim an existing gate by PID/age.
   Repeating the same pairing preserves its configured default.
 - Shared skill/setup instructions describe effective defaults and the separate
-  rollout step. No global discovery links or security settings were changed.
+  rollout step. Preparation changed no discovery links/security settings; after
+  the successful Work pilot, proven managed Latch skill links were migrated to
+  installed RC2. Global client security settings remain unchanged.
 
 ## New browser evidence
 
@@ -100,3 +104,53 @@ Phase 6 is **not complete** until real Work preservation/permissions, claimed
 client contexts, concurrent ownership, Personal-foreground observation, explicit
 Work default and rollback gates are verified. A local preparation checkpoint does
 not change those statuses. No push or publication.
+
+
+## Operator-assisted Work observations
+
+Observed October 29, 2026, Asia/Jakarta. The user explicitly authorized a narrow
+Work-pilot exception to AGENTS.md, confirmed the legacy loaded folder, disabled
+Latch, then loaded/enabled the managed RC2 directory. Runtime activation retained
+the actual 0.1.2 payload and preserved pairing bytes initially. The supplied
+screenshot showed Latch RC2 enabled and the official Playwright extension disabled.
+Native operations subsequently prove effective debugger permission; the precise
+Chrome permission-prompt presentation/prior official state were not reported.
+
+The real UI migration produced a different stored instance ID. The existing Work
+alias was left untouched until the operator confirmed the Work popup and explicitly
+selected the backed-up repair. Only its instance ID changed; all other config
+fields remained. This is an accepted rebind, not an identity-preservation pass.
+The metadata comparison matched 14 of 15 original web tab IDs, retaining the matched
+windows/groups. One original web tab was absent from the web-only listing and one
+URL hash changed. Full pre-update preservation/login state was not established;
+no unrelated page content was read.
+
+The first native fixture attempt attached and captured readable screenshot/snapshot
+evidence but timed out waiting for button stability. It disconnected normally.
+Independent server receipts showed no save, and a fresh read-only connection still
+observed Waiting. Focus emulation then reported visible/focused state and two
+animation frames. A distinct marked case with focus emulation on saved once with
+one matching server receipt, adopted/released a child, retained parent state,
+captured after evidence plus console/requests and disconnected. Both physical tabs
+remained open/unowned. The failed attempt and inspected outcome remain in evidence.
+This is a local background-fixture observation, not a real-focus guarantee.
+
+Two independent normal CLI workspaces also attached A/B, exposed only their own
+targets, rejected foreign target metadata and kept B usable after A disconnected.
+Both cleaned up with tabs preserved. This was one Codex desktop orchestrator using
+normal Playwright CLI processes, not actual Codex CLI/Claude Code/Cursor model runs.
+Real popup Stop-session and Personal-foreground observations remain pending.
+
+After this pilot, setup migrated only the proven .agents/.claude Latch skill links
+to the matching installed RC2 skill. The default remains unset/official. Separate
+Codex/Claude/Cursor local fixture tabs are open and unowned, with explicit-native,
+focus-emulation smoke prompts ready. Their model/client contexts have not run.
+The local server is intentionally retained for these checks; no test lease remains
+from the completed pilot/preparation/isolation sessions.
+
+The artifact/runtime source remains software checkpoint 57ccca5. These observations
+update documentation only; the frozen installed release was not rebuilt or patched.
+No global client-security setting, unrelated application data or profile was changed.
+Nothing was pushed. Phase 6 remains incomplete until the remaining claimed client,
+foreground, application-scope and default gates are handled. A rollback must verify
+the actual current extension instance rather than blindly restoring the old binding.
