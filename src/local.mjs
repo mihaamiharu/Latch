@@ -33,6 +33,24 @@ export async function writeConfig(config) {
   await fs.writeFile(temp, JSON.stringify(config, null, 2) + '\n', {mode: 0o600, flag: 'wx'});
   await fs.rename(temp, dest);
 }
+// All CLI config mutations share one exclusive, non-reclaiming gate.
+export async function updateConfig(change) {
+  const dir = path.dirname(configPath());
+  await privateDirectory(dir);
+  const gate = configPath() + '.lock';
+  try { await fs.mkdir(gate, {mode: 0o700}); }
+  catch (error) { if (error.code === 'EEXIST') throw fault('CONFIG_BUSY', 'A configuration update gate exists; inspect its owner/state instead of deleting it by PID or age.'); throw error; }
+  try {
+    await fs.writeFile(path.join(gate, 'owner.json'), JSON.stringify({pid: process.pid, nonce: crypto.randomUUID()}), {flag: 'wx', mode: 0o600});
+    const config = await readConfig(), before = JSON.stringify(config);
+    const result = await change(config);
+    if (JSON.stringify(config) !== before) await writeConfig(config);
+    return result;
+  } finally {
+    await fs.unlink(path.join(gate, 'owner.json')).catch(e => { if (e.code !== 'ENOENT') throw e; });
+    await fs.rmdir(gate);
+  }
+}
 export function socketError(error, address) {
   const systemCode = error.code || 'UNKNOWN';
   if (['EACCES', 'EPERM'].includes(systemCode))

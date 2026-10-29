@@ -1,6 +1,6 @@
 {
   "name": "latch-browser-bridge",
-  "version": "0.2.0-rc.1",
+  "version": "0.2.0-rc.2",
   "private": true,
   "type": "module",
   "engines": {
@@ -33,7 +33,9 @@
     "test:release": "node --test test/release.test.mjs test/setup.test.mjs",
     "test:popup-ui": "LATCH_POPUP_UI=1 node --test test/popup-ui.test.mjs",
     "test:installed-kit": "LATCH_INSTALLED_KIT=1 node --test test/installed-kit.test.mjs",
-    "test:upgrade-probe": "LATCH_UPGRADE_PROBE=1 node --test test/upgrade-probe.test.mjs"
+    "test:upgrade-probe": "LATCH_UPGRADE_PROBE=1 node --test test/upgrade-probe.test.mjs",
+    "test:path-migration": "LATCH_PATH_MIGRATION=1 node --test test/path-migration.test.mjs",
+    "test:transport": "node --test test/transport.test.mjs test/diagnostics.test.mjs"
   },
   "dependencies": {
     "ws": "8.22.0"

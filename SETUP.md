@@ -1,4 +1,4 @@
-# Latch 0.2.0-rc.1 local setup
+# Latch 0.2.0-rc.2 local setup
 
 This private macOS candidate includes the native extension, host/CLI, shared skill,
 `ws` 8.22.0 and third-party licenses. Node **22.21.1** and Playwright CLI **0.1.20**
@@ -16,7 +16,7 @@ Unzip the complete kit into a permanent local directory. Use the selected Node
 executable, then inspect from that directory:
 
 ```bash
-LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.1'
+LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.2'
 node "$LATCH_KIT/src/install.mjs" inspect --kit "$LATCH_KIT"
 node "$LATCH_KIT/src/install.mjs" stage --kit "$LATCH_KIT"
 ```
@@ -39,11 +39,17 @@ a blocker, preserved unchanged.
 ## Activate once, then verify
 
 Finish/disconnect every affected task. Disable the target Latch extension in
-Chrome and confirm its host exits. For this RC, **quit Chrome normally before
-replacing files**. Headless experiments found that disable/enable and a symlink
-switch did not reliably refresh loaded extension code. A normal restart was tested;
-live permission-increase acceptance remains unverified. Never force-quit a user's
-browser or treat version metadata alone as proof of readiness.
+Chrome and confirm its host exits before replacing files. RC2's headless setup
+rehearsal moved an actual 0.1.2 extension from its old folder into the managed
+folder using Chrome's test-only installation API, then explicitly enabled it.
+Its instance, pairing, tabs/windows/groups, page memory and unsaved fixture input
+survived without a browser restart. Actual Chrome UI/permission acceptance in
+Work remains unverified and requires the operator-assisted rollout gate.
+
+Do not uninstall the existing extension, silently re-pair, automate Chrome's
+permission UI or force a browser restart. A restart is only a separately accepted
+fallback maintenance procedure and may affect Personal in the same Chrome process.
+Version metadata alone does not prove that the expected code is ready.
 
 Inspect again, review the returned paths, permission delta and rollback target,
 then pass that exact `planToken`:
@@ -59,12 +65,12 @@ bridge sockets to be unreachable; it cannot prove Chrome was unloaded or accept 
 permission prompt. Activation returns `verified: false` until browser verification.
 It does not restart browsers, disconnect tasks, pair profiles or change defaults.
 
-Start Chrome. For a clean install, load the returned stable `extensionDirectory`
-using Load unpacked. For an existing installation, select that directory explicitly
-if Chrome still references the old checkout; review the fixed extension ID
-`dlkpkeiejlgggeoibejpoajedoelfcli`. Disable/enable the loaded extension after the
-restart if required. Accept Chrome's new debugger permission yourself. A fixture
-startup/enable is not evidence of real human permission acceptance.
+In the intended Chrome profile, use Load unpacked to select the returned stable
+`extensionDirectory`. Review the fixed ID `dlkpkeiejlgggeoibejpoajedoelfcli` and
+explicitly enable the updated extension. Accept Chrome's added debugger permission
+yourself. Use this same path for future updates; do not keep loading the checkout.
+The headless fixture needed an explicit enable after the directory move. Its
+API-based permission enable does not prove real human permission acceptance.
 
 For an existing profile, preserve its stored instance and pairing. For a clean
 profile only, inspect the popup/discovery result, then explicitly pair that exact
@@ -77,7 +83,7 @@ node "$LATCH_KIT/src/install.mjs" verify --profile work
 ```
 
 Verification checks the installed identity/readiness and requires extension
-`0.1.99.1` (display name `0.2.0-rc.1`), release `0.2.0-rc.1`, native schema 4 and
+`0.1.99.2` (display name `0.2.0-rc.2`), release `0.2.0-rc.2`, native schema 4 and
 UI capability 1. It separately reports `applicationSmokeRequired: true`. Complete
 a disposable native CLI smoke against the intended app before calling rollout
 successful; do not silently fall back to another adapter.
@@ -96,8 +102,12 @@ arguments and selected runtime configuration. `LATCH_HOME` remains an explicit
 runtime override. Link tests do not prove actual Codex/Claude/Cursor execution;
 run each intended terminal client separately during Phase 6.
 
-Use the skill from the task workspace. Native preview connections require
-`--transport native`; the daily default remains official. Give each agent a unique
+Use the skill from the task workspace. Native preview connections use explicit
+`--transport native` during rollout. Profiles without a preference still default
+to official; inspect `qa-browser transport --profile work`. After the installed
+Work and real-client gates pass, the separate authorized cutover command is
+`qa-browser transport --profile work --set native`. Existing sessions retain
+their adapter; explicit `--transport official` remains available. Give each agent a unique
 session. The popup shows only this profile's pairing/session metadata and can stop
 one schema-4 native session while preserving website tabs and peers. A busy
 operation is not bypassed. “Access stopped; CLI cleanup unconfirmed” requires
@@ -112,14 +122,15 @@ client; setup does not change global security settings.
 
 ## Rollback and uninstall
 
-Drain tasks, disable Latch and quit Chrome normally using the same maintenance
+Drain tasks, disable Latch and confirm its host exits using the same maintenance
 procedure. Roll back using the retained complete release:
 
 ```bash
 node "$LATCH_KIT/src/install.mjs" rollback --tasks-drained --extension-unloaded
 ```
 
-Start Chrome and refresh the extension as above, then run diagnostics and a normal
+Reload/select the stable extension directory and explicitly enable it as above,
+then run diagnostics and a normal
 CLI smoke. Actual 0.1.2 rollback uses the stable launcher/registration pointing to
 retained 0.1.2 code and restores migrated legacy skill links. It does not restore
 the original checkout path as the active runtime. Caught activation failure does

@@ -178,6 +178,11 @@ Update the single canonical skill and its operations reference. Keep Codex, Clau
 
 ### Phase 6 — Verify the installed Work profile and cut over
 
+Concrete execution plan: [Phase 6 Work rollout](PHASE-6-WORK-ROLLOUT-PLAN.md).
+[Implementation status](PHASE-6-IMPLEMENTATION-RESULTS.md) records the headless
+migration/popup results and pending real-profile gates. The plan sequences the operator-assisted
+Work pilot, actual client checks and explicit native-default cutover.
+
 After disposable-profile gates pass, perform the one-time extension update in Work. Disable the official extension for a controlled smoke check; do not uninstall it yet. Use a disposable test case/fixture with the existing signed-in session, capture artifacts, clean up test data and disconnect. Repeat through the actual Codex CLI execution context, then Claude Code; validate Cursor when it is available rather than claiming it from shared paths alone.
 
 **Gate:** evidence proves operation with Latch alone in the intended profile, including while Personal is foreground. No manual attachment step, browser relaunch or global security change was needed. Only then default to native transport and mark the official extension optional/removable.

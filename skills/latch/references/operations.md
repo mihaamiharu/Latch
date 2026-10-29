@@ -54,7 +54,7 @@ If the current Codex session supports approval requests, request an approved rer
 
 ## Native-mode preview
 
-The source branch supports `connect --transport native` through the same helper, profile pairing, workspace and named-session contract. It requires a bridge/extension build with debugger capability; the installed daily 0.1.2 build does not gain that permission merely because this skill was updated. Check `doctor --profile work --transport native` first. Keep the official adapter as the default until the migration's installation and Work-profile gates pass. Do not reinstall, re-pair or change browser permissions automatically to enable this preview.
+The source branch supports `connect --transport native` through the same helper, profile pairing, workspace and named-session contract. It requires a bridge/extension build with debugger capability; the installed daily 0.1.2 build does not gain that permission merely because this skill was updated. Check `doctor --profile work --transport native` first. Profiles without a configured preference retain the official default. Inspect `transport --profile work`; use the configured native default only after the migration's installation and Work-profile gates pass. Do not reinstall, re-pair or change browser permissions automatically to enable this preview.
 
 Each native session owns its explicitly selected starting tab and new tabs with a verified opener in that session. Use distinct session names for different tasks in the same workspace. The same name in different canonical workspaces is isolated. Reconnecting an owned starting tab or child selects it by CDP target identity, even when URLs match. An unrelated existing tab needs a separate session. Native mode preserves existing windows/groups.
 
@@ -244,3 +244,25 @@ a stale row before acting on it. Official/legacy tasks use normal CLI disconnect
 Managed installation skill links follow the selected release. A separately copied
 skill still uses `LATCH_HOME` to locate a complete runtime. Keep that override
 intentional; do not silently substitute another checkout after a version error.
+
+
+## Profile transport preference
+
+`transport --profile work` reports the configured/effective new-session default
+without opening a bridge connection. `doctor` reports the effective adapter and
+its selection source; supply the task's session/workspace to inspect its recorded
+adapter. `diagnose` reports the profile default and bridge capability separately.
+A healthy bridge does not prove the selected native adapter is available.
+
+The explicit setup setter is `transport --profile work --set native|official`.
+Only use it within an authorized rollout/default-change task. Native selection
+requires a reachable schema-4 recovery-capable bridge. Selecting official works
+offline for deliberate rollback. Neither setter migrates or disconnects existing
+sessions, installs software, changes Chrome permissions or enables an extension.
+
+Selection order is explicit `--transport`, recorded task adapter, profile default,
+then official when no preference exists. Retired native records still identify
+normal native disconnect cleanup. An unavailable native default fails clearly;
+it does not fall back. Unknown/conflicting state is preserved for inspection.
+`CONFIG_BUSY` means a configuration update gate exists: do not reclaim it using
+PID/age or delete it as ordinary application-test cleanup.

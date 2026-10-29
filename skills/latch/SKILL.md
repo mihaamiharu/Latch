@@ -20,7 +20,7 @@ node "$LATCH_SKILL_DIR/scripts/latch.mjs" tabs --profile work --workspace "$LATC
 
 Inspect JSON and the process exit code. A failed connection check is a setup/blocking result, not a failed application test. For an unfamiliar command, run the helper with `help` or run `playwright-cli <command> --help`.
 
-New sessions still default to the official Playwright transport. If the user requests the native transport preview, read the native-mode section of `references/operations.md` before using `--transport native`. Release/disconnect infer a recorded session's transport; do not switch adapters to bypass a failure.
+Run `transport --profile work` to inspect the configured default when supported. Profiles without a preference use official; a verified rollout may deliberately select native. Existing sessions keep their recorded adapter. If native is selected or explicitly requested, read the native-mode section of `references/operations.md`. Default changes are separate setup actions: do not set a preference or switch adapters to bypass a failure. Older runtimes may lack the transport command; their default remains official.
 
 If discovery/doctor fails, run `diagnose --profile work` with the same helper **inside the same agent execution context**. Save that JSON with the report. `PROFILE_UNAVAILABLE` means the local socket could not be reached; it does not mean the pairing is missing. Only report an unpaired profile when configuration actually lacks the alias. Preserve the operating-system error, socket path and runtime directory; do not silently change client security settings.
 

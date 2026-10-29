@@ -71,3 +71,7 @@ test('Unix socket access denial is not reported as missing pairing', {skip: proc
     return true;
   });
 });
+
+test('invalid transport preference preserves readable pairing and separate bridge health',async t=>{
+ const f=await fixture(t);await fs.writeFile(f.config,JSON.stringify({profiles:{work:{instanceId:f.instanceId,chromeProfileDir:'Default',defaultTransport:'future'}}}));const server=net.createServer(socket=>{let body='';socket.on('data',b=>{body+=b;if(!body.includes('\n'))return;const m=JSON.parse(body);socket.end(JSON.stringify({v:1,id:m.id,ok:true,result:{instanceId:f.instanceId,capabilities:{nativeTransport:false}}})+'\n')})});await new Promise(r=>server.listen(socketPath(f.instanceId),r));t.after(()=>new Promise(r=>server.close(r)));const result=await diagnose('work');assert.equal(result.configuration.readable,true);assert.equal(result.configuration.paired,true);assert.equal(result.bridgeHealthy,true);assert.equal(result.healthy,false);assert.equal(result.transport.error.code,'INVALID_TRANSPORT_DEFAULT');
+});
