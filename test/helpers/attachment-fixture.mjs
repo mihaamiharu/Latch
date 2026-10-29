@@ -30,6 +30,8 @@ export async function attachmentFixture(t, app, transport) {
   const runtime=`/tmp/latch-ab-${crypto.randomBytes(5).toString('hex')}`;
   const cliBrowser=path.join(temp,'headless-browser');
   await fs.mkdir(evidence);await fs.cp(path.join(root,'extension'),extension,{recursive:true});
+  if(app.recoveryAlarm){const file=path.join(extension,'bridge-connection.js');await fs.writeFile(file,(await fs.readFile(file,'utf8')).replace('timers = globalThis','timers = {setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms === 5000 ? ms : 60000), clearTimeout: id => globalThis.clearTimeout(id)}'))}
+  if(app.extensionRef){for(const name of ['manifest.json','background.js','controller.js','protocol.js','debugger-transport.js','transport-limits.js','child-sessions.js']){const result=await command('git',['show',app.extensionRef+':extension/'+name],{cwd:root});if(result.code!==0)throw new Error('Cannot read pinned legacy fixture extension');await fs.writeFile(path.join(extension,name),result.out)}}
   const manifest=JSON.parse(await fs.readFile(path.join(extension,'manifest.json')));
   if(transport==='native')manifest.permissions.push('debugger');
   await fs.writeFile(path.join(extension,'manifest.json'),JSON.stringify(manifest));
@@ -41,7 +43,12 @@ export async function attachmentFixture(t, app, transport) {
     PWTEST_DAEMON_SESSION_DIR:path.join(temp,'daemon'),NO_UPDATE_NOTIFIER:'1',
     PLAYWRIGHT_MCP_EXECUTABLE_PATH:cliBrowser,PWTEST_EXTENSION_USER_DATA_DIR:profile};
   const workspaces=[];for(const name of ['a','b','outsider']){const p=path.join(temp,name);await fs.mkdir(p);workspaces.push(p)}
-  let browser, registration, setupBrowser, identity, deliveryServer, deliveryURL, closed=false;
+  let browser, registration, setupBrowser, identity, deliveryServer, deliveryURL, recoveryServer, closed=false;
+  const faults=[],acks=new Map();let recoveryURL;
+  if(app.recovery){
+    const route="/"+crypto.randomBytes(32).toString("hex");recoveryServer=http.createServer((req,res)=>{res.setHeader("Access-Control-Allow-Origin","*");if(req.url!==route){res.writeHead(404);res.end();return}if(req.method==="GET"){res.setHeader("Content-Type","application/json");res.end(JSON.stringify(faults.shift()||null));return}let data="";req.on("data",b=>{data+=b;if(data.length>16384)req.destroy()});req.on("end",()=>{try{const value=JSON.parse(data);acks.set(value.id,value);res.end("ok")}catch{res.writeHead(400);res.end()}})});await new Promise(r=>recoveryServer.listen(0,"127.0.0.1",r));recoveryURL="http://127.0.0.1:"+recoveryServer.address().port+route;
+    t.after(()=>new Promise(r=>{recoveryServer.close(r);recoveryServer.closeAllConnections()}));
+  }
   const hosts=path.join(profile,'NativeMessagingHosts'), hostFile=path.join(hosts,hostName+'.json');
   const official=process.env.QA_BROWSER_OFFICIAL_EXTENSION||path.join(root,'work/browser-bridge/official-extension');
   const extensions=[extension];
@@ -85,12 +92,26 @@ export async function attachmentFixture(t, app, transport) {
   }else{
     await fs.writeFile(cliBrowser,`#!/bin/sh\nexec ${quote(chrome)} --headless=new --use-mock-keychain --password-store=basic "$@"\n`,{mode:0o700});
   }
+  let hostSource=path.join(root,'src/native-host.mjs');
+  const journalBarrier=path.join(temp,'journal-write-reached');
+  if(app.journalCrash){const source=path.join(temp,'runtime-source');await fs.cp(path.join(root,'src'),path.join(source,'src'),{recursive:true});await fs.cp(path.join(root,'extension'),path.join(source,'extension'),{recursive:true});const file=path.join(source,'src/recovery-state.mjs');let text=await fs.readFile(file,'utf8');text=text.replace('    await fs.rename(temp, file);',`    if(next.stage==='reserve' && !await fs.stat(${JSON.stringify(journalBarrier)}).catch(()=>null)){await fs.writeFile(${JSON.stringify(journalBarrier)},'exclusive-temp-synced-before-rename');await new Promise(r=>setTimeout(r,60000));}\n    await fs.rename(temp, file);`);await fs.writeFile(file,text);hostSource=path.join(source,'src/native-host.mjs')}
   const launcher=path.join(temp,'native-host');
-  await fs.writeFile(launcher,`#!/bin/sh\nexport QA_BROWSER_RUNTIME_DIR=${quote(runtime)}\nexec ${quote(process.execPath)} ${quote(path.join(root,'src/native-host.mjs'))} "$@" 2>>${quote(path.join(temp,'native.stderr.log'))}\n`,{mode:0o700});
+  await fs.writeFile(launcher,`#!/bin/sh\nexport QA_BROWSER_RUNTIME_DIR=${quote(runtime)}\nexport QA_BROWSER_CONFIG=${quote(env.QA_BROWSER_CONFIG)}\nexport PWTEST_DAEMON_SESSION_DIR=${quote(env.PWTEST_DAEMON_SESSION_DIR)}\nexec ${quote(process.execPath)} ${quote(hostSource)} "$@" 2>>${quote(path.join(temp,'native.stderr.log'))}\n`,{mode:0o700});
   await fs.mkdir(hosts,{recursive:true});
   registration=JSON.stringify({name:hostName,description:'Attachment comparison fixture',type:'stdio',path:launcher,allowed_origins:[`chrome-extension://${extensionId}/`]});
   await fs.writeFile(hostFile,registration,{mode:0o600,flag:'wx'});
-  const seed=`(async()=>{const w=await chrome.windows.create({url:${JSON.stringify(['a','b','outsider'].map(name=>app.origin+'/root#'+encodeURIComponent(run+':'+name)))},type:'normal'});await fetch(${JSON.stringify(app.origin+'/__seed')},{method:'POST',body:JSON.stringify({run,tabs:w.tabs.map(t=>t.id)})})})().catch(e=>console.error('Fixture provisioning failed',e.message));`;
+  const provision=`const w=await chrome.windows.create({url:${JSON.stringify(['a','b','outsider'].map(name=>app.origin+'/root#'+encodeURIComponent(run+':'+name)))},type:'normal'});await fetch(${JSON.stringify(app.origin+'/__seed')},{method:'POST',mode:'no-cors',body:JSON.stringify({run,tabs:w.tabs.map(t=>t.id)})});`;
+  const seed=`(async()=>{${app.recovery?`if((await chrome.storage.local.get('__fixtureSeed')).__fixtureSeed!==run){${provision}await chrome.storage.local.set({__fixtureSeed:run})}const url=chrome.runtime.getURL('fixture-control.html');`:provision}})().catch(e=>console.error('Fixture provisioning failed',e.message));`;
+  if(app.recovery){
+    const injector=path.join(temp,'fault-injector');await fs.mkdir(injector);extensions.push(injector);
+    await fs.writeFile(path.join(injector,'manifest.json'),JSON.stringify({manifest_version:3,name:'Private recovery fault injector',version:'1.0',permissions:['debugger','tabs','management'],background:{service_worker:'start.js'}}));
+    await fs.writeFile(path.join(injector,'start.js'),"chrome.tabs.create({url:chrome.runtime.getURL('fixture-control.html'),active:false});");
+    await fs.appendFile(path.join(extension,'background.js'),"\nchrome.runtime.onMessageExternal.addListener((m,s,reply)=>{if(m?.fixture==='status'){Promise.all([status(),chrome.storage.local.get('latchLastAlarm')]).then(([s,a])=>reply({...s,lastAlarm:a.latchLastAlarm}));return true}if(m?.fixture==='reload'){reply({issued:true});setTimeout(()=>chrome.runtime.reload(),50)}if(m?.fixture==='detach-native'){chrome.debugger.detach({tabId:m.tabId}).then(()=>reply({detached:true}),e=>reply({error:e.message}));return true}if(m?.fixture==='terminate'){chrome.tabs.create({url:chrome.runtime.getURL('terminate.html')+'#'+m.id+(m.noWake?'!no-wake':''),active:false});reply({issued:true})}});\n");
+    await fs.writeFile(path.join(extension,'terminate.html'),'<script type="module" src="terminate.js"></script>');
+    await fs.writeFile(path.join(extension,'terminate.js'),`const [id,noWake]=location.hash.slice(1).split('!'),endpoint=${JSON.stringify(recoveryURL)};try{const target=(await chrome.debugger.getTargets()).find(t=>t.url===chrome.runtime.getURL('background.js'));if(!target)throw new Error('Worker target missing');await chrome.debugger.attach({targetId:target.id},'1.3');const closeResult=await chrome.debugger.sendCommand({targetId:target.id},'Target.closeTarget',{targetId:target.id});const status=noWake?null:await chrome.runtime.sendMessage({type:'status'});await fetch(endpoint,{method:'POST',body:JSON.stringify({id,result:{closeResult,oldTargetId:target.id,status}})})}catch(e){await fetch(endpoint,{method:'POST',body:JSON.stringify({id,error:e.message})})}`);
+    await fs.writeFile(path.join(injector,'fixture-control.html'),'<script type="module" src="fixture-control.js"></script>');
+    await fs.writeFile(path.join(injector,'fixture-control.js'),`const endpoint=${JSON.stringify(recoveryURL)},run=${JSON.stringify(run)},latchId=${JSON.stringify(extensionId)};const ack=v=>fetch(endpoint,{method:'POST',body:JSON.stringify(v)});let busy=false;setInterval(async()=>{if(busy)return;busy=true;let task;try{task=await(await fetch(endpoint)).json();if(!task)return;const {id,action,params={}}=task;if(action==='status'){await ack({id,result:await chrome.runtime.sendMessage(latchId,{fixture:'status'})})}else if(action==='reload'){await chrome.management.setEnabled(latchId,false);await chrome.management.setEnabled(latchId,true);await ack({id,result:{issued:true,mechanism:'disable-enable-unpacked-extension'}})}else if(action==='terminate'||action==='terminate-no-wake'){await chrome.runtime.sendMessage(latchId,{fixture:'terminate',id,noWake:action==='terminate-no-wake'})}else if(action==='detach-native'){await ack({id,result:await chrome.runtime.sendMessage(latchId,{fixture:'detach-native',tabId:params.tabId})})}else if(action==='compete'){await chrome.debugger.attach({tabId:params.tabId},'1.3');await ack({id,result:{attached:true}})}else if(action==='foreign-check'){const v=await chrome.debugger.sendCommand({tabId:params.tabId},'Target.getTargetInfo');await ack({id,result:{attached:!!v.targetInfo}})}else if(action==='detach'){await chrome.debugger.detach({tabId:params.tabId});await ack({id,result:{detached:true}})}else if(action==='extension-info'){await ack({id,result:await chrome.management.get(latchId)})}else if(action==='provision'){${provision}await ack({id,result:{provisioned:true}})}else throw new Error('Unknown fixture action')}catch(e){if(task)await ack({id:task.id,error:e.message}).catch(()=>{})}finally{busy=false}},100);`);
+  }
   const delivery=deliveryURL?`setInterval(async()=>{try{const url=await(await fetch(${JSON.stringify(deliveryURL)})).json();if(url)await chrome.tabs.create({url})}catch{}},100);`:'';
   await fs.writeFile(path.join(extension,'fixture-seed.js'),`const run=${JSON.stringify(run)};${seed}${delivery}`);
   await fs.appendFile(path.join(extension,'background.js'),"\nimport './fixture-seed.js';\n");
@@ -139,7 +160,9 @@ export async function attachmentFixture(t, app, transport) {
     await progress('playwright',index,args[0],'start');
     const result=await command('playwright-cli',['-s=agent','--json',...args],{cwd:workspaces[index],env});
     await progress('playwright',index,args[0],'done');
-    const parsed=JSON.parse(result.out);
+    let parsed;
+    try { parsed=JSON.parse(result.out); }
+    catch(error) { if(!fail)throw error; parsed={isError:true,error:'CLI_RESPONSE_LOST',exitCode:result.code,stdoutBytes:Buffer.byteLength(result.out),stderrBytes:Buffer.byteLength(result.err)}; }
     if(!fail&&(result.code!==0||parsed.isError)) {
       await fs.writeFile(path.join(evidence,'last-error.txt'),redact(JSON.stringify(parsed)));
       throw new Error(`Playwright ${args[0]} failed: ${redact(JSON.stringify(parsed))}`);
@@ -158,12 +181,13 @@ export async function attachmentFixture(t, app, transport) {
     if(app.protocolEvidence)await fs.writeFile(path.join(evidence,'protocol-targets.json'),JSON.stringify(await protocolEvents(),null,2));
     await stopBrowser(browser);await setupBrowser?.close().catch(()=>{});
     if(await fs.readFile(hostFile,'utf8').catch(()=>'')===registration)await fs.unlink(hostFile);
+    if(await fs.readFile(hostFile+'.paused','utf8').catch(()=>'')===registration)await fs.unlink(hostFile+'.paused');
     await fs.rm(runtime,{recursive:true,force:true});
   };
   t.after(close);
   const args=[...HEADLESS_ARGS,`--user-data-dir=${profile}`,'--profile-directory=Default','--no-first-run','--no-default-browser-check',
     '--use-mock-keychain','--password-store=basic','--disable-background-networking','--enable-logging=stderr',
-    `--disable-extensions-except=${extensions.join(',')}`,`--load-extension=${extensions.join(',')}`,...(app.launchArgs||[]),'about:blank'];
+    `--disable-extensions-except=${extensions.join(',')}`,`--load-extension=${extensions.join(',')}`,...(app.launchArgs||[]),...(app.recovery?['--silent-debugger-extension-api']:[]),'about:blank'];
   const log=await fs.open(path.join(temp,'chrome.stderr.log'),'w');browser=spawn(chrome,args,{stdio:['ignore','ignore',log.fd]});await log.close();
   console.log(`${transport} comparison: ${temp}`);
   identity=await eventually(async()=> (await latch(0,['discover'])).profiles[0],20000);
@@ -171,7 +195,12 @@ export async function attachmentFixture(t, app, transport) {
   await eventually(()=>app.seeds.has(run)&&[...app.states.values()].filter(s=>s.actor.startsWith(run)&&s.role===(app.rootRole||'/root')).length===3);
   const seedInfo=app.seeds.get(run);
   await verifyInbox();
-  return {run,temp,profile,evidence,identity,workspaces,env,transport,versions,headless:true,browserPID:browser.pid,nativeStatus,browserInbox,verifyInbox,connectionPageDelivery:deliveryURL?'fixture-only URL delivery shim':'not needed',launchArgs:[...HEADLESS_ARGS,...(app.launchArgs||[])],protocolEvents,tabs:seedInfo.tabs,latch,pw,close,
+  return {run,temp,profile,evidence,journalBarrier,get identity(){return identity},workspaces,env,transport,versions,headless:true,get browserPID(){return browser.pid},nativeStatus,browserInbox,verifyInbox,connectionPageDelivery:deliveryURL?'fixture-only URL delivery shim':'not needed',launchArgs:[...HEADLESS_ARGS,'--use-mock-keychain','--password-store=basic',...(app.launchArgs||[]),...(app.recovery?['--silent-debugger-extension-api']:[])],protocolEvents,tabs:seedInfo.tabs,latch,pw,close,
+    fault:async(action,params={})=>{if(!app.recovery)throw new Error('Not a recovery fixture');const id=crypto.randomUUID();faults.push({id,action,params});const ack=await eventually(()=>acks.get(id),10000);acks.delete(id);if(ack.error)throw new Error(ack.error);return ack.result},
+    refreshIdentity:async(timeout=20000)=>identity=await eventually(async()=> (await latch(0,['discover'])).profiles.find(p=>p.instanceId===identity.instanceId),timeout),
+    suspendHost:async()=>{if(await fs.readFile(hostFile,'utf8')!==registration)throw new Error('Fixture registration changed');await fs.rename(hostFile,hostFile+'.paused')},
+    restoreHost:async()=>{if(await fs.readFile(hostFile+'.paused','utf8')!==registration)throw new Error('Fixture registration changed');await fs.rename(hostFile+'.paused',hostFile)},
+    restartBrowser:async()=>{await stopBrowser(browser);browser=spawn(chrome,args,{stdio:['ignore','ignore','ignore']});return browser.pid},
     connect:async(index,tabId,{background=false}={})=>latch(index,['connect','--profile','work','--transport',transport,
       ...(background&&transport==='native'?['--focus-emulation','on']:[]),'--session','agent','--tab',String(tabId)]),
     states:()=>[...app.states.values()].filter(state=>state.actor.startsWith(run))};

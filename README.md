@@ -2,11 +2,11 @@
 
 A macOS Chrome companion extension and local CLI for connecting existing Work-profile tabs to Playwright CLI. Run `npm ci` after cloning/updating this source branch: the native host now depends on the pinned `ws` transport library.
 
-**Status:** installed compatibility prototype. The native host is registered and the Work profile is paired. Direct Chrome → native messaging → companion → Playwright CLI attachment has been verified using a temporary local fixture in the actual Work profile. Browser/worker restart recovery remains prototype work. The official Playwright extension is still required.
+**Status:** installed compatibility prototype. The native host is registered and the Work profile is paired. Direct Chrome → native messaging → companion → Playwright CLI attachment has been verified using a temporary local fixture in the actual Work profile. The installed compatibility transport has not received the native recovery preview. The official Playwright extension is still required.
 
 The next version removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, acceptance gates and rollback. Migration is in progress; the installed daily transport is unchanged.
 
-The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus verified popup descendants. The [Gate C work](docs/GATE-C-FRAMES-WORKERS-PLAN.md) adds bounded child-session lifetimes, nested frame routing, dedicated-worker checks and targeted cancellation. Headless comparison covers same-origin/cross-origin/OOPIF forms, navigation, replacement and frame evidence. The pinned CLI does not backfill already-running workers into `page.workers()` in these tests; new dedicated workers are observable and evaluable. See the [Phase 3 acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md). Native mode remains opt-in; the Work installation and daily default are unchanged. Gate D verifies byte-preserving uploads and separates browser download receipt from unsupported managed retrieval. Gate E adds verified large evidence, finite transport bounds and scoped failure cleanup. Recovery and cutover remain later gates.
+The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus verified popup descendants. The [Gate C work](docs/GATE-C-FRAMES-WORKERS-PLAN.md) adds bounded child-session lifetimes, nested frame routing, dedicated-worker checks and targeted cancellation. Headless comparison covers same-origin/cross-origin/OOPIF forms, navigation, replacement and frame evidence. The pinned CLI does not backfill already-running workers into `page.workers()` in these tests; new dedicated workers are observable and evaluable. See the [Phase 3 acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md). Native mode remains opt-in; the Work installation and daily default are unchanged. Gate D verifies byte-preserving uploads and separates browser download receipt from unsupported managed retrieval. Gate E adds verified large evidence, finite transport bounds and scoped failure cleanup. Phase 4 adds acknowledged bridge recovery, fenced native leases, host-owned journals and guarded reconciliation; see [the recovery results](docs/PHASE-4-RECOVERY-RESULTS.md). Installer/popup integration and installed Work cutover remain later gates.
 
 ## Build the extension
 
@@ -222,3 +222,27 @@ This removes only a native host registration matching this installation. Remove 
 - [Playwright extension source](https://github.com/microsoft/playwright/tree/main/packages/extension)
 - [Playwright CLI attachment](https://playwright.dev/agent-cli/commands/attach)
 - [Playwright extension testing](https://playwright.dev/docs/chrome-extensions)
+
+
+## Native recovery preview
+
+For a paired schema-4 native host, inspect the exact task before cleanup:
+
+```bash
+qa-browser doctor --profile work --transport native --session task --workspace /absolute/project
+qa-browser reconcile --profile work --session task --workspace /absolute/project
+qa-browser reconcile --profile work --session task --workspace /absolute/project --apply --expect <returned-plan-token>
+```
+
+Inspection is read-only and works offline. Apply needs a verified live native
+bridge and the current token. It preserves website tabs, peers, login state and
+evidence. A healthy session uses normal `disconnect`; a stale successor token
+is rejected. Corrupt/partial/legacy state and unproven daemon ownership are
+preserved with specific blockers. Never delete PID-only locks or replay an
+uncertain application action as recovery. Bridge reconnection does not reconnect
+automation: discover fresh metadata and explicitly connect after scoped cleanup.
+
+New native journals are beside the selected configuration under
+`native-v4/<instance>/`; task evidence stays in its existing task directory.
+`npm run test:recovery` and `npm run test:recovery-chaos` use headless disposable
+profiles. Updating these sources or the skill does not upgrade installed Work.

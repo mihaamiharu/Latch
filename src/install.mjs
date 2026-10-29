@@ -20,7 +20,7 @@ async function prepare() {
   const extensionId = [...digest].map(byte => String.fromCharCode(97 + (byte >> 4), 97 + (byte & 15))).join('');
   const manifest = {manifest_version: 3, name: 'Latch', version: pkg.version, minimum_chrome_version: '120',
     description: 'Connect selected existing Work-profile tabs to Playwright CLI from your terminal.',
-    permissions: ['tabs', 'tabGroups', 'storage', 'nativeMessaging'],
+    permissions: ['tabs', 'tabGroups', 'storage', 'nativeMessaging', 'alarms'],
     background: {service_worker: 'background.js', type: 'module'},
     icons: {'16': 'icons/latch-16.png', '32': 'icons/latch-32.png', '48': 'icons/latch-48.png', '128': 'icons/latch-128.png'},
     action: {default_popup: 'popup.html', default_title: 'Latch', default_icon: {'16': 'icons/latch-16.png', '32': 'icons/latch-32.png'}}, key};

@@ -33,7 +33,8 @@ export async function diagnose(profileAlias = 'work') {
     } catch (error) { result.socket = {exists: error.code === 'ENOENT' ? false : null, error: safeError(error)}; }
     const live = await request(profile.instanceId, 'status', {}, 2500);
     result.connection = {ok: true, instanceId: live.instanceId, epoch: live.epoch, extensionVersion: live.extensionVersion,
-      capabilities: live.capabilities || {nativeTransport: false}};
+      hostGeneration: live.hostGeneration, readiness: live.readiness, capabilities: live.capabilities || {nativeTransport: false}};
+    result.layers = {configuration: 'paired', host: 'reachable', controller: live.readiness?.verified ? 'verified-round-trip' : 'legacy-host-report', native: live.capabilities?.nativeTransport ? 'available' : 'unavailable'};
     result.healthy = true;
   } catch (error) { result.connection = {ok: false, error: safeError(error)}; }
   return result;

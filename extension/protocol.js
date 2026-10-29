@@ -3,7 +3,7 @@ export const HOST = 'com.qa_browser.bridge';
 export const OFFICIAL_ID = 'mmlmfjhmonkocbjadbfplnigmagldckm';
 export const OPERATIONS = new Set(['status', 'tabs', 'register', 'claim', 'verify', 'release', 'forget',
   'native-connect', 'native-verify', 'native-disconnect', 'native-status', 'native-targets', 'native-release-tab', 'native-trace',
-  'native-reserve', 'native-open', 'native-check', 'native-release', 'native-drop', 'native-inventory']);
+  'native-health', 'native-operation', 'native-reconcile', 'native-reserve', 'native-open', 'native-check', 'native-release', 'native-drop', 'native-inventory']);
 export function fault(code, message) {
   return Object.assign(new Error(message), {code});
 }

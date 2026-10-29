@@ -8,11 +8,11 @@ function validateState(state) {
   if (state && (![2, 3].includes(state.v) || state.transport !== 'native'))
     throw fault('SESSION_STATE_UNSUPPORTED', 'Unsupported native session state. Inspect it before proceeding.');
 }
-async function observe(session, options) {
+export async function observe(session, options) {
   const result = await runCLI(session, ['run-code', `async(page)=>{const cdp=await page.context().newCDPSession(page);try{const {targetInfo}=await cdp.send('Target.getTargetInfo');return {url:page.url(),title:await page.title(),targetId:targetInfo.targetId}}finally{await cdp.detach()}}`], options);
   return resultValue(result);
 }
-async function selectTarget(session, targetId, options) {
+export async function selectTarget(session, targetId, options) {
   const response = await runCLI(session, ['run-code', `async(page)=>{const open=page.context().pages();return {currentIndex:open.indexOf(page),pages:await Promise.all(open.map(async(p,index)=>{const c=await p.context().newCDPSession(p);try{const {targetInfo}=await c.send('Target.getTargetInfo');return {index,targetId:targetInfo.targetId}}finally{await c.detach()}}))}}`], options);
   const inventory = resultValue(response);
   const selected = Array.isArray(inventory?.pages) && inventory.pages.find(page => page.targetId === targetId);

@@ -1,6 +1,12 @@
 # Latch: one-extension migration plan
 
-Prepared October 28, 2026. Status: Phases 0–2 implemented on `feat/latch-native-transport`; Phase 3 Gates A–C add attachment comparison, popup ownership and headless frame/dedicated-worker verification. See `PHASE-3-COMPATIBILITY-PLAN.md` for acceptance status, the existing-worker inventory limitation and remaining Gates D/E. The installed Work transport and daily default are unchanged. `NATIVE-TRANSPORT-CONTRACT.md` and `NATIVE-SESSION-WORKFLOW.md` preserve the earlier proof and single-tab checkpoint.
+Prepared October 28, 2026; status updated October 29. Phases 0–3 are implemented
+on `feat/latch-native-transport`, within the Phase 3 declared support matrix.
+See `PHASE-3-COMPATIBILITY-PLAN.md` for acceptance and baseline limitations.
+Phase 4 recovery is implemented in the native source preview; see
+`PHASE-4-RECOVERY-RESULTS.md` for verification and explicit limits. The installed Work transport and daily default are unchanged.
+`NATIVE-TRANSPORT-CONTRACT.md` and `NATIVE-SESSION-WORKFLOW.md` preserve the
+earlier proof and single-tab checkpoint.
 
 ## Outcome
 
@@ -140,6 +146,11 @@ Test screenshot/body payloads above 1 MiB on the data channel, with a declared u
 **Gate:** the supported verification workflow produces equivalent useful artifacts to the baseline, without leaking secrets or silently truncating evidence.
 
 ### Phase 4 — Make failure and recovery explicit
+
+The identity/fencing decisions, host-owned state design, reconciliation
+interface, 22-case matrix and execution order are in
+[the Phase 4 execution plan](PHASE-4-RECOVERY-PLAN.md).
+Measured acceptance is in [the recovery results](PHASE-4-RECOVERY-RESULTS.md).
 
 Exercise extension reload, native host death, CLI daemon death, browser restart, tab close, navigation, debugger detach/DevTools conflict and disconnect during an in-flight operation. Require verified bridge readiness rather than treating the existence of a native port as sufficient proof of health.
 

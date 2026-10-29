@@ -175,3 +175,50 @@ node "$LATCH_SKILL_DIR/scripts/latch.mjs" release --profile work --session "$LAT
 ```
 
 If the last controlled tab closes after the initial Welcome page has closed, the official transport may disconnect. The application tab should remain intact when released; use the task's normal `disconnect` cleanup and report stale-state errors honestly.
+
+
+## Native recovery (schema 4 preview)
+
+Use these commands only when the paired host advertises `nativeSessionSchema: 4`
+and `recoveryContract: 1`. Installed 0.1.2/official mode stays compatible and does
+not gain native recovery by updating this skill.
+
+```bash
+node "$LATCH_SKILL_DIR/scripts/latch.mjs" doctor --profile work --transport native --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE"
+node "$LATCH_SKILL_DIR/scripts/latch.mjs" reconcile --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE"
+```
+
+`reconcile` is read-only by default and works offline. A healthy session needs
+normal `disconnect`; a short coding-agent/CLI exit does not abandon its persistent
+daemon. For an interrupted task, capture the specific error, evidence and known
+application outcome. After a host/worker/browser loss, pending actions have an
+**unknown outcome**, even if the last record was idle. Never replay a click,
+save, upload or submission automatically. A missing/non-JSON direct CLI response
+after transport loss also leaves the action outcome unknown. Inspect the app separately after an
+explicit fresh connection.
+
+When scoped cleanup is within the authorized task, use the exact returned token:
+
+```bash
+node "$LATCH_SKILL_DIR/scripts/latch.mjs" reconcile --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE" --apply --expect "$LATCH_PLAN_TOKEN"
+```
+
+Apply revokes the old native lease, confirms owned debugger cleanup, attempts the
+exact recorded CLI task's normal detach, and retires the record. It preserves
+website tabs, login state, peers and completed evidence. A changed plan/successor
+returns `RECOVERY_PLAN_CHANGED`; inspect again before deciding what to clean up.
+Matching repeated apply is a no-op. No reconnect or application action is replayed.
+
+`BRIDGE_ACCESS_DENIED` retains EPERM/EACCES and requires appropriate execution
+permission for that command; do not change global security. Offline apply is
+blocked. `LEGACY_STATE_BLOCKED`, `PARTIAL_JOURNAL_PRESENT`, corrupt/unknown records
+and `DAEMON_IDENTITY_CHANGED` preserve ambiguous state; report the blocker rather
+than deleting locks, registries, partial files or evidence. A foreign debugger
+conflict must be released by its owner before Latch can connect. Recovery does
+not force a competing debugger off a tab.
+
+Schema-4 journals live under `native-v4/<instance>/<workspace-session-hash>.json`
+beside the selected configuration (`QA_BROWSER_CONFIG` applies). They contain
+bounded task/lease metadata, never endpoint credentials or page bodies. They are
+host-owned state, separate from task evidence. Completed evidence remains in the
+same task directory; partial files are not promoted after recovery.

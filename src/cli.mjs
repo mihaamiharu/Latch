@@ -7,12 +7,16 @@ import {fault, safeError} from '../extension/protocol.js';
 import {workspaceAt, sessionKey, runCLI, assertVersion, connectionURL, selectAndVerify, redact} from './playwright.mjs';
 import {readSession, writeSession, forgetSession, locked} from './state.mjs';
 import {nativeWorkflow} from './native-workflow.mjs';
+import {nativeWorkflowV4} from './native-workflow-v4.mjs';
+import {readRecovery} from './recovery-state.mjs';
+import {reconcile} from './reconcile.mjs';
 
 const usage = `Latch 0.1.2
   qa-browser discover
   qa-browser pair --profile work --instance <uuid> --chrome-profile-dir <directory>
   qa-browser doctor --profile work
   qa-browser diagnose --profile work
+  qa-browser reconcile --profile work --session <name> [--workspace <path>] [--apply --expect <plan-token>]
   qa-browser tabs --profile work
   qa-browser connect --profile work --session <name> --tab <id> [--workspace <path>] [--transport official|native] [--focus-emulation on|off]
   qa-browser release --profile work --session <name> --tab <id> [--workspace <path>]
@@ -22,12 +26,12 @@ All results are JSON. Work-profile extension installation/authorization is a one
 function parse(argv) {
   const command = argv.shift() || 'help';
   const flags = {};
-  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'workspace', 'json', 'transport', 'focus-emulation']);
+  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'workspace', 'json', 'transport', 'focus-emulation', 'apply', 'expect']);
   while (argv.length) {
     const flag = argv.shift();
     if (!flag.startsWith('--') || !allowed.has(flag.slice(2))) throw fault('INVALID_ARGUMENT', 'Unknown argument. Use qa-browser help.');
     const key = flag.slice(2);
-    if (key === 'json') { flags.json = true; continue; }
+    if (['json', 'apply'].includes(key)) { if (flags[key]) throw fault('INVALID_ARGUMENT', 'Repeated flag.'); flags[key] = true; continue; }
     const value = argv.shift();
     if (!value || value.startsWith('--') || flags[key]) throw fault('INVALID_ARGUMENT', `Missing or repeated --${key}.`);
     flags[key] = value;
@@ -63,6 +67,23 @@ async function main() {
     await writeConfig(config);
     return {paired: true, profile: alias, ...config.profiles[alias], note: 'Profile-directory correspondence will be checked by the first connection.'};
   }
+  if (command === 'reconcile') {
+    const workspace = await workspaceAt(f.workspace || process.cwd()), session = f.session;
+    if (!/^[a-zA-Z0-9_-]{1,60}$/.test(session || '')) throw fault('INVALID_SESSION', 'Specify a simple --session name.');
+    return reconcile({alias, workspace, session, key: sessionKey(workspace, session), apply: !!f.apply, expect: f.expect});
+  }
+  if (command === 'doctor' && f.transport === 'native') {
+    const health = await diagnose(alias);
+    if (!f.session) return {...health, bridgeHealthy: health.healthy, healthy: health.healthy && !!health.connection?.capabilities?.nativeTransport, nativeRecoverySupported: health.connection?.capabilities?.nativeSessionSchema === 4};
+    const workspace = await workspaceAt(f.workspace || process.cwd()), session = f.session;
+    if (!/^[a-zA-Z0-9_-]{1,60}$/.test(session)) throw fault('INVALID_SESSION', 'Invalid session name.');
+    const recovery = await reconcile({alias, workspace, session, key: sessionKey(workspace, session)});
+    const {daemonIdentity} = await import('./daemon-identity.mjs');
+    let daemon;
+    try { const live = await daemonIdentity(workspace,session); daemon = {present: !!live, socketExists: live?.socketExists || false, matchesRecordedTask: !!live && live.fingerprint === recovery.record?.daemonFingerprint && live.socketFingerprint === recovery.record?.daemonSocketFingerprint}; }
+    catch(e) { daemon = {present: null, error: safeError(e)}; }
+    return {...health, bridgeHealthy: health.healthy, healthy: health.healthy && recovery.healthy && daemon.present === true && daemon.socketExists && daemon.matchesRecordedTask, recovery, daemon};
+  }
   const profile = await paired(alias);
   const payload = {instanceId: profile.instanceId, epoch: profile.epoch};
   const call = (op, p = {}) => request(profile.instanceId, op, {...payload, ...p}, op.startsWith('native-') ? 35000 : 12000);
@@ -80,6 +101,13 @@ async function main() {
   const key = sessionKey(workspace, session);
   const tabId = Number(f.tab);
   if (command !== 'disconnect' && (!Number.isSafeInteger(tabId) || tabId < 0)) throw fault('INVALID_TAB', 'Specify a numeric --tab ID.');
+  const legacy = await readSession(key);
+  const nativeRecord = await readRecovery(profile.instanceId, key);
+  const selectedTransport = f.transport || legacy?.transport || (nativeRecord && (nativeRecord.status !== 'retired' || command === 'disconnect') ? 'native' : 'official');
+  if (selectedTransport === 'native' && profile.capabilities?.nativeSessionSchema === 4 && !legacy) {
+    return nativeWorkflowV4({command, profile, call, alias, workspace, session, key, tabId, options, requestedFocusEmulation: f['focus-emulation'] === undefined ? undefined : f['focus-emulation'] === 'on'});
+  }
+  if (selectedTransport !== 'native' && nativeRecord && nativeRecord.status !== 'retired') throw fault('TRANSPORT_MISMATCH', 'Reconcile/disconnect the native lease before changing transport.');
   return await locked(key, async () => {
     const existing = await readSession(key);
     const transport = f.transport || existing?.transport || 'official';

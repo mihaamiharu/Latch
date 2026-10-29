@@ -27,7 +27,9 @@
     "test:evidence": "LATCH_EVIDENCE=1 node --test test/evidence-compat.test.mjs",
     "test:evidence-limits": "LATCH_EVIDENCE_LIMITS=1 node --test test/evidence-limits.test.mjs",
     "test:evidence-isolation": "LATCH_EVIDENCE_ISOLATION=1 node --test test/evidence-isolation.test.mjs",
-    "test:evidence-performance": "LATCH_EVIDENCE_PERFORMANCE=1 node --test test/evidence-performance.test.mjs"
+    "test:evidence-performance": "LATCH_EVIDENCE_PERFORMANCE=1 node --test test/evidence-performance.test.mjs",
+    "test:recovery": "LATCH_RECOVERY=1 node --test test/recovery-browser.test.mjs",
+    "test:recovery-chaos": "LATCH_RECOVERY_CHAOS=1 node --test test/recovery-chaos.test.mjs"
   },
   "dependencies": {
     "ws": "8.22.0"

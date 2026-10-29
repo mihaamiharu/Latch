@@ -1,7 +1,7 @@
 import {fault} from '../extension/protocol.js';
 import {createRelay} from './native-relay.mjs';
 
-// Serializes lease mutations across callers. Browser-side reservations are
+// Fences each lease operation across callers. Browser-side reservations are
 // shared with the official adapter, so switching transports cannot steal tabs.
 export class NativeSessions {
   constructor(identity, browser, {relayFactory = createRelay} = {}) {
@@ -9,16 +9,18 @@ export class NativeSessions {
     this.browser = browser;
     this.relayFactory = relayFactory;
     this.sessions = new Map();
-    this.queue = Promise.resolve();
+    this.busy = new Set();
   }
   handle(op, payload) {
-    const result = this.queue.then(() => this.operate(op, payload));
-    this.queue = result.catch(() => {});
-    return result;
+    if (['native-status', 'native-trace'].includes(op)) return this.operate(op, payload);
+    if (this.busy.has(payload.sessionKey)) return Promise.reject(fault('SESSION_BUSY', 'Native lease operation is busy.'));
+    this.busy.add(payload.sessionKey);
+    return this.operate(op, payload).finally(() => this.busy.delete(payload.sessionKey));
   }
   validate(p) {
     if (p.instanceId !== this.identity.instanceId || p.epoch !== this.identity.epoch)
       throw fault('PROFILE_MISMATCH', 'The paired browser instance changed.');
+    if (this.identity.capabilities?.nativeSessionSchema === 4 && p.hostGeneration !== this.identity.hostGeneration) throw fault('AUTHORITY_STALE', 'Native host generation changed.');
     if (!/^[a-f0-9]{64}$/.test(p.sessionKey || '')) throw fault('INVALID_SESSION', 'Invalid workspace/session key.');
   }
   async operate(op, p) {
@@ -26,8 +28,9 @@ export class NativeSessions {
     if (!this.identity.capabilities?.nativeTransport)
       throw fault('NATIVE_TRANSPORT_UNAVAILABLE', 'This bridge/extension has no native debugger transport. Keep using official mode until the native build is installed.');
     const entry = this.sessions.get(p.sessionKey);
+    if (entry && this.identity.capabilities?.nativeSessionSchema === 4 && p.leaseId !== entry.leaseId && !['native-status', 'native-trace'].includes(op)) throw fault('AUTHORITY_STALE', 'Native lease changed.');
     if (op === 'native-trace') return entry?.relay.trace() || [];
-    if (op === 'native-status') return {sessions: [...this.sessions].map(([key, s]) => ({key, tabId: s.tabId, ...s.relay.status()}))};
+    if (op === 'native-status') return {sessions: [...this.sessions].map(([key, s]) => ({key, leaseId: s.leaseId, hostGeneration: this.identity.hostGeneration, tabId: s.tabId, ...s.relay.status()}))};
     if (op === 'native-disconnect') {
       await this.close(p.sessionKey, entry, p);
       return {disconnected: true, alreadyDisconnected: !entry};
@@ -57,17 +60,21 @@ export class NativeSessions {
       await this.browser('native-check', p);
       return {tabId: entry.tabId, alreadyConnected: true};
     }
-    if (this.sessions.size >= 16) throw fault('SESSION_LIMIT', 'Too many native sessions.');
-    await this.browser('native-reserve', p);
+    if (this.sessions.size + this.busy.size > 16) throw fault('SESSION_LIMIT', 'Too many native sessions.');
+    try { await this.browser('native-reserve', p); }
+    catch (error) {
+      if (['DEBUGGER_CONFLICT','TAB_OWNED','TAB_CHANGED','TAB_CLOSED','TAB_UNSUPPORTED','INVALID_TAB','SESSION_LIMIT','SESSION_TAB_LIMIT','TRANSPORT_MISMATCH','PROFILE_MISMATCH','AUTHORITY_STALE','DEBUGGER_PERMISSION_REQUIRED'].includes(error.code)) error.nativeCleanupConfirmed = true;
+      throw error;
+    }
     let relay, created;
     try {
       relay = await this.relayFactory(this.identity.extensionId, {expectedTabId: p.tabId,
         onStop: () => {
           // Transport loss revokes credentials immediately. Release the browser
           // lease in the serialized queue; retain host state as stale for audit.
-          if (!created?.closing) this.queue = this.queue.then(() => this.browser('native-release', p)).catch(() => {});
+          if (!created?.closing && this.sessions.get(p.sessionKey) === created) void this.browser('native-release', p).catch(() => {});
         }});
-      created = {relay, tabId: p.tabId, focusEmulation: !!p.focusEmulation};
+      created = {relay, leaseId: p.leaseId, tabId: p.tabId, focusEmulation: !!p.focusEmulation};
       this.sessions.set(p.sessionKey, created);
       await this.browser('native-open', {...p, endpoint: relay.extensionEndpoint});
       await relay.ready;
@@ -75,13 +82,14 @@ export class NativeSessions {
     } catch (error) {
       try { await this.close(p.sessionKey, created, p); }
       catch { throw fault('NATIVE_CLEANUP_FAILED', 'Native connection failed and cleanup could not be confirmed. Retain the session record and run disconnect.'); }
+      error.nativeCleanupConfirmed = true;
       throw error;
     }
   }
   async close(key, entry, p) {
     if (entry) { entry.closing = true; await entry.relay.stop(); }
     await this.browser('native-release', p);
-    this.sessions.delete(key);
+    if (this.sessions.get(key) === entry) this.sessions.delete(key);
   }
   async stop() {
     for (const entry of this.sessions.values()) { entry.closing = true; await entry.relay.stop(); }

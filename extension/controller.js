@@ -1,11 +1,12 @@
 import {checkRequest, bridgeLocator, fault, safeError, webUrl} from './protocol.js';
 
 // This controller uses Chrome APIs only. It never evaluates code in another extension.
-export function createController(api, identity, {nativeTransport} = {}) {
+export function createController(api, identity, {nativeTransport, nativeRecovery = false} = {}) {
   const sessions = new Map();
   const owners = new Map();
   const releasedTabs = new Set();
   let queue = Promise.resolve();
+  let nativeGeneration;
   const plainTab = tab => ({tabId: tab.id, windowId: tab.windowId, groupId: tab.groupId,
     openerTabId: tab.openerTabId, title: tab.title || '', url: tab.url || '', active: !!tab.active, owner: owners.get(tab.id) || null});
   const enqueue = fn => { const result = queue.then(fn); queue = result.catch(() => {}); return result; };
@@ -13,7 +14,8 @@ export function createController(api, identity, {nativeTransport} = {}) {
     targets: (await Promise.all([...session.targets].map(async ([id, meta]) => {
       try { return {...plainTab(await api.tabs.get(id)), openerTabId: meta.openerTabId, depth: meta.depth}; } catch { return null; }
     }))).filter(Boolean)});
-  function forgetNativeTab(key, id) {
+  function forgetNativeTab(key, id, leaseId) {
+    if (leaseId !== undefined && sessions.get(key)?.leaseId !== leaseId) return;
     if (owners.get(id) === key) owners.delete(id);
     sessions.get(key)?.targets?.delete(id);
   }
@@ -57,10 +59,13 @@ export function createController(api, identity, {nativeTransport} = {}) {
       groupId: s.groupId, windowId: s.windowId, tabId: s.tabId}))};
     if (op === 'tabs') return (await api.tabs.query({})).filter(t => !t.incognito && webUrl(t.url)).map(plainTab);
     if (typeof p.sessionKey !== 'string' || !/^[a-f0-9]{64}$/.test(p.sessionKey)) throw fault('INVALID_SESSION', 'Invalid workspace/session key.');
-    if (['native-reserve', 'native-open', 'native-check', 'native-release', 'native-drop', 'native-inventory'].includes(op)) {
+    if (['native-reserve', 'native-open', 'native-check', 'native-release', 'native-drop', 'native-inventory', 'native-health'].includes(op)) {
       if (!nativeTransport?.available) throw fault('DEBUGGER_PERMISSION_REQUIRED', 'This extension build has no debugger permission.');
       const old = sessions.get(p.sessionKey);
+      if ((nativeRecovery || nativeGeneration) && (!nativeGeneration || p.hostGeneration !== nativeGeneration || typeof p.leaseId !== 'string')) throw fault('AUTHORITY_STALE', 'Native authority is unavailable or changed.');
+      if (old?.transport === 'native' && (old.leaseId !== p.leaseId || old.hostGeneration !== p.hostGeneration)) throw fault('AUTHORITY_STALE', 'Native lease changed.');
       if (old && old.transport !== 'native') throw fault('TRANSPORT_MISMATCH', 'A different transport owns this session.');
+      if (op === 'native-health') return {healthy: !!old && (nativeTransport.inspect ? await nativeTransport.inspect(p.sessionKey) : true)};
       if (op === 'native-release') {
         if (old && p.tabId !== undefined && !old.known.has(p.tabId)) throw fault('TAB_NOT_OWNED', 'This session does not own that tab.');
         await nativeTransport.release(p.sessionKey);
@@ -88,14 +93,15 @@ export function createController(api, identity, {nativeTransport} = {}) {
       if (op === 'native-reserve') {
         if (old && !old.targets.has(tab.id)) throw fault('SESSION_TAB_LIMIT', 'Only the starting tab and its attributed children belong to this session.');
         if (!old && sessions.size >= 32) throw fault('SESSION_LIMIT', 'Too many browser sessions.');
-        if (!old) sessions.set(p.sessionKey, {transport: 'native', tabId: tab.id, rootTabId: tab.id, windowId: tab.windowId,
+        if (!old) await nativeTransport.preflight?.(tab.id);
+        if (!old) sessions.set(p.sessionKey, {transport: 'native', leaseId: p.leaseId, hostGeneration: p.hostGeneration, tabId: tab.id, rootTabId: tab.id, windowId: tab.windowId,
           targets: new Map([[tab.id, {depth: 0}]]), known: new Set([tab.id]), warnings: []});
         releasedTabs.delete(tab.id); owners.set(tab.id, p.sessionKey);
         return {...plainTab(tab), alreadyConnected: !!old};
       }
       if (!old?.targets.has(tab.id) || owners.get(tab.id) !== p.sessionKey) throw fault('TAB_NOT_OWNED', 'Reserve this tab before connecting.');
       if (op === 'native-open') {
-        await nativeTransport.connect(p.sessionKey, tab, p.endpoint, {focusEmulation: p.focusEmulation === true});
+        await nativeTransport.connect(p.sessionKey, tab, p.endpoint, {focusEmulation: p.focusEmulation === true, leaseId: p.leaseId});
         for (const id of old.targets.keys()) if (id !== tab.id) {
           try { const child = await api.tabs.get(id); await nativeTransport.addTab(p.sessionKey, {...child, openerTabId: old.targets.get(id).openerTabId}); } catch { forgetNativeTab(p.sessionKey, id); }
         }
@@ -170,12 +176,21 @@ export function createController(api, identity, {nativeTransport} = {}) {
     } catch (error) { return {v: 1, id: request?.id, ok: false, error: safeError(error)}; }
   }
   return {
+    activateNative(generation) { return enqueue(() => { nativeGeneration = generation; }); },
+    invalidateNative() { nativeGeneration = null; return enqueue(async () => {
+      for (const [key, session] of sessions) {
+        if (session.transport !== 'native') continue;
+        await nativeTransport.release(key);
+        for (const [id, owner] of owners) if (owner === key) owners.delete(id);
+        if (sessions.get(key) === session) sessions.delete(key);
+      }
+    }); },
     handle(request) { return enqueue(() => run(request)); },
     observeTab(tab) { return enqueue(() => observe(tab)); },
-    nativeDetached(key, id) { return enqueue(() => forgetNativeTab(key, id)); },
-    nativeWarning(key, warning) { return enqueue(() => {
+    nativeDetached(key, id, leaseId) { return enqueue(() => forgetNativeTab(key, id, leaseId)); },
+    nativeWarning(key, warning, leaseId) { return enqueue(() => {
       const session=sessions.get(key);
-      if(session?.transport==='native'&&session.warnings.length<32)session.warnings.push(warning);
+      if(session?.transport==='native'&&(leaseId === undefined || session.leaseId === leaseId)&&session.warnings.length<32)session.warnings.push(warning);
     }); },
     removeTab(id) {
       return enqueue(async () => {

@@ -57,7 +57,7 @@ Unless the user asked to keep the task's session connected, run cleanup after su
 node "$LATCH_SKILL_DIR/scripts/latch.mjs" disconnect --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE"
 ```
 
-Disconnect releases this task's claims and preserves website tabs and their logins. To release one tab while continuing the same session, use `release` with its observed ID. Do not close existing user tabs or run `close-all`, `kill-all`, cookie clearing or data deletion as generic cleanup. If cleanup fails, report the exact session and failure rather than claiming it was released.
+Disconnect releases this task's claims and preserves website tabs and their logins. To release one tab while continuing the same session, use `release` with its observed ID. Do not close existing user tabs or run `close-all`, `kill-all`, cookie clearing or data deletion as generic cleanup. If cleanup fails, report the exact session and failure rather than claiming it was released. For schema-4 native sessions, read the recovery section in `references/operations.md`: inspect with `reconcile`, then use its current plan token for scoped cleanup. Bridge reconnection restores readiness; it never resumes a lost automation lease or repeats an uncertain action.
 
 ## Connection limits
 

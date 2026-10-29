@@ -506,3 +506,25 @@ forced-exit grace period, owned pipes are closed so that case cannot leave the
 wrapper waiting indefinitely. This still does not claim to cancel an application
 action or kill a real daemon/descendant. Only the explicit fixture descendant is
 removed by test cleanup.
+
+
+## Phase 4 — October 29, 2026
+
+The native source preview now has acknowledged readiness, generation/lease
+fencing, bounded durable retries, host-owned schema-4 journals and explicit
+reconciliation. [The recovery results](docs/PHASE-4-RECOVERY-RESULTS.md) distinguish
+real browser faults from component coverage for all 22 acceptance rows.
+
+94 distinct checks have passing results across the recorded default, serial
+opt-in and targeted confirmation runs. Final default: 63 passed, 31 opt-in
+skipped, zero failed. All 31 opt-ins also have a passing run in the combined
+evidence matrix. Twenty real fault/recovery cycles passed with two agents,
+an untouched outsider and zero final native sockets/listeners/sessions.
+
+All new browser verification was headless. The isolated five-pair cohort had no
+configured performance concerns: median native attach 2.38 s, snapshot 196 ms,
+screenshot 281 ms and disconnect 91 ms. Fixture audit: 64 roots, no leftover
+owned processes/registrations/runtime directories. Work remains paired and
+healthy on installed 0.1.2 compatibility mode; no rollout or security change.
+
+Evidence: `/Users/ekkisyam/Documents/Codex/2026-10-28/i/outputs/latch-phase-4/`.

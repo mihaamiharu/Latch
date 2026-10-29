@@ -70,7 +70,7 @@ test('normal Latch CLI: concurrent native workspaces, exact same-URL tabs, isola
   await fs.writeFile(path.join(extension, 'fixture-seed.js'), seedScript);
   await fs.appendFile(path.join(extension, 'background.js'), "\nimport './fixture-seed.js';\n");
   const launcher = path.join(temp, 'native-host');
-  await fs.writeFile(launcher, `#!/bin/sh\nexport QA_BROWSER_RUNTIME_DIR=${quote(runtime)}\nexec ${quote(process.execPath)} ${quote(path.join(root, 'src/native-host.mjs'))} "$@" 2>>${quote(path.join(temp,'native.stderr.log'))}\n`, {mode: 0o700});
+  await fs.writeFile(launcher, `#!/bin/sh\nexport QA_BROWSER_RUNTIME_DIR=${quote(runtime)}\nexport QA_BROWSER_CONFIG=${quote(env.QA_BROWSER_CONFIG)}\nexport PWTEST_DAEMON_SESSION_DIR=${quote(env.PWTEST_DAEMON_SESSION_DIR)}\nexec ${quote(process.execPath)} ${quote(path.join(root, 'src/native-host.mjs'))} "$@" 2>>${quote(path.join(temp,'native.stderr.log'))}\n`, {mode: 0o700});
   const hosts = path.join(temp, 'profile/NativeMessagingHosts'); await fs.mkdir(hosts, {recursive: true});
   const hostManifest = path.join(hosts, hostName+'.json');
   registration = JSON.stringify({name: hostName, description: 'Latch workflow fixture', type: 'stdio', path: launcher,
@@ -142,7 +142,7 @@ test('normal Latch CLI: concurrent native workspaces, exact same-URL tabs, isola
   assert.equal(limited.error.code, 'SESSION_TAB_LIMIT');
   const switched = await wrapper(projectA, ['connect', '--transport', 'official', '--session', 'agent', '--tab', String(a.tabId)], {fail: true});
   assert.equal(switched.error.code, 'TRANSPORT_MISMATCH');
-  await assert.rejects(request(identity.instanceId, 'native-connect', {...identity, epoch: crypto.randomUUID(), sessionKey: sessionKey(projectC, 'agent'), tabId: c.tabId, expectedUrl:c.url}), {code:'PROFILE_MISMATCH'});
+  await assert.rejects(request(identity.instanceId, 'native-connect', {...identity, epoch: crypto.randomUUID(), sessionKey: sessionKey(projectC, 'agent'), tabId: c.tabId, expectedUrl:c.url}), {code:'OPERATION_GRANT_REQUIRED'});
   const failingCLI = path.join(temp, 'failing-cli');
   await fs.writeFile(failingCLI, `#!${process.execPath}\nconst a=process.argv.slice(2);if(a.includes('--version'))console.log(JSON.stringify({version:'0.1.20'}));else if(a.includes('list'))console.log(JSON.stringify({browsers:[]}));else if(a.includes('attach')){console.log(JSON.stringify({isError:true,error:'Injected attach failure'}));process.exitCode=1}else console.log('{}');\n`, {mode:0o700});
   const rollback = await wrapper(projectC, ['connect', '--transport','native','--session','agent','--tab',String(c.tabId)], {fail:true,overrides:{QA_BROWSER_PLAYWRIGHT_CLI:failingCLI}});
@@ -161,7 +161,7 @@ test('normal Latch CLI: concurrent native workspaces, exact same-URL tabs, isola
     await fs.writeFile(path.join(evidence,name+'-console.json'),JSON.stringify(consoleOutput,null,2));
   }
   const records = await Promise.all([projectA,projectB].map(async workspace=>{
-    const p=path.join(runtime,sessionKey(workspace,'agent')+'.session.json');
+    const p=path.join(temp,'native-v4',identity.instanceId,sessionKey(workspace,'agent')+'.json');
     const raw=await fs.readFile(p,'utf8');
     assert.ok(!raw.includes('/cdp/')&&!raw.includes('/extension/'));
     assert.equal((await fs.stat(p)).mode&0o777,0o600);

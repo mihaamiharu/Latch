@@ -102,3 +102,10 @@ test('uncertain control timeout retains a private native record until explicit d
   assert.equal(cleaned.disconnected,true);
   await assert.rejects(fs.stat(record),{code:'ENOENT'});
 });
+
+test('native invalidation preserves independent official registrations and ownership',async()=>{
+ const id=identity(),nativeKey=key(),officialKey=key(),connectUrl=`chrome-extension://${OFFICIAL_ID}/connect.html?protocolVersion=2&mcpRelayUrl=${encodeURIComponent('ws://127.0.0.1:40000/extension/'+crypto.randomUUID())}`;
+ const tabs=[{id:1,windowId:10,groupId:-1,url:'https://fixture/native'},{id:2,windowId:10,groupId:90,url:connectUrl},{id:3,windowId:10,groupId:90,url:'https://fixture/official'}];const released=[];
+ const api={tabs:{get:async id=>tabs.find(t=>t.id===id),query:async()=>tabs},tabGroups:{get:async()=>({})}};const controller=createController(api,id,{nativeTransport:{available:true,release:async k=>released.push(k),isAttached:()=>true}});const call=async(op,p={})=>controller.handle({v:1,id:crypto.randomUUID(),op,payload:{...id,...p}});
+ assert.equal((await call('register',{sessionKey:officialKey,connectUrl})).ok,true);assert.equal((await call('claim',{sessionKey:officialKey,tabId:3,expectedUrl:tabs[2].url})).ok,true);assert.equal((await call('native-reserve',{sessionKey:nativeKey,tabId:1,expectedUrl:tabs[0].url})).ok,true);await controller.invalidateNative();assert.deepEqual(released,[nativeKey]);assert.equal((await call('verify',{sessionKey:officialKey,tabId:3,expectedUrl:tabs[2].url})).ok,true);const status=await call('status');assert.deepEqual(status.result.sessions.map(s=>s.key),[officialKey]);
+});

@@ -18,16 +18,17 @@ async function chromePath() {
 function control(socketPath, request) {
   return new Promise((resolve, reject) => {
     const socket = net.createConnection(socketPath);
-    let data = '';
-    socket.setTimeout(15000, () => { socket.destroy(); reject(new Error('Control timed out.')); });
-    socket.on('error', reject);
+    let data = '', settled = false;
+    const finish = (error, value) => { if (settled) return; settled = true; socket.destroy(); error ? reject(error) : resolve(value); };
+    socket.setTimeout(15000, () => finish(new Error('Control timed out.')));
+    socket.on('error', error => finish(error));
+    socket.on('close', () => { if (!settled) finish(new Error('Control connection closed before a response.')); });
     socket.on('connect', () => socket.write(JSON.stringify(request) + '\n'));
     socket.on('data', chunk => {
       data += chunk;
       if (!data.includes('\n')) return;
-      socket.destroy();
-      try { const response = JSON.parse(data); response.ok ? resolve(response.result) : reject(new Error(response.error)); }
-      catch (error) { reject(error); }
+      try { const response = JSON.parse(data); response.ok ? finish(null, response.result) : finish(Object.assign(new Error(response.error?.message || 'Control failed.'), {code: response.error?.code})); }
+      catch (error) { finish(error); }
     });
   });
 }
@@ -50,7 +51,7 @@ async function command(executable, args, options = {}) {
     child.stdout.on('data', data => out += data);
     child.stderr.on('data', data => err += data);
     child.once('error', error => { clearTimeout(timer); reject(error); });
-    child.once('exit', code => { clearTimeout(timer); resolve({code, out, err}); });
+    child.once('close', code => { clearTimeout(timer); resolve({code, out, err}); });
   });
 }
 async function stopBrowser(browser) {
