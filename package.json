@@ -23,7 +23,11 @@
     "test:frames-workers": "LATCH_FRAMES_WORKERS=1 node --test test/frame-worker-compat.test.mjs",
     "test:frame-isolation": "LATCH_FRAME_ISOLATION=1 node --test test/frame-worker-isolation.test.mjs",
     "test:files": "LATCH_FILES=1 node --test test/file-transfer-compat.test.mjs",
-    "test:file-isolation": "LATCH_FILE_ISOLATION=1 node --test test/file-transfer-isolation.test.mjs"
+    "test:file-isolation": "LATCH_FILE_ISOLATION=1 node --test test/file-transfer-isolation.test.mjs",
+    "test:evidence": "LATCH_EVIDENCE=1 node --test test/evidence-compat.test.mjs",
+    "test:evidence-limits": "LATCH_EVIDENCE_LIMITS=1 node --test test/evidence-limits.test.mjs",
+    "test:evidence-isolation": "LATCH_EVIDENCE_ISOLATION=1 node --test test/evidence-isolation.test.mjs",
+    "test:evidence-performance": "LATCH_EVIDENCE_PERFORMANCE=1 node --test test/evidence-performance.test.mjs"
   },
   "dependencies": {
     "ws": "8.22.0"

@@ -1,5 +1,6 @@
 import {fault} from './protocol.js';
 import {ChildSessions,childFilter} from './child-sessions.js';
+import {prepareWire} from './transport-limits.js';
 
 const forbidden = new Set(['Network.getAllCookies', 'Network.getCookies', 'Network.setCookies',
   'Network.deleteCookies', 'Network.clearBrowserCookies', 'Network.clearBrowserCache']);
@@ -13,8 +14,8 @@ export function createDebuggerTransport(api, {onTargetGone = () => {}, onWarning
   const available = !!api.debugger;
   function emit(session, value) {
     if (session.ws.readyState === WebSocket.OPEN) {
-      if (session.ws.bufferedAmount > 8 * 1024 * 1024) { void release(session.key).catch(() => {}); return; }
-      session.ws.send(JSON.stringify(value));
+      try { session.ws.send(prepareWire(value,session.ws.bufferedAmount).text); }
+      catch(error) { onWarning(session.key,{code:error.code||'TRANSPORT_SEND_FAILED'});session.ws.close(4009,error.code||'TRANSPORT_SEND_FAILED');void release(session.key).catch(()=>{}); }
     }
   }
   async function detach(target) {

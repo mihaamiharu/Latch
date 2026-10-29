@@ -66,7 +66,7 @@ playwright-cli -s="$LATCH_SESSION" --json run-code 'async(page)=>{const waiting=
 
 Use actual locators from the page. A child can open another child. Closing a parent preserves surviving owned children. To select a child for later CLI commands, refresh Latch `tabs`, then use the same helper `connect --transport native --session ... --tab ... --workspace ...`; its result includes `rootTabId`, active `targets` and ownership warnings. CLI `tab-select` indexes are temporary and differ from Chrome tab IDs.
 
-Chrome must supply a verifiable opener. A `noopener` tab may remain unclaimed; a blocked popup creates no owned child. Report the popup wait timeout and current inventory instead of assigning ownership by URL, timing or window. Limits are 16 active top-level tabs, four child generations and 256 recorded tab identities per session. Limit/attachment/opener warnings leave the affected tab unclaimed. Upload support and download limitations are described below. Large evidence payloads and restart recovery remain separate acceptance gates.
+Chrome must supply a verifiable opener. A `noopener` tab may remain unclaimed; a blocked popup creates no owned child. Report the popup wait timeout and current inventory instead of assigning ownership by URL, timing or window. Limits are 16 active top-level tabs, four child generations and 256 recorded tab identities per session. Limit/attachment/opener warnings leave the affected tab unclaimed. Upload support and download limitations are described below. Large evidence support and limits are described below; restart recovery remains a separate gate.
 
 Native frame interactions have been compared with the official adapter using headless Chrome for Testing: same-origin, cross-origin, nested out-of-process frames, insertion/removal, navigation and replacement. Use standard `page.frameLocator(...)` and fresh locators after replacement. An iframe remains inside its owning tab/session; do not create a separate tab claim for it. Removed frame/child-session identities cannot be reused for a replacement.
 
@@ -125,6 +125,46 @@ requires retrieval, report that capability as unsupported. Leave browser downloa
 settings and permissions unchanged unless a separate setup change is authorized.
 Screenshots, snapshots, console and request reports still use the normal task
 evidence directory; this download limitation does not block those artifacts.
+
+## Large evidence and bounded failures
+
+Prefer file output and create a fresh task evidence path for each operation:
+
+```bash
+playwright-cli -s="$LATCH_SESSION" screenshot --filename="$LATCH_EVIDENCE/page.png"
+playwright-cli -s="$LATCH_SESSION" snapshot --filename="$LATCH_EVIDENCE/page.yaml"
+playwright-cli -s="$LATCH_SESSION" requests
+playwright-cli -s="$LATCH_SESSION" response-body "$LATCH_REQUEST_INDEX" --filename="$LATCH_EVIDENCE/response.body"
+```
+
+Use the actual current index from `requests`, matched to the authorized request.
+Check that the new file exists and contains the expected complete data, including
+byte count/hash or markers where available. The pinned response-body command can
+return `{}` after inspector-cache eviction without saving anything. Do not treat
+that as success, reuse a stale file, or replay the application request automatically.
+
+Gate E verifies high-entropy PNGs up to 12,623,891 bytes, snapshots with every row
+around 1.17/4.70 MB, and exact text/binary bodies at 1/4 MiB. Both adapters lose
+16 MiB response bodies from the inspector cache in these tests. These samples are
+validated support, not universal maximums. Console history is capped at 200
+messages and may contain fewer; it is not a complete long event stream. A listener
+established before the action received all 512 events in the bounded fixture.
+
+Native transport allows 32 MiB serialized messages and an 8 MiB existing-backlog
+threshold plus one bounded message. JSON/base64 expansion counts toward the wire
+limit. Ordinary calls have 10 seconds; awaited Runtime.evaluate/callFunctionOn
+calls have 30. These are inner command deadlines, distinct from Playwright's own
+operation timeouts. The Latch wrapper has a 2 MiB raw stdout bound and default
+45-second process deadline; direct CLI commands do not use that collector.
+
+`CLI_OUTPUT_LARGE` means the wrapper could not accept its inline result; prefer
+supported file output. `CLI_TIMEOUT` kills/reaps that wrapper subprocess, not
+necessarily the browser action or daemon. A transport overflow/timeout can leave
+this session stale. Capture the specific error and known application outcome,
+then run normal scoped disconnect. Do not retry an uncertain click, switch
+transport, or reconnect as if the original operation succeeded. A healthy peer
+session remains separate. Native mode still requires the later installed-preview
+cutover; changing these sources/skills does not upgrade the Work extension.
 
 ## Release one tab
 

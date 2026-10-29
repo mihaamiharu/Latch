@@ -1,6 +1,6 @@
 # Phase 3: browser behavior and attachment compatibility
 
-Prepared October 28, 2026. Status: Gates A–D implemented; final acceptance results and the worker-inventory limitation are recorded in `../TEST-RESULTS.md`. Gate E remains planned. This is not full Phase 3 completion.
+Prepared October 28, 2026. Status: Gates A–E implemented within the declared support matrix. Final acceptance results and baseline limitations are recorded in `../TEST-RESULTS.md`. Phase 3 acceptance does not include restart recovery, installation cutover or Work native rollout.
 Starting checkpoint: `3e6303e` on `feat/latch-native-transport`.
 
 ## Acceptance status
@@ -21,7 +21,10 @@ Starting checkpoint: `3e6303e` on `feat/latch-native-transport`.
   saveAs/path/cancel and managed retrieval remain explicitly unsupported in both
   pinned adapters. Native rejects managed configuration rather than acknowledging
   a no-op. See `GATE-D-FILES-PLAN.md` for every acceptance disposition.
-- **Gate E pending:** large-result transport/evidence.
+- **Gate E implemented:** integrity-checked large evidence, raw-byte CLI output,
+  finite message/backlog/deadline policies, peer survival and measured performance.
+  Inspector-cache eviction at 16 MiB and bounded console history remain explicit
+  baseline limits. See `GATE-E-EVIDENCE-TRANSPORT-PLAN.md` for every disposition.
 
 ## Outcome
 
@@ -45,8 +48,8 @@ grant is part of this phase.
   snapshots, basic interactions, console/network inspection and concurrent named
   sessions already have evidence. Popups, frame compatibility, uploads, managed
   downloads and large results still need their own acceptance evidence.
-- The current data path has a 32 MiB WebSocket message limit, an 8 MiB outgoing
-  backlog threshold, a 10-second per-browser-command deadline, and a 2 MiB stdout
+- The current data path has a 32 MiB WebSocket message limit, an 8 MiB existing
+  backlog threshold plus one bounded message, a 10-second ordinary / 30-second awaited-Runtime command deadline, and a 2 MiB stdout
   bound in the Latch CLI adapter. These are separate limits. Native control
   messages retain their existing smaller limits and must not carry file bodies.
 - Focus emulation stays off by default. Record it per scenario. Test normal focus
@@ -199,6 +202,9 @@ must fail/report clearly; it must not return a guessed path or another task's fi
 
 ### 3E — Large artifacts, bounded traffic and deadlines
 
+The concrete cases, resource budgets, deadline decisions and completion rule are
+in [the Gate E execution plan](GATE-E-EVIDENCE-TRANSPORT-PLAN.md).
+
 Test the full data route with deterministic high-entropy screenshots and response
 bodies above 1 MiB. Include representative serialized results around 4 MiB and
 16 MiB, then exercise exact configured wire-size boundaries and one over-limit
@@ -217,8 +223,8 @@ clear result and cleanup; the other task must remain responsive. Check queues,
 pending promises and target ownership after the failure. No successful report may
 contain a silently truncated artifact.
 
-Review the current 10-second browser-command deadline against legitimate async
-Playwright operations. Define per-command and whole-operation bounds with clear
+Gate E measured the original 10-second browser-command deadline against legitimate
+async Playwright operations and added a finite 30-second awaited-Runtime policy. Define per-command and whole-operation bounds with clear
 timeout diagnostics; never treat a timed-out click as safe to replay. General
 browser/host crash recovery stays in Phase 4, but failures caused by this phase's
 own size/backpressure tests are part of this gate.
@@ -273,8 +279,8 @@ policy so its artifacts can be interpreted correctly.
 The new entry points are `npm run test:popups` and
 `npm run test:attachment-compat`, alongside the existing default, native-workflow
 and official regression tests. Frame and file suites are now available as `test:frames-workers`,
-`test:frame-isolation`, `test:files` and `test:file-isolation`. Large-payload
-fixtures remain Gate E.
+`test:frame-isolation`, `test:files` and `test:file-isolation`. Large-evidence suites are `test:evidence`, `test:evidence-limits`,
+`test:evidence-isolation` and `test:evidence-performance`.
 
 Phase 3 is complete when gates A–E have evidence, required baseline-supported
 cases have no unresolved Latch gaps, popup ownership/cleanup tests pass under
@@ -282,8 +288,8 @@ concurrent sessions, and any unsupported file/worker behavior is stated precisel
 Keep restart recovery (Phase 4), installation/permissions and UI cutover (Phase 5),
 and actual Work-profile rollout (Phase 6) separate.
 
-The first implementation milestone establishes Gates A/B. Gates C/D have since been implemented; continue with Gate E before
-claiming large-evidence capacity. Work-profile installation
+The first implementation milestone establishes Gates A/B. Gates C–E have since been implemented; use their measured support matrix
+rather than claiming unlimited evidence capacity. Work-profile installation
 and the daily transport default remain separate migration gates.
 
 ## References

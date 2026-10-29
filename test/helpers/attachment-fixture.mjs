@@ -37,7 +37,7 @@ export async function attachmentFixture(t, app, transport) {
     .map(b=>String.fromCharCode(97+(b>>4),97+(b&15))).join('');
   const hostName=`com.latch.compat_${crypto.randomBytes(5).toString('hex')}`;
   await fs.writeFile(path.join(extension,'protocol.js'),(await fs.readFile(path.join(extension,'protocol.js'),'utf8')).replace("'com.qa_browser.bridge'",JSON.stringify(hostName)));
-  const env={...process.env,...(app.protocolEvidence?{DEBUG:'pw:protocol'}:{}),QA_BROWSER_RUNTIME_DIR:runtime,QA_BROWSER_CONFIG:path.join(temp,'config.json'),
+  const env={...process.env,DEBUG:app.protocolEvidence?'pw:protocol':'',QA_BROWSER_RUNTIME_DIR:runtime,QA_BROWSER_CONFIG:path.join(temp,'config.json'),
     PWTEST_DAEMON_SESSION_DIR:path.join(temp,'daemon'),NO_UPDATE_NOTIFIER:'1',
     PLAYWRIGHT_MCP_EXECUTABLE_PATH:cliBrowser,PWTEST_EXTENSION_USER_DATA_DIR:profile};
   const workspaces=[];for(const name of ['a','b','outsider']){const p=path.join(temp,name);await fs.mkdir(p);workspaces.push(p)}
@@ -116,12 +116,14 @@ export async function attachmentFixture(t, app, transport) {
     if(events.length>4096)throw new Error('Protocol metadata exceeded fixture bound.');
     return events;
   };
+  const nativeStatus=async()=>transport==='native'?control(path.join(runtime,identity.instanceId+'.sock'),{v:1,id:crypto.randomUUID(),op:'native-status',payload:{...identity,sessionKey:sessionKey(workspaces[0],'agent')}}):undefined;
   const captureTrace=async index=>{
     if(!identity||transport!=='native')return;
     const payload={...identity,sessionKey:sessionKey(workspaces[index],'agent')};
     const trace=await control(path.join(runtime,identity.instanceId+'.sock'),{v:1,id:crypto.randomUUID(),op:'native-trace',payload}).catch(()=>null);
     // Explicit test disconnects happen before final fixture teardown. Preserve
     // their live trace; a later empty session must not overwrite it.
+    const status=await nativeStatus().catch(()=>null);if(status?.sessions?.length)await fs.writeFile(path.join(evidence,'native-status.json'),JSON.stringify(status,null,2));
     if(trace?.length)await fs.writeFile(path.join(evidence,`trace-${index}.json`),JSON.stringify(trace,null,2));
   };
   const latch=async(index,args,{fail=false}={})=>{
@@ -169,7 +171,7 @@ export async function attachmentFixture(t, app, transport) {
   await eventually(()=>app.seeds.has(run)&&[...app.states.values()].filter(s=>s.actor.startsWith(run)&&s.role===(app.rootRole||'/root')).length===3);
   const seedInfo=app.seeds.get(run);
   await verifyInbox();
-  return {run,temp,profile,evidence,identity,workspaces,env,transport,versions,headless:true,browserInbox,verifyInbox,connectionPageDelivery:deliveryURL?'fixture-only URL delivery shim':'not needed',launchArgs:[...HEADLESS_ARGS,...(app.launchArgs||[])],protocolEvents,tabs:seedInfo.tabs,latch,pw,close,
+  return {run,temp,profile,evidence,identity,workspaces,env,transport,versions,headless:true,browserPID:browser.pid,nativeStatus,browserInbox,verifyInbox,connectionPageDelivery:deliveryURL?'fixture-only URL delivery shim':'not needed',launchArgs:[...HEADLESS_ARGS,...(app.launchArgs||[])],protocolEvents,tabs:seedInfo.tabs,latch,pw,close,
     connect:async(index,tabId,{background=false}={})=>latch(index,['connect','--profile','work','--transport',transport,
       ...(background&&transport==='native'?['--focus-emulation','on']:[]),'--session','agent','--tab',String(tabId)]),
     states:()=>[...app.states.values()].filter(state=>state.actor.startsWith(run))};

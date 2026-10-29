@@ -115,7 +115,8 @@ working, separate console evidence, and preserved tabs/groups/windows/active-tab
 selection plus synthetic sign-in state after cleanup. The persisted extension
 inventory confirms that the official extension was absent.
 
-Remaining gates: advanced QA commands and large results, frame/worker/popup
-compatibility, browser/host restart recovery and abandoned-lock reconciliation,
-installer/permission upgrade, and installed Work-profile verification. The native
-preview is not yet the daily default.
+Phase 3 now has frame/worker/popup, file and large-evidence acceptance suites.
+See `PHASE-3-COMPATIBILITY-PLAN.md` for measured support and remaining baseline
+limitations. Browser/host restart recovery, abandoned-lock reconciliation,
+installer/permission cutover and installed Work-profile native verification
+remain separate gates. The native preview is not yet the daily default.

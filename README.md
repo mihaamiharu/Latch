@@ -6,7 +6,7 @@ A macOS Chrome companion extension and local CLI for connecting existing Work-pr
 
 The next version removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, acceptance gates and rollback. Migration is in progress; the installed daily transport is unchanged.
 
-The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus verified popup descendants. The [Gate C work](docs/GATE-C-FRAMES-WORKERS-PLAN.md) adds bounded child-session lifetimes, nested frame routing, dedicated-worker checks and targeted cancellation. Headless comparison covers same-origin/cross-origin/OOPIF forms, navigation, replacement and frame evidence. The pinned CLI does not backfill already-running workers into `page.workers()` in these tests; new dedicated workers are observable and evaluable. See the [Phase 3 acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md). Native mode remains opt-in; the Work installation and daily default are unchanged. Gate D verifies byte-preserving uploads and separates browser download receipt from unsupported managed retrieval. Large payloads, recovery and cutover remain later gates.
+The native preview integrates the normal CLI/helper with paired profiles and independent agent workspaces. It owns one selected starting tab plus verified popup descendants. The [Gate C work](docs/GATE-C-FRAMES-WORKERS-PLAN.md) adds bounded child-session lifetimes, nested frame routing, dedicated-worker checks and targeted cancellation. Headless comparison covers same-origin/cross-origin/OOPIF forms, navigation, replacement and frame evidence. The pinned CLI does not backfill already-running workers into `page.workers()` in these tests; new dedicated workers are observable and evaluable. See the [Phase 3 acceptance status](docs/PHASE-3-COMPATIBILITY-PLAN.md). Native mode remains opt-in; the Work installation and daily default are unchanged. Gate D verifies byte-preserving uploads and separates browser download receipt from unsupported managed retrieval. Gate E adds verified large evidence, finite transport bounds and scoped failure cleanup. Recovery and cutover remain later gates.
 
 ## Build the extension
 
@@ -132,6 +132,10 @@ npm run test:frames-workers
 npm run test:frame-isolation
 npm run test:files
 npm run test:file-isolation
+npm run test:evidence
+npm run test:evidence-limits
+npm run test:evidence-isolation
+npm run test:evidence-performance
 ```
 
 Set `QA_BROWSER_OFFICIAL_EXTENSION` to an unpacked official extension if it is not at `work/browser-bridge/official-extension`. Official authorization is provisioned once in the disposable profile, then that setup browser closes; the comparison runtime launches without a driver or remote-debugging flags. Native runs omit the official extension. Both launches use mock-keychain flags. Reports, fixture observations and screenshots are retained under `work/attachment-compat/<adapter>-*/evidence/`. Private profiles and CLI registries alongside them are diagnostic data, not publishable evidence.
@@ -155,9 +159,38 @@ still works. See [the Gate D plan and dispositions](docs/GATE-D-FILES-PLAN.md) a
 [shared agent instructions](skills/latch/references/operations.md#uploads-and-downloads).
 
 The test corpus is at most 256 KiB per file and 1 MiB per case. These are fixture
-bounds, not production transfer-size promises; larger evidence remains Gate E.
+bounds, not production transfer-size promises. Gate E
+validates separate evidence routes at the measured sizes below.
 The tests configure only private disposable-profile download directories before
 launch. They add no downloads permission and do not change the Work profile.
+
+## Large evidence and transport
+
+Gate E verifies exact decoded pixels in PNGs up to 12,623,891 bytes and all rows
+in snapshots around 1.17 and 4.70 MB. Text and binary response-body files match
+independent server hashes at 1 and 4 MiB. At 16 MiB, both pinned adapters report
+inspector-cache eviction; browser receipt is not a saved body. The pinned CLI
+can return `{}` when that capture fails, so verify the saved file's content.
+
+Prefer `screenshot`, `snapshot` and `response-body` with explicit `--filename`
+paths. `requests` provides the current request index for `response-body`. These
+normal CLI outputs save files and return small metadata. No new file broker is
+needed. The CLI's console history retains at most 200 messages; establish a
+listener before a bounded burst when the complete event sequence matters.
+
+Native messages are bounded to 32 MiB serialized UTF-8, in both directions. A send
+is admitted only while existing backlog is at most 8 MiB, with at most one 32 MiB
+message added: up to 40 MiB application bytes before another send is rejected.
+This is not a process-memory cap. Ordinary browser calls retain a 10-second
+deadline; awaited Runtime.evaluate/callFunctionOn calls get 30 seconds. Stuck
+work revokes its own relay; it does not reconnect or replay an uncertain action.
+
+Latch's internal CLI wrapper retains a 2 MiB raw stdout bound and 45-second
+default deadline, with a one-second forced-exit fallback before returning an
+aborted child result. Direct `playwright-cli` commands do not pass through that
+collector. Large captures use file output, rather than relying on inline results.
+See [the Gate E matrix](docs/GATE-E-EVIDENCE-TRANSPORT-PLAN.md) and
+[measured route ledger](docs/GATE-E-ROUTE-LEDGER.md) for scope and limitations.
 
 ## Prototype limits
 

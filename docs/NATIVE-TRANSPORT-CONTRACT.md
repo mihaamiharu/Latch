@@ -61,6 +61,13 @@ event semantics and browser-wide commands remain outside acceptance.
 
 ## State, limits and cleanup
 
+The single-host description below records the original transport proof. The
+normal multi-agent preview and Gate E use the current finite policies in
+[GATE-E-ROUTE-LEDGER.md](GATE-E-ROUTE-LEDGER.md): 32 MiB messages, an 8 MiB
+existing-backlog threshold plus one bounded message, 64 pending calls, and
+10-second ordinary / 30-second awaited-evaluation deadlines. The backlog
+threshold is not a hard memory cap. Work native installation remains separate.
+
 The experiment has one native connection and one selected tab per host lifetime.
 It does not yet implement the production profile/workspace/session reservation
 contract or recover stale state. CDP/native disconnect revokes both relay paths;

@@ -414,3 +414,95 @@ Validation logs: `work/gate-d-acceptance.log`,
 `work/gate-d-default-final.log`, `work/gate-d-frame-regression.log` and
 `work/gate-d-regression.log` (the latter retains the two superseded frame failures).
 All project fixture browsers are stopped after validation.
+
+# Gate E — large evidence and bounded transport, October 29, 2026
+
+Gate E implements the approved plan from checkpoint `902f30b`. Versions remain
+Node 22.21.1, unmodified CLI 0.1.20, full Chrome for Testing 153.0.8010.12 and
+unmodified official extension 0.4.0. All browser validation is headless with
+private profiles, real native messaging and the existing official URL-delivery
+shim. Work installation/default transport/permissions remain unchanged.
+
+| Case | Verified result |
+| --- | --- |
+| Screenshot content | Controls and high-entropy 512×1024, 1024×1024 and 2048×2048 PNGs decode to every expected pixel in both adapters. Largest PNG 12,623,891 bytes; PNG hashes match across adapters. |
+| Snapshot content | All 1024/4096 rows plus sentinels and ordering survive in approximately 1.17/4.70 MB files. Reference IDs may differ; no semantic truncation. |
+| Response-body files | Text and binary save exactly at 1/4 MiB with independent server SHA-256/length. Both 16 MiB variants are evicted from inspector cache. Page fetch reads 16 MiB, but that is not a saved artifact. |
+| Missing/partial capture | The pinned body command can return `{}` after capture failure. The harness detects a missing artifact and verifies standard Response.body cache-eviction errors. Interrupted bodies and over-limit output producers are never claimed complete. |
+| Direct CLI versus wrapper | Filename commands return small metadata. Direct CLI output above 2 MiB is streamed and verified separately. Latch's internal collector accepts raw stdout up to 2 MiB, rejects one byte above and preserves split UTF-8 sequences. |
+| Wire and pending limits | Actual authenticated sockets accept 32 MiB − 1/equal and reject +1 in both input roles, including text fragmentation inside a UTF-8 character. The 65th pending call is rejected before dispatch; accepted calls settle and pending returns to zero. |
+| Backpressure | Shared guard permits at most 8 MiB existing backlog plus one 32 MiB message. Actual paused readers exhaust each direction without losing a peer relay. This is a finite admission policy, not a process-memory cap. |
+| Deadlines | Original native timer killed a valid 11-second fetch while official succeeded. Awaited Runtime.evaluate/callFunctionOn now have 30 seconds; ordinary calls retain 10. Both adapters complete the expected delayed body. Stuck work still times out. |
+| CLI cleanup | Timeout/oversize sends TERM, then KILL if needed, and reaps the wrapper child before returning. It does not claim to cancel daemon/browser mutations. |
+| Events and ownership | Pre-established listener receives all 512 events and 64 requests match receipts. CLI console history retains at most 200 (192 fixture entries observed), explicitly partial. Real peers survive pending rejection, oversized result, timeout and four-command disconnect. |
+| Cleanup resources | Five real native-host cycles return from three TCP sockets/one listener to zero. No pending session remains; physical tabs and outsider ownership are preserved. |
+
+The output collector previously decoded individual pipe chunks, corrupting split
+UTF-8 characters and causing a false output-limit failure. It now counts raw
+bytes before retaining data and decodes after process close. The evidence sink
+uses one bounded stream reader, completes partial filesystem writes, verifies
+written byte count and keeps failed output explicitly partial.
+
+Native metadata counters expose message/queue/pending high-water values, timeout
+method/deadline and socket-server resource state without payloads or credentials.
+Both relay and extension reject an oversized serialized message before sending.
+Browser JavaScript uses a valid application close code (4009); real-browser
+coverage caught and corrected an initially invalid close-code attempt before
+checkpoint. Neither error handling nor evidence capture requires a new permission
+or download broker.
+
+Validation includes the full serial suite: **71 passed, 0 failed, 1 skipped** out
+of 72 cases. The skipped performance cohort runs separately. The final artifact
+comparison also passes **2/2** after strengthening file-write and delayed-body
+assertions. Focused output/sink/extension checks and skill validation pass. Exact
+protocol tests are labeled separately from real-browser attachment; actual paused
+consumers use synthetic authenticated peers over real sockets. Existing popup,
+frame/worker, file, native workflow and official multi-agent cases all pass.
+
+Performance uses one warm-up and five alternating pairs, with samples retained.
+A single confirmation cohort explicitly starts measured attaches with the target
+tab active and records visible/focused capture pages, with native focus emulation
+off. The initial exploratory cohort is retained separately, not pooled into the
+confirmed comparison. RSS/CPU includes identified fixture browser descendants
+and exact CLI daemons found through private stderr descriptors. Summed RSS may
+double-count shared pages; five cycles are not a long-run leak or SLA claim.
+Confirmed numbers and all samples are in the curated Gate E report.
+
+Initial UTF-8, fixture-row, inspector-cache and overflow close-code failures are
+retained under ignored work paths. They are not presented as clean first-run
+passes. The Work diagnostic is read-only; it claims no tab and reads no page
+content. Restart recovery, installation/permission cutover and actual Work-profile
+native rollout remain separate phases. No push is part of this checkpoint.
+
+Confirmed medians (five samples per adapter): attach
+2.39s native / 3.61s official; snapshot
+208ms / 213ms; screenshot
+292ms / 374ms. No latency or RSS concern threshold was crossed.
+The standalone default run passes **51** checks, with **21** opt-in cases skipped;
+the final protocol rerun passes **6/6**, including the stopped producer/peer check.
+A protocol resource assertion initially sampled before asynchronous WebSocket close
+callbacks completed; it now waits for the bounded zero-client condition. It did
+not require a runtime limit change. The full serial validation remains 71 passes
+plus the separately passed performance case: **72 unique verified checks**,
+including **16 headless browser cases** and five opt-in protocol cases.
+
+Final artifacts: `work/attachment-compat/official-oyN3wE/evidence/` and
+`work/attachment-compat/native-iWeeUP/evidence/`; isolation/resources:
+`work/attachment-compat/native-oXzPNX/evidence/`. Confirmed performance:
+`work/attachment-compat/official-kcb0ES/evidence/` and
+`work/attachment-compat/native-lXwyAZ/evidence/`. Validation logs:
+`work/gate-e-final-validation.log`, `work/gate-e-artifacts-final.log`,
+`work/gate-e-default-final.log`, `work/gate-e-limits-confirmed.log` and
+`work/gate-e-performance-confirmation.log`.
+
+The final read-only Work diagnostic reports healthy pairing, installed 0.1.2 and
+`nativeTransport: false`. No fixture browser remains running; private fixture
+registrations and short native runtime directories are removed. Curated report,
+selected complete artifacts and hashes are in the chat's `outputs/latch-gate-e/`.
+
+The final targeted abort/sink rerun passes 4/4, including a TERM-resistant CLI
+and a CLI that exits while its descendant retains inherited pipes. After the
+forced-exit grace period, owned pipes are closed so that case cannot leave the
+wrapper waiting indefinitely. This still does not claim to cancel an application
+action or kill a real daemon/descendant. Only the explicit fixture descendant is
+removed by test cleanup.

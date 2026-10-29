@@ -2,9 +2,9 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import {WebSocket, WebSocketServer} from 'ws';
 import {BrowserModel} from './native-browser-model.mjs';
+import {TRANSPORT_LIMITS,prepareWire,browserDeadline} from '../extension/transport-limits.js';
 
-const MAX_PENDING = 64;
-const MAX_BUFFERED = 8 * 1024 * 1024;
+const MAX_PENDING = TRANSPORT_LIMITS.pending;
 
 // Experimental single-session relay. Credentials stay in memory and in the
 // caller's private native/control channel, never in diagnostic trace output.
@@ -13,6 +13,7 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
     cdp: `/cdp/${crypto.randomBytes(32).toString('hex')}`};
   const trace = [];
   const pending = new Map();
+  const metrics={sentBytes:0,receivedBytes:0,maxSentMessage:0,maxReceivedMessage:0,maxAdmittedBytes:0,maxObservedBuffered:0,pendingHighWater:0,commands:0,events:0,timeouts:0};
   const retiredRequests=new Set();
   let sequence = 0, extension, client, stopped = false, initialized = false, stopPromise, stopReason;
   let readyResolve, readyReject;
@@ -24,17 +25,23 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
   }
   function send(ws, value) {
     if (ws?.readyState !== WebSocket.OPEN) throw new Error('Transport is disconnected.');
-    if (ws.bufferedAmount > MAX_BUFFERED) { void stop(); throw new Error('Transport queue exceeded its bound.'); }
-    ws.send(JSON.stringify(value));
+    try {
+      const before=ws.bufferedAmount,{text,bytes}=prepareWire(value,before);
+      metrics.sentBytes+=bytes;metrics.maxSentMessage=Math.max(metrics.maxSentMessage,bytes);
+      metrics.maxAdmittedBytes=Math.max(metrics.maxAdmittedBytes,before+bytes);
+      ws.send(text);metrics.maxObservedBuffered=Math.max(metrics.maxObservedBuffered,ws.bufferedAmount);
+    } catch(error) { void stop(error.code||'send-error'); throw error; }
   }
   function call(method, params) {
     if (pending.size >= MAX_PENDING) return Promise.reject(new Error('Too many pending browser commands.'));
     return new Promise((resolve, reject) => {
       const id = ++sequence;
+      const deadline=browserDeadline(method,params);
       const timer = setTimeout(() => {
-        pending.delete(id); record('error', method, 'command-timeout'); reject(new Error('Browser command timed out.')); void stop('command-timeout');
-      }, 10000);
-      pending.set(id, {resolve, reject, timer,method,params});
+        metrics.timeouts++;metrics.lastTimeout={method:params?.method||method,deadlineMs:deadline};
+        pending.delete(id); record('error', method, 'command-timeout'); reject(new Error(`Browser command ${params?.method||method} timed out after ${deadline}ms.`)); setImmediate(()=>void stop('command-timeout'));
+      }, deadline);
+      pending.set(id, {resolve, reject, timer,method,params});metrics.pendingHighWater=Math.max(metrics.pendingHighWater,pending.size);
       try { send(extension, {id, method, params}); }
       catch (error) { clearTimeout(timer); pending.delete(id); reject(error); }
     });
@@ -51,7 +58,7 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
   const server = http.createServer((req, res) => { res.writeHead(404); res.end(); });
   server.requestTimeout = 5000;
   server.headersTimeout = 5000;
-  const wss = new WebSocketServer({noServer: true, maxPayload: 32 * 1024 * 1024, perMessageDeflate: false});
+  const wss = new WebSocketServer({noServer: true, maxPayload: TRANSPORT_LIMITS.message, perMessageDeflate: false});
   const rejected = socket => { socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); };
   server.on('upgrade', (req, socket, head) => {
     const role = req.url === paths.extension ? 'extension' : req.url === paths.cdp ? 'cdp' : null;
@@ -60,11 +67,12 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
         (role === 'extension' ? origin !== `chrome-extension://${extensionId}` : origin !== undefined) ||
         (role === 'extension' ? !!extension : !!client || !initialized)) return rejected(socket);
     wss.handleUpgrade(req, socket, head, ws => {
-      ws.on('error', () => void stop(`${role}-error`));
-      ws.on('close', () => void stop(`${role}-disconnected`));
+      ws.on('error', error => void stop(error.code==='WS_ERR_UNSUPPORTED_MESSAGE_LENGTH'?'WIRE_MESSAGE_TOO_LARGE':`${role}-error`));
+      ws.on('close', (_code,reason) => {const text=reason.toString();void stop(['TRANSPORT_BACKLOG','WIRE_MESSAGE_TOO_LARGE'].includes(text)?text:`${role}-disconnected`)});
       if (role === 'extension') {
         extension = ws;
         ws.on('message', data => {
+          metrics.receivedBytes+=data.length;metrics.maxReceivedMessage=Math.max(metrics.maxReceivedMessage,data.length);
           try {
             const message = JSON.parse(data.toString());
             if (Number.isSafeInteger(message.id)) {
@@ -78,7 +86,7 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
               clearTimeout(readyTimer); readyResolve();
             } else if (message.method === 'event' && initialized) {
               if (message.params.method === 'Page.lifecycleEvent') record('event', message.params.method, `${message.params.source.tabId}:${message.params.params?.name}`);
-              model.onEvent(message.params);
+              metrics.events++;model.onEvent(message.params);
             }
             else if (message.method === 'tab-created' && initialized) void model.addTab(message.params).catch(() => {});
             else if (message.method === 'tab-removed' && initialized) model.removeTab(message.params?.tabId);
@@ -88,6 +96,7 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
       } else {
         client = ws;
         ws.on('message', async data => {
+          metrics.receivedBytes+=data.length;metrics.maxReceivedMessage=Math.max(metrics.maxReceivedMessage,data.length);metrics.commands++;
           let message;
           try {
             message = JSON.parse(data.toString());
@@ -127,6 +136,6 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
   return {extensionEndpoint: base + paths.extension, cdpEndpoint: base + paths.cdp, ready, stop,
     status: () => ({initialized, stopped, reason: stopReason, lastMethod: trace.at(-1)?.method,
       tabId: model.tab?.id, targetId: model.inventory().find(target => target.tabId === model.tab?.id)?.targetId,
-      targets: model.inventory(), pending: pending.size}),
+      targets: model.inventory(), pending: pending.size,metrics:{...metrics},resources:{clients:wss.clients.size,listening:server.listening,pendingTimers:pending.size+(!initialized&&!stopped?1:0)}}),
     targets: () => model.inventory(), trace: () => trace.slice()};
 }

@@ -19,14 +19,31 @@ export function runCLI(session, args, {workspace, chromeProfileDir, timeout = 45
     const child = spawn(process.env.QA_BROWSER_PLAYWRIGHT_CLI || 'playwright-cli', [`-s=${session}`, '--json', ...args], {
       cwd: workspace, env, shell: false, stdio: ['ignore', 'pipe', 'pipe'],
     });
-    let stdout = '', stderr = '', ended = false;
-    const finish = (error, value) => { if (ended) return; ended = true; clearTimeout(timer); error ? reject(error) : resolve(value); };
-    const timer = setTimeout(() => { child.kill('SIGTERM'); finish(fault('CLI_TIMEOUT', 'Playwright CLI timed out.')); }, timeout);
-    child.stdout.on('data', data => { stdout += data; if (Buffer.byteLength(stdout) > 2 * 1024 * 1024) { child.kill(); finish(fault('CLI_OUTPUT_LARGE', 'Playwright CLI output exceeded the limit.')); } });
-    child.stderr.on('data', data => { if (stderr.length < 16384) stderr += data; });
+    const stdoutChunks = [], stderrChunks = [];
+    let stdoutBytes = 0, stderrBytes = 0, ended = false, abortError, killTimer;
+    const finish = (error, value) => { if (ended) return; ended = true; clearTimeout(timer); clearTimeout(killTimer); error ? reject(error) : resolve(value); };
+    const abort = error => {
+      if (abortError || ended) return;
+      abortError = error; child.kill('SIGTERM');
+      // A descendant may retain inherited pipes after the CLI itself exits.
+      killTimer = setTimeout(() => { child.kill('SIGKILL'); child.stdout?.destroy(); child.stderr?.destroy(); }, 1000);
+    };
+    const timer = setTimeout(() => abort(fault('CLI_TIMEOUT', 'Playwright CLI timed out; an in-flight browser action may still have an unknown outcome.')), timeout);
+    child.stdout.on('data', data => {
+      if (abortError) return;
+      stdoutBytes += data.length;
+      if (stdoutBytes > 2 * 1024 * 1024) return abort(fault('CLI_OUTPUT_LARGE', 'Playwright CLI output exceeded the limit.'));
+      stdoutChunks.push(data);
+    });
+    child.stderr.on('data', data => {
+      if (stderrBytes >= 16384) return;
+      const chunk = data.subarray(0, 16384 - stderrBytes); stderrChunks.push(chunk); stderrBytes += chunk.length;
+    });
     child.on('error', () => finish(fault('CLI_UNAVAILABLE', 'Cannot start playwright-cli. Ensure it is installed and on PATH.')));
     child.on('close', code => {
       if (ended) return;
+      if (abortError) return finish(abortError);
+      const stdout = Buffer.concat(stdoutChunks).toString('utf8'), stderr = Buffer.concat(stderrChunks).toString('utf8');
       if (code !== 0 && /Playwright extension did not connect/.test(stderr + stdout))
         return finish(fault('EXTENSION_CONNECTION_FAILED', 'The Playwright extension did not connect. Check the configured Work profile and its initial connection authorization.'));
       try {
