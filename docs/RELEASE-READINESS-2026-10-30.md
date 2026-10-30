@@ -4,6 +4,11 @@ Reviewed October 30, 2026 (Asia/Jakarta). Installed candidate: `0.2.0-rc.3`.
 Software checkpoint: `b0891c1`. This review does not publish, activate another
 runtime, alter permissions or promote stable `0.2.0`.
 
+**Scope decision:** the first release is macOS only, retaining Chrome Native
+Messaging and the current local bridge. The subsequent
+[execution plan](MACOS-FIRST-RELEASE-PLAN.md) sequences the remaining work and
+acceptance gates. Other operating systems follow the first release.
+
 ## Current acceptance
 
 RC3 is installed and identity/readiness-verified in Work. The pairing survived

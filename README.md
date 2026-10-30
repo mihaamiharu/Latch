@@ -11,6 +11,10 @@ unverified. Unconfigured profiles still use the legacy official default.
 See the [portable acceptance evidence](docs/acceptance/codex-native-rc3-2026-10-30/README.md)
 and [release/agent/artifact review](docs/RELEASE-READINESS-2026-10-30.md).
 
+The agreed first-release scope is macOS only with the existing native bridge.
+The [macOS release execution plan](docs/MACOS-FIRST-RELEASE-PLAN.md) defines the
+remaining implementation, reporting, client acceptance and packaging gates.
+
 The source candidate is now **0.2.0-rc.3**. It preserves official-attach causes,
 separates bridge health from attachment verification, warns about native focus-off
 interactions and adds `qa-browser pw` to normalize Playwright action errors.
