@@ -48,6 +48,7 @@ export function evidenceOptions({command,flags,playwrightArgs}) {
   if(!active)return null;
   if(!supported.has(command))throw fault('INVALID_ARGUMENT','This command does not support evidence recording.');
   if(!idPattern.test(flags.session||''))throw fault('INVALID_SESSION','Evidence needs this task\'s explicit --session.');
+  if(!/^[a-zA-Z0-9_-]{1,40}$/.test(flags.profile||'work'))throw fault('INVALID_PROFILE','Use a simple profile alias before initializing evidence.');
   const step=flags.step||`${command}-${crypto.randomBytes(4).toString('hex')}`;
   if(!idPattern.test(step))throw fault('INVALID_ARGUMENT','Use a simple --step ID of at most 60 characters.');
   if(flags['expect-result']!==undefined&&flags['expect-error']!==undefined)throw fault('INVALID_ARGUMENT','Choose one expectation.');

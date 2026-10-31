@@ -146,3 +146,8 @@ test('partial ledger and oversized captures stay inspectable without replay or s
   await assert.rejects(recordEvidence(invocation,'test-release',async forwarded=>{const handle=await fs.open(forwarded.playwrightArgs[1].slice(11),'wx');await handle.truncate(LIMITS.artifactBytes+1);await handle.close();return {result:'saved'}}),e=>e.code==='EVIDENCE_WRITE_FAILED'&&e.reporting.operationOutcome==='succeeded');
   assert.equal((await fs.stat(path.join(other.dir,'raw/oversized.yaml'))).size,LIMITS.artifactBytes+1);assert.equal((await inspectEvidence(other.dir)).checks[0].status,'unknown');
 });
+test('an invalid profile cannot create an unreadable evidence identity or dispatch an action',async t=>{
+  const f=await fixture(t);let actions=0;
+  await assert.rejects(f.run('pw','invalid-profile',async()=>{actions++},{profile:'invalid profile'}),{code:'INVALID_PROFILE'});
+  assert.equal(actions,0);await assert.rejects(fs.stat(f.dir),{code:'ENOENT'});
+});
