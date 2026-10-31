@@ -17,7 +17,9 @@ lane 153.0.8010.12; older OS/Intel qualification remains outside these claims.
 
 The detailed [M1/M2 acceptance record](acceptance/macos-rc4-m1-m2-2026-11-01/README.md)
 separates committed-kit headless evidence from real-client/live-Work gates.
-M3's maintained evidence recorder/report command is the next implementation work.
+RC5 now implements M3's maintained recorder, reports and selected exports; its
+implementation/acceptance checkpoint is recorded separately. M4 client acceptance
+is next after exact packaged M3 checks.
 M4–M7, final artifact promotion and publication remain open. No plugin package,
 remote, public release or new Work installation is implied by this checkpoint.
 
@@ -145,14 +147,19 @@ fallback occurs, and update/uninstall/rollback preserve unrelated configuration.
 skill/reference and focused artifact tests. Keep evidence metadata separate from
 host-owned lease journals and version its schema independently.
 
-Proposed interface, to be finalized during implementation (not available today):
+Implemented in the RC5 development candidate (installed Work remains RC3):
 
 ```text
 connect ... --evidence-dir <directory>
-pw ... --step <id> -- <ordinary Playwright command>
-disconnect ...
+pw ... --evidence-dir <directory> --step <id> -- <ordinary Playwright command>
+disconnect ... --evidence-dir <directory>
 report --evidence-dir <directory>     # offline rendering / verification
+export --evidence-dir <directory> --export-dir <new-directory> --include <artifact-path,...>
 ```
+
+Pass the same evidence directory explicitly on every recorded command; the
+recorder does not maintain a hidden session-to-directory registry. See the
+[maintained evidence workflow](../skills/latch/references/evidence.md).
 
 Use one recorder in the CLI rather than having each agent invent shell wrappers.
 Capture actual process exits and outputs before printing/piping. Preserve the

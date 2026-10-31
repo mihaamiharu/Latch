@@ -1,4 +1,4 @@
-# Latch 0.2.0-rc.4 local setup
+# Latch 0.2.0-rc.5 local setup
 
 This private macOS candidate includes the native extension, host/CLI, shared skill,
 `ws` 8.22.0 and third-party licenses. Node **22.21.1** and Playwright CLI **0.1.20**
@@ -23,7 +23,7 @@ Unzip the complete kit into a permanent local directory. Use the selected Node
 executable, then inspect from that directory:
 
 ```bash
-LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.4'
+LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.5'
 node "$LATCH_KIT/src/install.mjs" inspect --kit "$LATCH_KIT"
 node "$LATCH_KIT/src/install.mjs" stage --kit "$LATCH_KIT"
 ```
@@ -90,7 +90,7 @@ node "$LATCH_KIT/src/install.mjs" verify --profile work
 ```
 
 Verification checks the installed identity/readiness and requires extension
-`0.1.99.4` (display name `0.2.0-rc.4`), release `0.2.0-rc.4`, native schema 4 and
+`0.1.99.5` (display name `0.2.0-rc.5`), release `0.2.0-rc.5`, native schema 4 and
 UI capability 1. It separately reports `applicationSmokeRequired: true`. Complete
 a disposable native CLI smoke against the intended app before calling rollout
 successful; do not silently fall back to another adapter.
@@ -158,6 +158,12 @@ or retries an action. Direct CLI use remains supported; inspect its JSON `isErro
 as well as its exit code. A successful doctor/diagnose does not verify the separate
 official extension handshake. RC3 attach errors retain bounded redacted upstream
 detail and selected-transport metadata.
+
+RC5 adds recorded commands with `--evidence-dir`, stable `--step` IDs and explicit
+result/error expectations. See [recorded evidence](skills/latch/references/evidence.md)
+for maintained human/agent reports, offline integrity checking and selected export.
+Do not pass a filename to recorded snapshot/screenshot commands; the recorder
+supplies a fresh path.
 
 Save reports/screenshots/snapshots under the task's chosen directory, normally
 `work/latch/<session>/`. Runtime journals are local recovery state, not exported

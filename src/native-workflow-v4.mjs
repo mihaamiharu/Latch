@@ -13,7 +13,7 @@ export async function nativeWorkflowV4({command, profile, call, alias, workspace
     const old = plan.record?.status !== 'retired' ? plan.record : null;
     if (command === 'connect') {
       const focusEmulation = requestedFocusEmulation ?? old?.focusEmulation ?? false;
-      await assertVersion(options);
+      const cliVersion=await assertVersion(options);
       if (old && !plan.healthy) throw fault('SESSION_STALE', 'Native session was interrupted. Inspect and reconcile before connecting again.');
       const target = (await call('tabs')).find(t => t.tabId === tabId);
       if (!target) throw fault('TAB_UNAVAILABLE', 'Requested tab is not in the paired profile.');
@@ -34,7 +34,7 @@ export async function nativeWorkflowV4({command, profile, call, alias, workspace
       if (page.targetId !== verified.targetId || page.url !== target.url) throw fault('TAB_CHANGED', 'Playwright target differs from the reserved tab.');
       const inventory = await channel.send('targets');
       await channel.send('commit'); acquired = false;
-      return {connected: true, profile: alias, transport: 'native', session, workspace, tabId, authority: connected.authority,
+      return {connected: true, profile: alias, transport: 'native', cliVersion, session, workspace, tabId, authority: connected.authority,
         alreadyConnected: !!old, rootTabId: inventory.rootTabId, targets: inventory.targets, warnings: [...inventory.warnings, ...focusWarnings(focusEmulation)], focusEmulation, page,
         nextCommand: ['playwright-cli', `-s=${session}`, 'snapshot']};
     }

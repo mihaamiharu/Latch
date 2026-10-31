@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {pathToFileURL} from 'node:url';
 import {discoverDetailed, request, readConfig, updateConfig, uuid} from './local.mjs';
 import {diagnose} from './diagnostics.mjs';
 import {fault, safeError} from '../extension/protocol.js';
@@ -14,6 +15,10 @@ import {reconcile} from './reconcile.mjs';
 import {ROOT} from './release.mjs';
 import {selectTransport, transportPreference} from './transport.mjs';
 import {preflight} from './preflight.mjs';
+import {recordEvidence} from './evidence.mjs';
+import {renderEvidence} from './evidence-report.mjs';
+import {exportEvidence} from './evidence-export.mjs';
+import {executeEvidenceAction} from './evidence-action.mjs';
 const releaseVersion=JSON.parse(await fs.readFile(path.join(ROOT,'package.json'),'utf8')).version;
 
 const usage = `Latch ${releaseVersion}
@@ -29,6 +34,11 @@ const usage = `Latch ${releaseVersion}
   qa-browser release --profile work --session <name> --tab <id> [--workspace <path>]
   qa-browser disconnect --profile work --session <name> [--workspace <path>]
   qa-browser pw --profile work --session <name> [--workspace <path>] -- <playwright-command> [args...]
+  qa-browser report --evidence-dir <path>
+  qa-browser export --evidence-dir <path> --export-dir <new-path> --include <artifact-path,...>
+Recording: add --evidence-dir PATH to task commands; pw supports --step ID,
+--expect-result JSON or --expect-error CODE, and --inline for requested full output.
+Recorded snapshot/screenshot commands supply their own fresh --filename.
 All results are JSON. Work-profile extension installation/authorization is a one-time prerequisite.
 pw normalizes Playwright isError responses to exit 1; it never attaches or retries.
 `;
@@ -36,13 +46,13 @@ function parse(argv) {
   const command = argv.shift() || 'help';
   const flags = {};
   let playwrightArgs;
-  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'workspace', 'json', 'transport', 'focus-emulation', 'apply', 'expect', 'set']);
+  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'workspace', 'json', 'transport', 'focus-emulation', 'apply', 'expect', 'set','evidence-dir','step','expect-result','expect-error','check-kind','context-file','inline','export-dir','include']);
   while (argv.length) {
     const flag = argv.shift();
     if (flag === '--' && command === 'pw') { playwrightArgs = argv.splice(0); break; }
     if (!flag.startsWith('--') || !allowed.has(flag.slice(2))) throw fault('INVALID_ARGUMENT', 'Unknown argument. Use qa-browser help.');
     const key = flag.slice(2);
-    if (['json', 'apply'].includes(key)) { if (flags[key]) throw fault('INVALID_ARGUMENT', 'Repeated flag.'); flags[key] = true; continue; }
+    if (['json', 'apply','inline'].includes(key)) { if (flags[key]) throw fault('INVALID_ARGUMENT', 'Repeated flag.'); flags[key] = true; continue; }
     const value = argv.shift();
     if (!value || value.startsWith('--') || flags[key]) throw fault('INVALID_ARGUMENT', `Missing or repeated --${key}.`);
     flags[key] = value;
@@ -57,8 +67,7 @@ async function paired(name) {
   const live = await request(profile.instanceId, 'status');
   return {...profile, ...live};
 }
-async function main() {
-  const {command, flags: f, playwrightArgs} = parse(process.argv.slice(2));
+export async function executeCLI({command,flags:f,playwrightArgs}) {
   if (['help', '--help'].includes(command)) { console.log(usage); return; }
   if (['version','--version'].includes(command)) return {version:releaseVersion,nativeSessionSchema:4,uiControl:1,validatedCLI:'0.1.20'};
   if (command === 'discover') return await discoverDetailed();
@@ -136,7 +145,7 @@ async function main() {
   const selectedTransport = selection.transport;
   if (command === 'pw') return runSessionCLI({args: playwrightArgs, profile, session, workspace, key, legacy, nativeRecord, selection, call, options});
   if (selectedTransport === 'native' && profile.capabilities?.nativeSessionSchema === 4 && !legacy) {
-    return {...selection, ...await nativeWorkflowV4({command, profile, call, alias, workspace, session, key, tabId, options, requestedFocusEmulation: f['focus-emulation'] === undefined ? undefined : f['focus-emulation'] === 'on'})};
+    return {...selection, extensionVersion:profile.extensionVersion,extensionRelease:profile.releaseVersion,...await nativeWorkflowV4({command, profile, call, alias, workspace, session, key, tabId, options, requestedFocusEmulation: f['focus-emulation'] === undefined ? undefined : f['focus-emulation'] === 'on'})};
   }
   if (selectedTransport !== 'native' && nativeRecord && nativeRecord.status !== 'retired') throw fault('TRANSPORT_MISMATCH', 'Reconcile/disconnect the native lease before changing transport.');
   return await locked(key, async () => {
@@ -215,9 +224,15 @@ async function main() {
     return {...lockedSelection, disconnected: true, session, preservedUserTabs: true};
   });
 }
-try {
-  const result = await main();
+if(process.argv[1]&&pathToFileURL(path.resolve(process.argv[1])).href===import.meta.url)try {
+  const invocation=parse(process.argv.slice(2));
+  if(invocation.command==='report'&&!invocation.flags['evidence-dir'])throw fault('INVALID_ARGUMENT','Report needs --evidence-dir.');
+  if(invocation.command==='report'&&Object.keys(invocation.flags).some(k=>!['evidence-dir','json'].includes(k)))throw fault('INVALID_ARGUMENT','Report is offline; use only --evidence-dir.');
+  if(invocation.command==='export'&&(!invocation.flags['evidence-dir']||!invocation.flags['export-dir']||!invocation.flags.include||Object.keys(invocation.flags).some(k=>!['evidence-dir','export-dir','include','json'].includes(k))))throw fault('INVALID_ARGUMENT','Export needs --evidence-dir, --export-dir and explicit --include artifact paths.');
+  if(!['report','export'].includes(invocation.command)&&(invocation.flags['export-dir']||invocation.flags.include))throw fault('INVALID_ARGUMENT','Use export options only with export.');
+  const result = invocation.command==='report'?await renderEvidence(invocation.flags['evidence-dir']):invocation.command==='export'?await exportEvidence({directory:invocation.flags['evidence-dir'],destination:invocation.flags['export-dir'],include:invocation.flags.include.split(',')}):await recordEvidence(invocation,releaseVersion,invocation.flags['evidence-dir']?executeEvidenceAction:executeCLI);
   if (result !== undefined) console.log(JSON.stringify({ok: true, ...result}, null, 2));
+  if(invocation.command==='report'&&result?.integrity===false)process.exitCode=1;
 } catch (error) {
   console.error(JSON.stringify({ok: false, error: cliError(error)}));
   process.exitCode = 1;

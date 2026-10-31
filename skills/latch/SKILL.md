@@ -75,6 +75,13 @@ Attaching successfully or completing clicks is not proof of a pass. Check the ob
 
 Save useful evidence in the requested artifact location, or a task-local `work/latch/<session>/` directory. Report the tested URL/role or environment, actual checks, pass/fail/blocked outcome, and evidence paths. Do not put authentication tokens, cookie values or official-extension connection URLs in reports. Playwright tab listings can contain such connection URLs; use Latch metadata for initial discovery.
 
+For RC5+ (`help` lists `report`), use the maintained recorder described in
+`references/evidence.md`. Pass the same `--evidence-dir` on connect, each `pw` and
+disconnect; use unique `--step` IDs and explicit result/error expectations. It
+produces compact agent results, `report.md`, `result.json`, a durable command
+ledger and verified artifact links. Keep full snapshots on disk and read only
+what the task needs. Offline reporting never replays browser actions.
+
 ## Release the session
 
 Unless the user asked to keep the task's session connected, run cleanup after success or failure:

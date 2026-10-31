@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {bridgeLocator, fault, safeError} from '../extension/protocol.js';
+export const CLI_META = Symbol('playwright-process-result');
 
 export function redact(text) {
   return String(text).replace(/chrome-extension:\/\/mmlmfjhmonkocbjadbfplnigmagldckm\/connect\.html[^\s"'<>]*/gi, 'chrome-extension://mmlmfjhmonkocbjadbfplnigmagldckm/connect.html?[redacted]')
@@ -14,7 +15,9 @@ export function redact(text) {
 // Local CLI failures retain a bounded cause; bridge errors still use safeError.
 export function cliError(error) {
   return {...safeError(error), message: redact(safeError(error).message),
-    ...(error.diagnostics ? {diagnostics: error.diagnostics} : {})};
+    ...(error.diagnostics ? {diagnostics: error.diagnostics} : {}),
+    ...(error.evidence ? {evidence: error.evidence} : {}),
+    ...(error.reporting ? {reporting: error.reporting} : {})};
 }
 export async function workspaceAt(start = process.cwd()) {
   return await fs.realpath(start);
@@ -49,9 +52,9 @@ export function runCLI(session, args, {workspace, chromeProfileDir, timeout = 45
       const chunk = data.subarray(0, 16384 - stderrBytes); stderrChunks.push(chunk); stderrBytes += chunk.length;
     });
     child.on('error', () => finish(fault('CLI_UNAVAILABLE', 'Cannot start playwright-cli. Ensure it is installed and on PATH.')));
-    child.on('close', code => {
+    child.on('close', (code, signal) => {
       if (ended) return;
-      if (abortError) return finish(abortError);
+      if (abortError) {abortError.diagnostics={command:args[0],exitCode:code,signal:signal??null,elapsedMs:Math.round(performance.now()-started),unknownOutcome:true};return finish(abortError);}
       const stdout = Buffer.concat(stdoutChunks).toString('utf8'), stderr = Buffer.concat(stderrChunks).toString('utf8');
       let response;
       try { response = JSON.parse(stdout); } catch {}
@@ -67,6 +70,7 @@ export function runCLI(session, args, {workspace, chromeProfileDir, timeout = 45
         if (!response || typeof response !== 'object' || Array.isArray(response))
           throw cliFault('CLI_RESPONSE_INVALID', `Playwright CLI (${args[0]}) did not return a JSON object.`, stderr || stdout);
         if (failed) throw cliFault('PLAYWRIGHT_ERROR', redact(upstream || 'Playwright CLI failed.'));
+        response[CLI_META]={exitCode:code,signal:signal??null,elapsedMs:Math.round(performance.now()-started)};
         finish(null, response);
       } catch (error) { finish(error); }
     });
