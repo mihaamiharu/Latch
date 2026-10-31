@@ -17,9 +17,12 @@ lane 153.0.8010.12; older OS/Intel qualification remains outside these claims.
 
 The detailed [M1/M2 acceptance record](acceptance/macos-rc4-m1-m2-2026-11-01/README.md)
 separates committed-kit headless evidence from real-client/live-Work gates.
-RC5 now implements M3's maintained recorder, reports and selected exports; its
-implementation/acceptance checkpoint is recorded separately. M4 client acceptance
-is next after exact packaged M3 checks.
+RC5 software `fc682a2` implements M3's maintained recorder, reports and selected
+exports. Its [M3 acceptance record](acceptance/macos-rc5-m3-2026-11-01/README.md)
+contains clean-checkout, packaged, interruption and popup Stop evidence.
+A controlled minimal-PATH probe found a remaining host CLI lookup dependency;
+pin the validated CLI/runtime environment and test GUI-like host execution before
+the live pilot. Then continue M4 client acceptance and M5/M6 release gates.
 M4–M7, final artifact promotion and publication remain open. No plugin package,
 remote, public release or new Work installation is implied by this checkpoint.
 
@@ -140,6 +143,14 @@ kit. Native contract/schema changes, if any, are separately versioned and tested
 **Gate M2:** a fresh supported setup reaches a native task without the official
 extension. Same-context preflight explains denied access correctly, no forbidden
 fallback occurs, and update/uninstall/rollback preserve unrelated configuration.
+
+**Open M2/M5 follow-up (November 1):** a version-only probe finds CLI 0.1.20
+under the terminal PATH and `CLI_UNAVAILABLE` under `/usr/bin:/bin`. Setup captures
+Node's executable but host-side detach still resolves Playwright CLI from PATH.
+Pin the validated CLI executable and its Node execution environment in owned
+runtime setup; verify normal disconnect, popup Stop and recovery under a minimal
+host PATH. Preserve pairing, unrelated settings and retained rollback payloads.
+This is controlled probe evidence, not an observed failure in the live Work GUI.
 
 ### M3 — Maintained evidence runner and human/agent reports
 
