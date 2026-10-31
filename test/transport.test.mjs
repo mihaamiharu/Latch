@@ -25,11 +25,11 @@ test('transport precedence preserves recorded adapters, retired cleanup and expl
 async function fixture(t){
  const dir=await fs.mkdtemp('/tmp/latch-pref-'),instanceId=crypto.randomUUID(),epoch=crypto.randomUUID(),runtime=path.join(dir,'r'),config=path.join(dir,'config.json');await fs.mkdir(runtime);
  const profiles={work:{instanceId,chromeProfileDir:'Default'},other:{instanceId:crypto.randomUUID(),chromeProfileDir:'Profile 1',defaultTransport:'official'}};await fs.writeFile(config,JSON.stringify({v:1,profiles,keep:'preserved'}));
- let cap={nativeTransport:true,nativeSessionSchema:4,recoveryContract:1};
- const calls=[],server=net.createServer(socket=>{let body='';socket.on('data',b=>{body+=b;if(!body.includes('\n'))return;const m=JSON.parse(body);calls.push(m.op);const result=m.op==='status'?{instanceId,epoch,capabilities:cap,sessions:[]}:m.op==='tabs'?[]:{};socket.end(JSON.stringify({v:1,id:m.id,ok:true,result})+'\n')})});await new Promise(r=>server.listen(path.join(runtime,instanceId+'.sock'),r));
+ let cap={nativeTransport:true,nativeSessionSchema:4,recoveryContract:1},ready=true;
+ const calls=[],server=net.createServer(socket=>{let body='';socket.on('data',b=>{body+=b;if(!body.includes('\n'))return;const m=JSON.parse(body);calls.push(m.op);const result=m.op==='status'?{instanceId,epoch,capabilities:cap,readiness:{verified:ready},sessions:[]}:m.op==='tabs'?[]:{};socket.end(JSON.stringify({v:1,id:m.id,ok:true,result})+'\n')})});await new Promise(r=>server.listen(path.join(runtime,instanceId+'.sock'),r));
  t.after(async()=>{await new Promise(r=>server.close(r));await fs.rm(dir,{recursive:true,force:true})});
  const env={...process.env,QA_BROWSER_CONFIG:config,QA_BROWSER_RUNTIME_DIR:runtime};const run=async(args,fail=false)=>{const result=await command(process.execPath,[cli,...args],{cwd:dir,env});const data=JSON.parse(result.out||result.err);assert.equal(result.code,fail?1:0,JSON.stringify(data));return data};
- return {dir,instanceId,epoch,runtime,config,profiles,calls,run,env,setCap:value=>cap=value};
+ return {dir,instanceId,epoch,runtime,config,profiles,calls,run,env,setCap:value=>cap=value,setReady:value=>ready=value};
 }
 test('profile setter is scoped/idempotent, validates capability, preserves pairing and permits offline official rollback',async t=>{
  const f=await fixture(t);assert.equal((await f.run(['transport'])).defaultTransport,'official');assert.deepEqual(f.calls,[]);
@@ -45,6 +45,11 @@ test('profile setter is scoped/idempotent, validates capability, preserves pairi
 test('configuration gates and unknown records are preserved rather than reclaimed',async t=>{
  const f=await fixture(t);const gate=f.config+'.lock';await fs.mkdir(gate);await fs.writeFile(path.join(gate,'owner.json'),'{"pid":1}');const before=await fs.readFile(f.config,'utf8');assert.equal((await f.run(['transport','--set','official'],true)).error.code,'CONFIG_BUSY');assert.equal(await fs.readFile(f.config,'utf8'),before);assert.equal(await fs.readFile(path.join(gate,'owner.json'),'utf8'),'{"pid":1}');
  const session='old',key=crypto.createHash('sha256').update(JSON.stringify([await fs.realpath(f.dir),session])).digest('hex');await fs.writeFile(path.join(f.runtime,key+'.session.json'),JSON.stringify({transport:'future',instanceId:f.instanceId,epoch:f.epoch}));assert.equal((await f.run(['connect','--session',session,'--tab','1'],true)).error.code,'SESSION_STATE_UNSUPPORTED');
+});
+test('native setup refuses an unverified controller even when the host advertises schema 4',async t=>{
+ const f=await fixture(t),before=await fs.readFile(f.config);f.setReady(false);
+ assert.equal((await f.run(['transport','--set','native'],true)).error.code,'NATIVE_TRANSPORT_UNAVAILABLE');assert.deepEqual(await fs.readFile(f.config),before);
+ const health=await f.run(['diagnose']);assert.equal(health.healthy,false);assert.equal(health.layers.host,'reachable');assert.equal(health.layers.controller,'unverified');
 });
 
 test('legacy sessions retain official transport after a native default and explicit switching is rejected',async t=>{

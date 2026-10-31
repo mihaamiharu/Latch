@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {fault} from '../extension/protocol.js';
+import {SUPPORT, requiresSupportContract} from './compatibility.mjs';
 
 export const ROOT = fileURLToPath(new URL('../', import.meta.url));
 export const EXTENSION_ID = 'dlkpkeiejlgggeoibejpoajedoelfcli';
@@ -23,7 +24,8 @@ export async function releaseManifest(root = ROOT) {
   const id = [...crypto.createHash('sha256').update(Buffer.from(original.key,'base64')).digest().subarray(0,16)].map(b=>String.fromCharCode(97+(b>>4),97+(b&15))).join('');
   if (id !== EXTENSION_ID) throw fault('RELEASE_IDENTITY_INVALID','The public key does not identify Latch.');
   if(original.host_permissions||original.content_scripts||original.externally_connectable||original.optional_permissions||original.permissions?.some(p=>!PERMISSIONS.includes(p)))throw fault('RELEASE_MANIFEST_INVALID','Unexpected extension access declarations.');
-  return {...original,version:chromeVersion(pkg.version),version_name:pkg.version,permissions:PERMISSIONS};
+  return {...original,version:chromeVersion(pkg.version),version_name:pkg.version,permissions:PERMISSIONS,
+    ...(requiresSupportContract(pkg.version) ? {minimum_chrome_version: SUPPORT.minimumChrome} : {})};
 }
 export async function filesIn(dir, prefix = '') {
   const result=[];
@@ -37,6 +39,7 @@ export async function filesIn(dir, prefix = '') {
 export async function verifyKit(dir) {
   const descriptor=JSON.parse(await fs.readFile(path.join(dir,'release.json'),'utf8'));
   if(descriptor.schema!==1||descriptor.extensionId!==EXTENSION_ID||descriptor.hostName!==HOST_NAME||descriptor.chromeVersion!==chromeVersion(descriptor.version)||descriptor.nativeSchema!==4||descriptor.uiControl!==1||descriptor.nodeVersion!=='v22.21.1'||descriptor.cliVersion!=='0.1.20')throw fault('RELEASE_INVALID','Invalid release descriptor.');
+  if(requiresSupportContract(descriptor.version)&&JSON.stringify(descriptor.support)!==JSON.stringify(SUPPORT))throw fault('RELEASE_SUPPORT_INVALID','Release support contract is missing or differs from this runtime.');
   const names=await filesIn(dir),expected=Object.keys(descriptor.files).sort();
   if(JSON.stringify(names.filter(n=>n!=='release.json'))!==JSON.stringify(expected))throw fault('RELEASE_INVENTORY_CHANGED','Release file inventory changed.');
   for(const name of expected)if(hash(await fs.readFile(path.join(dir,name)))!==descriptor.files[name])throw fault('RELEASE_HASH_CHANGED','Release file hash changed: '+name);
@@ -44,6 +47,8 @@ export async function verifyKit(dir) {
   if(JSON.stringify([...manifest.permissions].sort())!==JSON.stringify([...PERMISSIONS].sort())||manifest.version!==descriptor.chromeVersion||manifest.key!== (await releaseManifest(dir)).key)throw fault('RELEASE_MANIFEST_INVALID','Native manifest differs from the release contract.');
   const pkg=JSON.parse(await fs.readFile(path.join(dir,'package.json'),'utf8'));
   if(pkg.version!==descriptor.version||pkg.dependencies?.ws!=='8.22.0')throw fault('RELEASE_VERSION_INVALID','Package and release contract differ.');
+  if(requiresSupportContract(pkg.version)&&(manifest.minimum_chrome_version!==SUPPORT.minimumChrome||pkg.engines?.node!==SUPPORT.node.slice(1)))throw fault('RELEASE_SUPPORT_INVALID','Chrome/Node prerequisites differ from the release contract.');
+  if(requiresSupportContract(pkg.version))await fs.access(path.join(dir,'SUPPORT.md'));
   const assets=[manifest.background?.service_worker,manifest.action?.default_popup,...Object.values(manifest.icons||{}),...Object.values(manifest.action?.default_icon||{})];
   const asset=async name=>{if(typeof name!=='string'||!name||path.isAbsolute(name)||name.split('/').includes('..'))throw fault('RELEASE_ASSET_INVALID','Invalid extension asset path.');await fs.access(path.join(dir,'extension',name));};
   for(const name of assets)await asset(name);

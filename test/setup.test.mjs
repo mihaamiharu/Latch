@@ -1,5 +1,5 @@
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import path from 'node:path';import crypto from 'node:crypto';import {execFile} from 'node:child_process';import {promisify} from 'node:util';
-import {ROOT,HOST_NAME,EXTENSION_ID} from '../src/release.mjs';import {build} from '../src/build.mjs';import {inspectSetup,stageSetup,activateSetup,rollbackSetup,setupSkills,uninstallSetup} from '../src/setup.mjs';
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import path from 'node:path';import crypto from 'node:crypto';import os from 'node:os';import {execFile} from 'node:child_process';import {promisify} from 'node:util';
+import {ROOT,HOST_NAME,EXTENSION_ID} from '../src/release.mjs';import {build} from '../src/build.mjs';import {inspectSetup,stageSetup,activateSetup,rollbackSetup,setupSkills,uninstallSetup,configureNativeSetup} from '../src/setup.mjs';
 const exec=promisify(execFile);
 async function fixture(t){
  const dir=await fs.mkdtemp(path.join(ROOT,'work/setup-')),prior={config:process.env.QA_BROWSER_CONFIG,runtime:process.env.QA_BROWSER_RUNTIME_DIR};process.env.QA_BROWSER_CONFIG=path.join(dir,'config.json');process.env.QA_BROWSER_RUNTIME_DIR='/tmp/latch-setup-'+crypto.randomBytes(5).toString('hex');await fs.writeFile(process.env.QA_BROWSER_CONFIG,'{"v":1,"profiles":{}}\n');
@@ -7,8 +7,8 @@ async function fixture(t){
 }
 test('setup stages without registration, activates idempotently, installs stable managed links and preserves data on uninstall',async t=>{
  const f=await fixture(t),o=f.options,before=await fs.readFile(process.env.QA_BROWSER_CONFIG,'utf8');const plan=await inspectSetup(o);const staged=await stageSetup(o);assert.equal(staged.planToken,plan.planToken);await assert.rejects(fs.stat(plan.paths.registration),{code:'ENOENT'});
- await assert.rejects(activateSetup({...o,expect:'bad'}),{code:'SETUP_PLAN_CHANGED'});const active=await activateSetup({...o,expect:plan.planToken});assert.equal(active.activated,true);assert.equal(active.verified,false);assert.equal(JSON.parse((await exec(active.cli,['version'])).stdout).version,'0.2.0-rc.3');
- await setupSkills(o);await setupSkills(o);const link=path.join(o.userRoot,'.agents/skills/latch');assert.equal(await fs.readlink(link),path.join(o.root,'current/skills/latch'));const cwd=path.join(f.dir,'task with spaces');await fs.mkdir(cwd);const result=await exec(process.execPath,[path.join(link,'scripts/latch.mjs'),'version'],{cwd});assert.equal(JSON.parse(result.stdout).version,'0.2.0-rc.3');
+ await assert.rejects(activateSetup({...o,expect:'bad'}),{code:'SETUP_PLAN_CHANGED'});const active=await activateSetup({...o,expect:plan.planToken});assert.equal(active.activated,true);assert.equal(active.verified,false);assert.equal(JSON.parse((await exec(active.cli,['version'])).stdout).version,'0.2.0-rc.4');
+ await setupSkills(o);await setupSkills(o);const link=path.join(o.userRoot,'.agents/skills/latch');assert.equal(await fs.readlink(link),path.join(o.root,'current/skills/latch'));const cwd=path.join(f.dir,'task with spaces');await fs.mkdir(cwd);const result=await exec(process.execPath,[path.join(link,'scripts/latch.mjs'),'version'],{cwd});assert.equal(JSON.parse(result.stdout).version,'0.2.0-rc.4');
  const again=await inspectSetup(o);await activateSetup({...o,expect:again.planToken});assert.equal(await fs.readFile(process.env.QA_BROWSER_CONFIG,'utf8'),before);const marker=path.join(o.root,'evidence.txt');await fs.writeFile(marker,'keep');await uninstallSetup(o);assert.equal(await fs.readFile(marker,'utf8'),'keep');assert.equal(await fs.readFile(process.env.QA_BROWSER_CONFIG,'utf8'),before);await assert.rejects(fs.lstat(link),{code:'ENOENT'});
 });
 test('foreign registration, skill collisions, missing maintenance and old installer gates remain untouched',async t=>{
@@ -37,6 +37,17 @@ test('real installer process loss leaves its gate and journal inspectable withou
 });
 test('wrong prerequisites and a reachable bridge block setup',async t=>{
  const {dir,options:o}=await fixture(t);const fake=path.join(dir,'wrong-node');await fs.writeFile(fake,'#!/bin/sh\nprintf v20.0.0\n',{mode:0o700});await assert.rejects(inspectSetup({...o,node:fake}),{code:'SETUP_NODE_VERSION'});
+ await assert.rejects(stageSetup({...o,node:fake}),{code:'SETUP_NODE_VERSION'});await assert.rejects(fs.stat(o.root),{code:'ENOENT'});
+ await fs.writeFile(fake,'#!/bin/sh\nprintf \'{"version":"v22.21.1","platform":"darwin","architecture":"x64"}\'\n',{mode:0o700});await assert.rejects(stageSetup({...o,node:fake}),{code:'SETUP_NODE_PLATFORM'});await assert.rejects(fs.stat(o.root),{code:'ENOENT'});
  const wrongCLI=path.join(dir,'wrong-cli'),priorCLI=process.env.QA_BROWSER_PLAYWRIGHT_CLI;await fs.writeFile(wrongCLI,'#!/bin/sh\nprintf \'{"version":"0.1.99"}\'\n',{mode:0o700});process.env.QA_BROWSER_PLAYWRIGHT_CLI=wrongCLI;try{await assert.rejects(inspectSetup(o),{code:'UNSUPPORTED_VERSION'})}finally{priorCLI===undefined?delete process.env.QA_BROWSER_PLAYWRIGHT_CLI:process.env.QA_BROWSER_PLAYWRIGHT_CLI=priorCLI}
  const {default:net}=await import('node:net'),instance=crypto.randomUUID(),runtime=process.env.QA_BROWSER_RUNTIME_DIR;await fs.mkdir(runtime,{recursive:true});const server=net.createServer(s=>s.end());await new Promise(r=>server.listen(path.join(runtime,instance+'.sock'),r));t.after(async()=>{await new Promise(r=>server.close(r));await fs.rm(runtime,{recursive:true,force:true})});await fs.writeFile(process.env.QA_BROWSER_CONFIG,JSON.stringify({profiles:{work:{instanceId:instance}}}));const plan=await inspectSetup(o);await assert.rejects(activateSetup({...o,expect:plan.planToken}),{code:'INSTALL_ACTIVE'});await assert.rejects(fs.stat(plan.paths.registration),{code:'ENOENT'});
+});
+
+test('unsupported platform or architecture blocks every installer mutation before creating the root',async t=>{
+ const {options:o}=await fixture(t),before=await fs.readFile(process.env.QA_BROWSER_CONFIG);
+ for(const [method,value,code] of [['platform','linux','SETUP_PLATFORM_UNSUPPORTED'],['arch','x64','SETUP_ARCHITECTURE_UNSUPPORTED']]){
+  const mock=t.mock.method(os,method,()=>value);
+  for(const action of [inspectSetup,stageSetup,activateSetup,rollbackSetup,setupSkills,uninstallSetup,configureNativeSetup])await assert.rejects(action(o),{code});
+  await assert.rejects(fs.stat(o.root),{code:'ENOENT'});await assert.rejects(fs.stat(o.registrationRoot),{code:'ENOENT'});assert.deepEqual(await fs.readFile(process.env.QA_BROWSER_CONFIG),before);mock.mock.restore();
+ }
 });

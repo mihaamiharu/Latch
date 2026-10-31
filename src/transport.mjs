@@ -32,7 +32,7 @@ export async function transportPreference(alias, value) {
     if (value === 'native') {
       const live = await request(profile.instanceId, 'status', {}, 2500);
       const cap = live.capabilities;
-      if (live.instanceId !== profile.instanceId || !cap?.nativeTransport || cap.nativeSessionSchema !== 4 || cap.recoveryContract !== 1)
+      if (live.instanceId !== profile.instanceId || live.readiness?.verified !== true || !cap?.nativeTransport || cap.nativeSessionSchema !== 4 || cap.recoveryContract !== 1)
         throw fault('NATIVE_TRANSPORT_UNAVAILABLE', 'Install and verify the schema-4 native bridge before selecting the native default.');
     }
     const updated = profile.defaultTransport !== value;

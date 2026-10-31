@@ -20,6 +20,22 @@ node "$LATCH_SKILL_DIR/scripts/latch.mjs" tabs --profile work --workspace "$LATC
 
 Inspect JSON and the process exit code. A failed connection check is a setup/blocking result, not a failed application test. For an unfamiliar command, run the helper with `help` or run `playwright-cli <command> --help`.
 
+On RC4+ (`help` lists `preflight`), run this before tab discovery/connection in the
+same client context, using the chosen task workspace/session:
+
+```bash
+node "$LATCH_SKILL_DIR/scripts/latch.mjs" preflight --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE"
+```
+
+Require `ready: true`. Save blocked results and stop dependent browser work.
+Preflight checks exact cache/task writes and local networking, and removes its
+own probe files; it does not attach, grant permissions or prove application
+behavior. Read the permission preflight section of `references/operations.md`
+when access is denied. Record actual client/version, cwd/branch (N/A outside Git),
+skill discovery versus explicit loading and permission-policy provenance; do not
+infer the client policy from a launcher executable or assume a permissions tool
+exists because its category appears in a policy description.
+
 Run `transport --profile work` to inspect the configured default when supported. Profiles without a preference use official, even when native capability is available. Honor a transport explicitly requested for this task; otherwise use the recorded session/configured default. Set `LATCH_TRANSPORT` to that selected `native` or `official` value and pass it explicitly at connection. A healthy doctor/diagnose verifies the bridge; it does not prove the official extension can attach. If native is selected or explicitly requested, read the native-mode section of `references/operations.md`. Default changes are separate setup actions: do not set a preference or switch adapters to bypass a failure. Older runtimes may lack the transport command; their default remains official.
 
 If discovery/doctor fails, run `diagnose --profile work` with the same helper **inside the same agent execution context**. Save that JSON with the report. `PROFILE_UNAVAILABLE` means the local socket could not be reached; it does not mean the pairing is missing. Only report an unpaired profile when configuration actually lacks the alias. Preserve the operating-system error, socket path and runtime directory; do not silently change client security settings.

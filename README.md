@@ -15,9 +15,12 @@ The agreed first-release scope is macOS only with the existing native bridge.
 The [macOS release execution plan](docs/MACOS-FIRST-RELEASE-PLAN.md) defines the
 remaining implementation, reporting, client acceptance and packaging gates.
 
-The source candidate is now **0.2.0-rc.3**. It preserves official-attach causes,
-separates bridge health from attachment verification, warns about native focus-off
-interactions and adds `qa-browser pw` to normalize Playwright action errors.
+The source candidate is now **0.2.0-rc.4**. It adds checked macOS prerequisites,
+a qualified Chrome minimum, pinned floor/current browser test lanes, verified
+native-default setup and same-client `preflight` for task/cache/bridge access.
+See [candidate support](docs/SUPPORT.md). RC3 preserves official-attach causes,
+warns about native focus-off interactions and adds `qa-browser pw` to normalize
+Playwright action errors.
 See [RC3 failure handling](docs/RC3-FAILURE-HANDLING.md) for the preparation record.
 The later operator-assisted update and Work-default change are recorded separately;
 the installed payload remains the frozen software checkpoint `b0891c1`.
@@ -32,15 +35,15 @@ The native preview integrates the normal CLI/helper with paired profiles and ind
 npm run build
 ```
 
-This builds `dist/latch/`, its extension ZIP, and the complete `dist/latch-0.2.0-rc.3/` kit plus kit ZIP. It validates the fixed identity, module inventory, permissions, dependency/licenses and file hashes. Build does not modify the source manifest, native registration or installed launchers. Load the built stable installation directory after setup; the source manifest remains the installed-compatibility baseline.
+This builds `dist/latch/`, its extension ZIP, and the complete `dist/latch-0.2.0-rc.4/` kit plus kit ZIP. It validates the fixed identity, module inventory, permissions, dependency/licenses and file hashes. Build does not modify the source manifest, native registration or installed launchers. Load the built stable installation directory after setup; the source manifest remains the installed-compatibility baseline.
 
 Latch 0.1.1 uses the agent-and-latch icon in 16, 32, 48 and 128px sizes. The original generated master and prompt are preserved in `assets/latch/`. The extension ID, `qa-browser` command, native host name and existing config path are preserved.
 
 ## What it does
 
-`qa-browser tabs` discovers ordinary tabs across the paired profile. `connect` places a selected existing tab into the exact Playwright session group, verifies the page through CLI, and selects it for subsequent CLI commands. `release` ungroups it while preserving the page and login. `disconnect` releases this bridge's owned tabs and detaches the CLI session.
+`qa-browser tabs` discovers ordinary tabs across the paired profile. Native `connect` attaches the selected existing tab and verified descendants, preserving their windows/groups and signed-in state. `release` releases one owned tab; `disconnect` releases this task and detaches its CLI session. Website tabs stay open. The explicit legacy official adapter uses a Playwright tab group.
 
-The installed 0.1.2 companion uses the official Playwright extension. The built native candidate adds `alarms` and `debugger` to `tabs`, `tabGroups`, `storage` and `nativeMessaging`. It has no website host permissions, content scripts or external-message endpoint. The candidate can operate selected native sessions without the official extension; native remains explicit opt-in. Tab metadata is available throughout the paired profile; selected-page content is accessed through Playwright.
+The retained 0.1.2 compatibility payload uses the official Playwright extension. The built native candidate adds `alarms` and `debugger` to `tabs`, `tabGroups`, `storage` and `nativeMessaging`. It has no website host permissions, content scripts or external-message endpoint. The candidate can operate selected native sessions without the official extension; verified native setup selects that profile's default. Tab metadata is available throughout the paired profile; selected-page content is accessed through Playwright.
 
 The design and roadmap are in `BUILD-PLAN.md`. The earlier experimental helper is preserved in `legacy-prototype/`; its research/test artifacts are under `work/`.
 
@@ -63,8 +66,8 @@ Follow [SETUP.md](SETUP.md) for candidate inspect/stage/activate/verify, retaine
 0.1.2 upgrade/rollback and explicit managed skill migration. Setup validates Node
 22.21.1 and Playwright CLI 0.1.20 without installing dependencies globally. It uses
 a versioned local runtime and a stable physical extension directory. Chrome
-restart/permission acceptance is a one-time operator step, separate from daily
-agent operation. Work rollout has not been performed.
+enable/permission acceptance is a one-time operator step, separate from daily
+agent operation. Installed Work remains RC3; RC4 Work acceptance is pending.
 
 `node src/install.mjs prepare` now writes an **unregistered development preview**
 under `dist/setup-preview/` only. The historical `apply` command is replaced by
@@ -76,7 +79,7 @@ If one coding agent cannot reach Latch while another can, run `./install/qa-brow
 
 Pairing stores configuration in `~/Library/Application Support/Work Browser Bridge/config.json`. Successful session registration verifies that the CLI connection page appears inside the paired extension instance, so a wrong profile directory fails before any target tab is claimed. The prototype deliberately does not infer the work profile from last-used state or read Chrome's protected profile files.
 
-The bridge is intended for regular, already open Chrome windows. Initial automatic attachment depends on the official extension's existing authorization; this tool does not approve dialogs or obtain/save an authorization token for you.
+The bridge is intended for regular, already open Chrome windows. Native setup uses Latch alone. The legacy official adapter separately needs the official extension's authorization. Chrome enable/permission prompts remain operator steps.
 
 ## Terminal workflow
 
@@ -105,7 +108,7 @@ playwright-cli -s=checkout screenshot
 
 All bridge command results are JSON. The CLI can report a failure with a nonzero process exit even when Playwright's underlying command exits zero; it also inspects structured `isError` responses.
 
-## How session registration works
+## Legacy official session registration
 
 The wrapper starts a normal `playwright-cli attach --extension=chrome` with the explicitly configured profile directory. Standard Playwright page inventory identifies the fresh official connection page. The adapter retains its relay locator, discards any connection-token parameter, and sends the sanitized locator to our extension.
 

@@ -2,12 +2,13 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import {readConfig, configPath, rootDir, socketPath, request} from './local.mjs';
 import {profileTransport} from './transport.mjs';
-import {safeError} from '../extension/protocol.js';
+import {fault, safeError} from '../extension/protocol.js';
 
 // Read-only: reports this exact caller's context without listing browser tabs,
 // reading credentials, changing pairing, or modifying client permissions.
 export async function diagnose(profileAlias = 'work') {
   const result = {healthy: false, profileAlias,
+    layers: {configuration: 'unknown', host: 'not-checked', controller: 'unknown', native: 'unknown', cli: 'not-checked', attachment: 'not-checked', application: 'not-checked'},
     execution: {hostname: os.hostname(), platform: process.platform, uid: process.getuid?.() ?? null,
       nodeVersion: process.version, nodeExecutable: process.execPath, workingDirectory: process.cwd()},
     paths: {configuration: configPath(), runtimeDirectory: rootDir()},
@@ -17,6 +18,7 @@ export async function diagnose(profileAlias = 'work') {
     const config = await readConfig();
     profile = config.profiles?.[profileAlias];
     result.configuration = {readable: true, paired: !!profile};
+    result.layers.configuration = profile ? 'paired' : 'unpaired';
     if (profile) result.configuration.chromeProfileDirectory = profile.chromeProfileDir;
   } catch (error) {
     result.configuration = {readable: false, paired: null, error: safeError(error)};
@@ -35,11 +37,12 @@ export async function diagnose(profileAlias = 'work') {
       result.socket = {exists: true, isSocket: stat.isSocket(), ownerUid: stat.uid, mode: (stat.mode & 0o777).toString(8)};
     } catch (error) { result.socket = {exists: error.code === 'ENOENT' ? false : null, error: safeError(error)}; }
     const live = await request(profile.instanceId, 'status', {}, 2500);
+    if (live.instanceId !== profile.instanceId) throw fault('BRIDGE_IDENTITY_CHANGED', 'Status did not identify the paired profile. No task was attached.');
     result.connection = {ok: true, instanceId: live.instanceId, epoch: live.epoch, extensionVersion: live.extensionVersion, releaseVersion: live.releaseVersion,
-      hostGeneration: live.hostGeneration, readiness: live.readiness, capabilities: live.capabilities || {nativeTransport: false}};
-    result.layers = {configuration: 'paired', host: 'reachable', controller: live.readiness?.verified ? 'verified-round-trip' : 'legacy-host-report', native: live.capabilities?.nativeTransport ? 'available' : 'unavailable', officialAttachment: 'not-checked'};
-    result.bridgeHealthy = true;
-    result.healthy = !result.transport.error;
-  } catch (error) { result.connection = {ok: false, error: safeError(error)}; }
+      hostGeneration: live.hostGeneration, readiness: live.readiness, capabilities: live.capabilities ?? null};
+    Object.assign(result.layers, {host: 'reachable', controller: live.readiness?.verified ? 'verified-round-trip' : 'unverified', native: live.capabilities?.nativeTransport === true ? 'available' : live.capabilities?.nativeTransport === false ? 'unavailable' : 'unknown', officialAttachment: 'not-checked'});
+    result.bridgeHealthy = live.capabilities?.nativeSessionSchema === 4 ? live.readiness?.verified === true : true;
+    result.healthy = result.bridgeHealthy && !result.transport.error;
+  } catch (error) { result.connection = {ok: false, error: safeError(error)}; result.layers.host = error.code === 'BRIDGE_ACCESS_DENIED' ? 'access-denied' : 'unreachable'; }
   return result;
 }

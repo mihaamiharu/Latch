@@ -10,6 +10,7 @@ import {privateDirectory,readConfig,socketPath,configPath,rootDir} from './local
 import {fault} from '../extension/protocol.js';
 import {assertVersion} from './playwright.mjs';
 import {targetsFor} from './install-skills.mjs';
+import {assertSetupPlatform} from './compatibility.mjs';
 const exec=promisify(execFile);
 const json=async p=>JSON.parse(await fs.readFile(p,'utf8'));
 const optional=async p=>{try{return await fs.readFile(p,'utf8')}catch(e){if(e.code==='ENOENT')return null;throw e}};
@@ -47,9 +48,12 @@ async function legacyOwnership(options,p,registration){
  return {legacy,rollbackKit:path.resolve(options.rollbackKit)};
 }
 export async function inspectSetup(options={}){
+ const platform=await assertSetupPlatform();
  const p=setupPaths(options),kit=path.resolve(options.kit||ROOT),release=await verifyKit(kit);
- const nodeVersion=(await exec(p.node,['-p','process.version'],{timeout:5000})).stdout.trim();
- if(nodeVersion!==release.nodeVersion)throw fault('SETUP_NODE_VERSION','Validated Node executable required: '+release.nodeVersion);
+ let node;
+ try{node=JSON.parse((await exec(p.node,['-p','JSON.stringify({version:process.version,platform:process.platform,architecture:process.arch})'],{timeout:5000})).stdout)}catch{throw fault('SETUP_NODE_VERSION','Cannot verify the selected Node executable. Required: '+release.nodeVersion+' for macOS arm64.');}
+ if(node.version!==release.nodeVersion)throw fault('SETUP_NODE_VERSION','Validated Node executable required: '+release.nodeVersion);
+ if(node.platform!==platform.platform||node.architecture!==platform.architecture)throw fault('SETUP_NODE_PLATFORM','The selected Node executable must match the qualified macOS arm64 platform.');
  await assertVersion({workspace:kit,timeout:10000});
  const rawReceipt=await optional(p.receipt),receipt=rawReceipt?JSON.parse(rawReceipt):null,registration=await optional(p.registration);
  let legacy=null;
@@ -64,7 +68,7 @@ export async function inspectSetup(options={}){
  const permissionDelta=(await json(path.join(kit,'extension/manifest.json'))).permissions.filter(name=>!existingManifest?.permissions?.includes(name));
  const gate=await fs.lstat(p.gate).then(()=>true,e=>{if(e.code==='ENOENT')return false;throw e});
  const token=hash(JSON.stringify({activePointer,extensionInventory,release:hash(await fs.readFile(path.join(kit,'release.json'))),root:p.root,registration,node:p.node,receipt:rawReceipt,configuration:p.configuration,runtimeDirectory:p.runtimeDirectory,legacy,skillLinks:receipt?.skillLinks||[]}));
- return {paths:p,kit,release,receipt,registration,legacy,gate,transaction:await optional(p.transaction),planToken:token,permissionDelta,changes:{registrationPath:registration?JSON.parse(registration).path:null,newRegistrationPath:path.join(p.root,'bin/native-host'),extensionDirectory:p.extension},blockers:gate?['SETUP_BUSY']:[]};
+ return {platform,paths:p,kit,release,receipt,registration,legacy,gate,transaction:await optional(p.transaction),planToken:token,permissionDelta,changes:{registrationPath:registration?JSON.parse(registration).path:null,newRegistrationPath:path.join(p.root,'bin/native-host'),extensionDirectory:p.extension},blockers:gate?['SETUP_BUSY']:[]};
 }
 export async function stageSetup(options={}){
  const plan=await inspectSetup(options);if(plan.gate)throw fault('SETUP_BUSY','An installer transaction already exists; inspect it without removing its gate.');
@@ -137,6 +141,7 @@ export async function activateSetup(options={}){
  });
 }
 export async function rollbackSetup(options={}){
+ await assertSetupPlatform();
  const p=setupPaths(options);return transaction(p,async()=>{
   const raw=await optional(p.receipt),receipt=JSON.parse(raw);if(!receipt.previous)throw fault('ROLLBACK_UNAVAILABLE','No retained previous release.');await maintenance(options);
   if(await optional(p.registration)!==receipt.registration||await fs.realpath(p.current)!==receipt.active)throw fault('INSTALL_CHANGED','Installed selection or registration changed; rollback was not applied.');
@@ -160,7 +165,17 @@ export async function verifySetup(options={}){
  if(receipt.version!=='0.1.2'&&(health.connection?.extensionVersion!==receipt.chromeVersion||health.connection?.releaseVersion!==receipt.version||health.connection?.capabilities?.nativeSessionSchema!==4||health.connection?.capabilities?.uiControl!==1))throw fault('INSTALL_CAPABILITY_MISMATCH','Reload/accept the candidate extension before verifying.');
  return {verified:true,scope:'identity-and-readiness',applicationSmokeRequired:true,version:receipt.version,health};
 }
+export async function configureNativeSetup(options={}){
+ // Always use the managed launcher: its receipt pins the configuration and
+ // runtime. The caller's environment must not redirect the preference write.
+ await assertSetupPlatform();
+ const verified=await verifySetup(options),p=setupPaths(options);
+ if(verified.version==='0.1.2')throw fault('INSTALL_CAPABILITY_MISMATCH','The retained compatibility release cannot configure native setup.');
+ const output=await exec(path.join(p.root,'bin/qa-browser'),['transport','--profile',options.profile||'work','--set','native'],{timeout:15000});
+ return {...JSON.parse(output.stdout),verified:true,scope:'identity-readiness-and-native-default',applicationSmokeRequired:true};
+}
 export async function setupSkills(options={}){
+ await assertSetupPlatform();
  const p=setupPaths(options);return transaction(p,async()=>{
   const receipt=await json(p.receipt),target=path.join(p.current,'skills/latch');await fs.access(path.join(target,'SKILL.md'));const links=targetsFor(options.userRoot).map(t=>t.path),before=[];
   for(const file of links){try{const stat=await fs.lstat(file);if(!stat.isSymbolicLink())throw fault('SKILL_CONFLICT','An unrelated skill directory exists.');const raw=await fs.readlink(file),resolved=path.resolve(path.dirname(file),raw);let canonical;try{canonical=await fs.realpath(file)}catch{canonical=resolved}let legacy;try{legacy=receipt.legacySkillSource&&await fs.realpath(receipt.legacySkillSource)}catch{}if(!(receipt.skillLinks.includes(file)&&resolved===target)&&!(legacy&&canonical===legacy))throw fault('SKILL_CONFLICT','An unrelated skill link exists.');before.push({path:file,target:raw})}catch(e){if(e.code!=='ENOENT')throw e;before.push({path:file,target:null})}}
@@ -169,6 +184,7 @@ export async function setupSkills(options={}){
  });
 }
 export async function uninstallSetup(options={}){
+ await assertSetupPlatform();
  const p=setupPaths(options);return transaction(p,async()=>{
   const receipt=await json(p.receipt);await maintenance(options);if(await optional(p.registration)!==receipt.registration)throw fault('INSTALL_FOREIGN_REGISTRATION','Registration differs; preserved.');
   for(const file of receipt.skillLinks){const stat=await fs.lstat(file).catch(()=>null);if(stat?.isSymbolicLink()&&path.resolve(path.dirname(file),await fs.readlink(file))===path.join(p.current,'skills/latch'))await fs.unlink(file)}await fs.unlink(p.registration);await atomic(p.transaction,JSON.stringify({state:'unregistered',dataPreserved:true}));return {unregistered:true,dataPreserved:true};

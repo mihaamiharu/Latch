@@ -13,6 +13,7 @@ import {readRecovery} from './recovery-state.mjs';
 import {reconcile} from './reconcile.mjs';
 import {ROOT} from './release.mjs';
 import {selectTransport, transportPreference} from './transport.mjs';
+import {preflight} from './preflight.mjs';
 const releaseVersion=JSON.parse(await fs.readFile(path.join(ROOT,'package.json'),'utf8')).version;
 
 const usage = `Latch ${releaseVersion}
@@ -21,6 +22,7 @@ const usage = `Latch ${releaseVersion}
   qa-browser doctor --profile work
   qa-browser transport --profile work [--set official|native]
   qa-browser diagnose --profile work
+  qa-browser preflight --profile work --session <name> [--workspace <path>]
   qa-browser reconcile --profile work --session <name> [--workspace <path>] [--apply --expect <plan-token>]
   qa-browser tabs --profile work
   qa-browser connect --profile work --session <name> --tab <id> [--workspace <path>] [--transport official|native] [--focus-emulation on|off]
@@ -68,6 +70,10 @@ async function main() {
   if (f.set !== undefined && command !== 'transport') throw fault('INVALID_ARGUMENT', 'Use --set only with transport.');
   if (command === 'transport') return transportPreference(alias, f.set);
   if (command === 'diagnose') return await diagnose(alias);
+  if (command === 'preflight') {
+    if (!/^[a-zA-Z0-9_-]{1,60}$/.test(f.session || '')) throw fault('INVALID_SESSION', 'Specify a simple --session name for task preflight.');
+    return preflight({alias, workspace: await workspaceAt(f.workspace || process.cwd()), session: f.session});
+  }
   if (command === 'pair') {
     if (!uuid.test(f.instance || '') || !/^(Default|Profile \d+)$/.test(f['chrome-profile-dir'] || ''))
       throw fault('INVALID_PAIRING', 'Specify the extension instance UUID and Chrome profile directory (Default or Profile N).');
@@ -96,7 +102,7 @@ async function main() {
   }
   if (command === 'doctor' && doctorSelection.transport === 'native') {
     const health = await diagnose(alias);
-    if (!f.session) return {...health, ...doctorSelection, bridgeHealthy: health.healthy, healthy: health.healthy && !!health.connection?.capabilities?.nativeTransport, nativeRecoverySupported: health.connection?.capabilities?.nativeSessionSchema === 4};
+    if (!f.session) return {...health, ...doctorSelection, bridgeHealthy: health.bridgeHealthy ?? false, healthy: health.healthy && !!health.connection?.capabilities?.nativeTransport, nativeRecoverySupported: health.connection?.ok ? health.connection?.capabilities ? health.connection.capabilities.nativeSessionSchema === 4 : null : null};
     const workspace = await workspaceAt(f.workspace || process.cwd()), session = f.session;
     if (!/^[a-zA-Z0-9_-]{1,60}$/.test(session)) throw fault('INVALID_SESSION', 'Invalid session name.');
     const recovery = await reconcile({alias, workspace, session, key: sessionKey(workspace, session)});
@@ -104,7 +110,7 @@ async function main() {
     let daemon;
     try { const live = await daemonIdentity(workspace,session); daemon = {present: !!live, socketExists: live?.socketExists || false, matchesRecordedTask: !!live && live.fingerprint === recovery.record?.daemonFingerprint && live.socketFingerprint === recovery.record?.daemonSocketFingerprint}; }
     catch(e) { daemon = {present: null, error: safeError(e)}; }
-    return {...health, ...doctorSelection, bridgeHealthy: health.healthy, healthy: health.healthy && !!health.connection?.capabilities?.nativeTransport && recovery.healthy && daemon.present === true && daemon.socketExists && daemon.matchesRecordedTask, recovery, daemon};
+    return {...health, ...doctorSelection, bridgeHealthy: health.bridgeHealthy ?? false, healthy: health.healthy && !!health.connection?.capabilities?.nativeTransport && recovery.healthy && daemon.present === true && daemon.socketExists && daemon.matchesRecordedTask, recovery, daemon};
   }
   const profile = await paired(alias);
   const payload = {instanceId: profile.instanceId, epoch: profile.epoch};

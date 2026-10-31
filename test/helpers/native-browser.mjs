@@ -5,15 +5,16 @@ import net from 'node:net';
 import {spawn} from 'node:child_process';
 export const HEADLESS_ARGS=['--headless=new','--disable-background-timer-throttling','--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding'];
 async function chromePath() {
-  if (process.env.LATCH_SPIKE_BROWSER) return process.env.LATCH_SPIKE_BROWSER;
-  if (process.env.QA_BROWSER_CHROME) return process.env.QA_BROWSER_CHROME;
-  const cache = path.join(os.homedir(), 'Library/Caches/ms-playwright');
-  const versions = (await fs.readdir(cache)).filter(x => /^chromium-\d+$/.test(x)).sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]));
-  for (const version of versions) {
-    const candidate = path.join(cache, version, 'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing');
-    try { await fs.access(candidate); return candidate; } catch {}
-  }
-  throw new Error('Set LATCH_SPIKE_BROWSER to a Chrome for Testing executable.');
+  const pins = JSON.parse(await fs.readFile(new URL('../browser-versions.json', import.meta.url), 'utf8'));
+  const lane = process.env.LATCH_BROWSER_LANE || 'current', pin = pins[lane];
+  if (!['floor', 'current'].includes(lane) || !pin) throw new Error('Use LATCH_BROWSER_LANE=floor|current.');
+  const executable = process.env.LATCH_SPIKE_BROWSER || process.env.QA_BROWSER_CHROME ||
+    path.join(os.homedir(), 'Library/Caches/ms-playwright', 'chromium-' + pin.cacheRevision,
+      'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing');
+  const actual = await command(executable, ['--version']);
+  if (actual.code !== 0 || actual.out.trim() !== 'Google Chrome for Testing ' + pin.version)
+    throw new Error(`Browser pin mismatch for ${lane}: expected Chrome for Testing ${pin.version}; found ${actual.out.trim() || actual.err}. No browser fixture was launched.`);
+  return executable;
 }
 function control(socketPath, request) {
   return new Promise((resolve, reject) => {

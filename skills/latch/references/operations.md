@@ -2,6 +2,32 @@
 
 Read this when you need command details or a concrete recovery path. The runtime is a prototype, validated with Playwright CLI 0.1.20. Do not auto-upgrade it to resolve an unknown error.
 
+## Permission preflight (RC4+)
+
+`preflight --profile work --session <task> --workspace <path>` checks the current
+caller's platform, exact Node/CLI versions, paired bridge/controller, native
+schema, task/cache writes and local loopback. Require `ready: true`, not merely
+`ok: true`. Its JSON names the exact paths; attachment/application remain
+`not-checked`. It creates missing task/cache directories and removes its own
+probe files. A native setup default is selected separately by the installer's
+`configure-native` command after installed identity/readiness verification.
+
+For EPERM/EACCES, inspect the actual calling client's available tools and policy.
+If command-scoped execution approval is exposed, request the exact blocked
+command. If a permission-grant tool is actually exposed, use its supported scope;
+category names in a policy do not prove a callable tool exists. An approved
+diagnostic proves only that diagnostic's access. Discovery, attachment, daemon
+cache writes and browser calls need their own permitted context. If neither
+route exists, report a single actionable blocker and stop. Do not weaken socket
+modes, edit global settings, switch OS users, assume Full Access or repeatedly
+retry an unavailable route. Preserve partial evidence and earlier attempts.
+
+Unreachable capability is unknown. A paired profile with an access-denied socket
+is not unpaired, and a reachable host without a controller round trip is not a
+verified native setup. CLI preflight cannot observe approval tools or determine
+the real client's sandbox policy; record directly observed or client-reported
+metadata with its provenance. It does not scan agent transcripts.
+
 ## Evidence and interaction
 
 Run direct Playwright commands in `LATCH_WORKSPACE`, always specifying `-s="$LATCH_SESSION"`. On RC3+ the helper's `pw --profile work --session ... --workspace ... -- <command>` runs those same commands with JSON/error normalization. Use Latch for attachment/cleanup; `pw` rejects lifecycle commands and session/output overrides. Get fresh element references from the actual snapshot; the examples below use observed values supplied by the agent, not literal placeholder locators.

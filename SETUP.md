@@ -1,9 +1,13 @@
-# Latch 0.2.0-rc.3 local setup
+# Latch 0.2.0-rc.4 local setup
 
 This private macOS candidate includes the native extension, host/CLI, shared skill,
 `ws` 8.22.0 and third-party licenses. Node **22.21.1** and Playwright CLI **0.1.20**
 are external prerequisites. Setup validates them without installing anything
 globally. Keep the full kit together; the extension ZIP alone is insufficient.
+This candidate requires Apple Silicon (arm64), macOS 27.0.1 or later and Chrome
+147 or later. See `SUPPORT.md` in the kit for exact tested builds and limitations;
+older macOS/Intel qualification is deferred. Unsupported prerequisites fail before
+setup changes the installation or configuration.
 
 Automated browser tests use disposable headless profiles. The current operator-
 assisted Work installation is RC3 with native selected explicitly for that profile.
@@ -19,7 +23,7 @@ Unzip the complete kit into a permanent local directory. Use the selected Node
 executable, then inspect from that directory:
 
 ```bash
-LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.3'
+LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.4'
 node "$LATCH_KIT/src/install.mjs" inspect --kit "$LATCH_KIT"
 node "$LATCH_KIT/src/install.mjs" stage --kit "$LATCH_KIT"
 ```
@@ -86,10 +90,21 @@ node "$LATCH_KIT/src/install.mjs" verify --profile work
 ```
 
 Verification checks the installed identity/readiness and requires extension
-`0.1.99.3` (display name `0.2.0-rc.3`), release `0.2.0-rc.3`, native schema 4 and
+`0.1.99.4` (display name `0.2.0-rc.4`), release `0.2.0-rc.4`, native schema 4 and
 UI capability 1. It separately reports `applicationSmokeRequired: true`. Complete
 a disposable native CLI smoke against the intended app before calling rollout
 successful; do not silently fall back to another adapter.
+
+Select native for this verified profile during setup:
+
+```bash
+node "$LATCH_KIT/src/install.mjs" configure-native --profile work
+```
+
+This re-verifies installed identity/readiness and uses the managed launcher's
+configuration. It sets only that profile's default after a fresh schema-4
+controller round trip. Existing sessions retain their adapters. It does not
+enable the official extension or treat a bridge check as application acceptance.
 
 ## Shared skill and daily use
 
@@ -108,14 +123,28 @@ run each intended terminal client separately during Phase 6.
 Use the skill from the task workspace. Native preview connections use explicit
 `--transport native --focus-emulation on` for ordinary background interactions
 during rollout; keep emulation off for real focus/visibility assertions. Profiles without a preference still default
-to official; inspect `qa-browser transport --profile work`. After the installed
-Work and real-client gates pass, the separate authorized cutover command is
-`qa-browser transport --profile work --set native`. Existing sessions retain
+to official; inspect `qa-browser transport --profile work`. New setups should use
+the verified `configure-native` step above. Existing sessions retain
 their adapter; explicit `--transport official` remains available. Give each agent a unique
 session. The popup shows only this profile's pairing/session metadata and can stop
 one schema-4 native session while preserving website tabs and peers. A busy
 operation is not bypassed. “Access stopped; CLI cleanup unconfirmed” requires
 scoped reconciliation. Retry restores bridge readiness, never automation.
+
+Before discovery/attachment, run from the actual task/client context:
+
+```bash
+"$LATCH_RUNTIME/bin/qa-browser" preflight --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE"
+```
+
+Require `ready: true`. The result distinguishes platform/dependencies, bridge and
+controller, native capability, exact task/cache write paths and local networking.
+It creates missing task/cache directories but removes its own probe files. It
+does not attach or establish application acceptance. Access denied is different
+from an unpaired profile. Permission facilities must be checked in the actual
+agent's tool inventory; the CLI cannot know which tools are available. Stop if no
+appropriate scoped route is exposed; never change global security or retry an
+uncertain browser action to work around a blocked preflight.
 
 RC3 adds an optional error-normalizing adapter for an already attached task:
 
