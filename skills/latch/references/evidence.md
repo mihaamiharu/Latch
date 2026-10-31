@@ -28,7 +28,8 @@ section for fresh locators rather than copying the entire run into context.
 Default JSON is compact: execution status, check result and artifact paths. Use
 `--inline` only when you need the ordinary full command response (for example a
 small current page observation). Raw bounded results remain in `raw/`.
-`run-code` source is not logged; its argument hash/count is retained instead.
+Command argument lists are not logged; their hash/count is retained instead.
+Upstream results or error diagnostics can still echo submitted content.
 
 ## Assertions and actual exits
 

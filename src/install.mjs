@@ -4,7 +4,7 @@ import {ROOT,EXTENSION_ID,HOST_NAME,quote} from './release.mjs';
 import {inspectSetup,stageSetup,activateSetup,verifySetup,configureNativeSetup,rollbackSetup,setupSkills,uninstallSetup} from './setup.mjs';
 import {assertSetupPlatform} from './compatibility.mjs';
 const help=`Latch local setup (macOS)
-  node src/install.mjs inspect --kit PATH [--root PATH] [--registration-root PATH]
+  node src/install.mjs inspect --kit PATH [--root PATH] [--registration-root PATH] [--playwright-cli PATH]
   node src/install.mjs stage --kit PATH
   node src/install.mjs activate --kit PATH --expect PLAN_TOKEN --tasks-drained --extension-unloaded
   node src/install.mjs verify [--profile work]
@@ -18,7 +18,7 @@ they do not automatically verify Chrome's permission acceptance or unload state.
 prepare writes an unregistered development preview beneath dist/setup-preview only.
 `;
 try{
- const args=process.argv.slice(2),command=args.shift()||'help',options={};const names={'root':'root','registration-root':'registrationRoot','kit':'kit','node':'node','legacy-root':'legacyRoot','rollback-kit':'rollbackKit','user-root':'userRoot','profile':'profile','expect':'expect','tasks-drained':'tasksDrained','extension-unloaded':'extensionUnloaded'};
+ const args=process.argv.slice(2),command=args.shift()||'help',options={};const names={'root':'root','registration-root':'registrationRoot','kit':'kit','node':'node','playwright-cli':'playwrightCLI','legacy-root':'legacyRoot','rollback-kit':'rollbackKit','user-root':'userRoot','profile':'profile','expect':'expect','tasks-drained':'tasksDrained','extension-unloaded':'extensionUnloaded'};
  while(args.length){const key=args.shift().slice(2),name=names[key];if(!name)throw new Error('Unknown setup argument.');if(['tasksDrained','extensionUnloaded'].includes(name))options[name]=true;else{const value=args.shift();if(!value||value.startsWith('--'))throw new Error('Missing setup argument.');options[name]=value}}
  if(['help','--help'].includes(command)){console.log(help)}else if(command==='prepare'){
   await assertSetupPlatform();

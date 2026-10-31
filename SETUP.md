@@ -1,4 +1,4 @@
-# Latch 0.2.0-rc.5 local setup
+# Latch 0.2.0-rc.6 local setup
 
 This private macOS candidate includes the native extension, host/CLI, shared skill,
 `ws` 8.22.0 and third-party licenses. Node **22.21.1** and Playwright CLI **0.1.20**
@@ -23,7 +23,7 @@ Unzip the complete kit into a permanent local directory. Use the selected Node
 executable, then inspect from that directory:
 
 ```bash
-LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.5'
+LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.6'
 node "$LATCH_KIT/src/install.mjs" inspect --kit "$LATCH_KIT"
 node "$LATCH_KIT/src/install.mjs" stage --kit "$LATCH_KIT"
 ```
@@ -31,9 +31,23 @@ node "$LATCH_KIT/src/install.mjs" stage --kit "$LATCH_KIT"
 The default runtime is `~/Library/Application Support/Work Browser Bridge/runtime`.
 `releases/` contains complete hashed payloads, `current` selects the local host/CLI,
 and `extension/` is a stable **physical directory**. Launchers capture the selected
-Node executable and configuration/runtime paths. Staging changes no Chrome native
-registration. `--root`, `--registration-root` and `--node` select explicit paths;
+Node and CLI executables and configuration/runtime paths. Staging changes no Chrome native
+registration. `--root`, `--registration-root`, `--node` and `--playwright-cli` select explicit paths;
 use identical options for all subsequent operations.
+
+RC6 resolves and validates the CLI during inspection, then pins its absolute
+executable in the receipt. The managed host and CLI use the selected Node's
+executable directory in their own process PATH, so Chrome does not need to inherit
+the installing terminal's PATH. No global shell or security setting is changed.
+The plan token includes the CLI entrypoint hash; that is not a hash of its entire
+external dependency tree. Node/CLI remain external prerequisites. If a pinned
+executable is removed, preflight reports it instead of selecting another program.
+Inspect a repaired path with `--playwright-cli` and use the normal drained/unloaded
+activation procedure; do not replace receipts or clear recovery state manually.
+
+The kit includes [data handling](PRIVACY.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
+Project license and public support/distribution destinations remain owner decisions
+before final release promotion.
 
 A pre-receipt 0.1.2 registration requires both `--legacy-root` (the original checkout
 with its exact `install/preview.json` and native manifest) and `--rollback-kit`
@@ -90,7 +104,7 @@ node "$LATCH_KIT/src/install.mjs" verify --profile work
 ```
 
 Verification checks the installed identity/readiness and requires extension
-`0.1.99.5` (display name `0.2.0-rc.5`), release `0.2.0-rc.5`, native schema 4 and
+`0.1.99.6` (display name `0.2.0-rc.6`), release `0.2.0-rc.6`, native schema 4 and
 UI capability 1. It separately reports `applicationSmokeRequired: true`. Complete
 a disposable native CLI smoke against the intended app before calling rollout
 successful; do not silently fall back to another adapter.

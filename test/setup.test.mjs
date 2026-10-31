@@ -7,8 +7,8 @@ async function fixture(t){
 }
 test('setup stages without registration, activates idempotently, installs stable managed links and preserves data on uninstall',async t=>{
  const f=await fixture(t),o=f.options,before=await fs.readFile(process.env.QA_BROWSER_CONFIG,'utf8');const plan=await inspectSetup(o);const staged=await stageSetup(o);assert.equal(staged.planToken,plan.planToken);await assert.rejects(fs.stat(plan.paths.registration),{code:'ENOENT'});
- await assert.rejects(activateSetup({...o,expect:'bad'}),{code:'SETUP_PLAN_CHANGED'});const active=await activateSetup({...o,expect:plan.planToken});assert.equal(active.activated,true);assert.equal(active.verified,false);assert.equal(JSON.parse((await exec(active.cli,['version'])).stdout).version,'0.2.0-rc.5');
- await setupSkills(o);await setupSkills(o);const link=path.join(o.userRoot,'.agents/skills/latch');assert.equal(await fs.readlink(link),path.join(o.root,'current/skills/latch'));const cwd=path.join(f.dir,'task with spaces');await fs.mkdir(cwd);const result=await exec(process.execPath,[path.join(link,'scripts/latch.mjs'),'version'],{cwd});assert.equal(JSON.parse(result.stdout).version,'0.2.0-rc.5');
+ await assert.rejects(activateSetup({...o,expect:'bad'}),{code:'SETUP_PLAN_CHANGED'});const active=await activateSetup({...o,expect:plan.planToken});assert.equal(active.activated,true);assert.equal(active.verified,false);assert.equal(JSON.parse((await exec(active.cli,['version'])).stdout).version,'0.2.0-rc.6');
+ await setupSkills(o);await setupSkills(o);const link=path.join(o.userRoot,'.agents/skills/latch');assert.equal(await fs.readlink(link),path.join(o.root,'current/skills/latch'));const cwd=path.join(f.dir,'task with spaces');await fs.mkdir(cwd);const result=await exec(process.execPath,[path.join(link,'scripts/latch.mjs'),'version'],{cwd});assert.equal(JSON.parse(result.stdout).version,'0.2.0-rc.6');
  const again=await inspectSetup(o);await activateSetup({...o,expect:again.planToken});assert.equal(await fs.readFile(process.env.QA_BROWSER_CONFIG,'utf8'),before);const marker=path.join(o.root,'evidence.txt');await fs.writeFile(marker,'keep');await uninstallSetup(o);assert.equal(await fs.readFile(marker,'utf8'),'keep');assert.equal(await fs.readFile(process.env.QA_BROWSER_CONFIG,'utf8'),before);await assert.rejects(fs.lstat(link),{code:'ENOENT'});
 });
 test('foreign registration, skill collisions, missing maintenance and old installer gates remain untouched',async t=>{
@@ -50,4 +50,26 @@ test('unsupported platform or architecture blocks every installer mutation befor
   for(const action of [inspectSetup,stageSetup,activateSetup,rollbackSetup,setupSkills,uninstallSetup,configureNativeSetup])await assert.rejects(action(o),{code});
   await assert.rejects(fs.stat(o.root),{code:'ENOENT'});await assert.rejects(fs.stat(o.registrationRoot),{code:'ENOENT'});assert.deepEqual(await fs.readFile(process.env.QA_BROWSER_CONFIG),before);mock.mock.restore();
  }
+});
+test('managed CLI pins its validated executable and Node for minimal PATH, rejects changed plans and never substitutes a missing CLI',async t=>{
+ const {dir,options:original}=await fixture(t),calls=path.join(dir,'selected-calls'),otherCalls=path.join(dir,'other-calls');
+ const selected=path.join(dir,"selected cli 'with spaces'.js"),other=path.join(dir,'other-cli.js');
+ const script=file=>`#!/usr/bin/env node\nimport fs from 'node:fs';fs.appendFileSync(${JSON.stringify(file)},JSON.stringify({node:process.execPath,version:process.version})+'\\n');console.log(JSON.stringify({version:'0.1.20'}));`;
+ await fs.writeFile(selected,script(calls),{mode:0o700});await fs.writeFile(other,script(otherCalls),{mode:0o700});
+ const o={...original,playwrightCLI:selected},first=await inspectSetup(o);assert.equal(first.prerequisites.playwrightCLI,selected);
+ await fs.appendFile(selected,'\n// changed since inspection');await assert.rejects(activateSetup({...o,expect:first.planToken}),{code:'SETUP_PLAN_CHANGED'});await assert.rejects(fs.stat(first.paths.registration),{code:'ENOENT'});
+ const plan=await inspectSetup(o);await activateSetup({...o,expect:plan.planToken});const before=await fs.readFile(plan.paths.receipt),config=await fs.readFile(process.env.QA_BROWSER_CONFIG);
+ const receipt=JSON.parse(before);assert.equal(receipt.playwrightCLI,selected);assert.equal(receipt.playwrightCLIEntrySHA256,plan.prerequisites.playwrightCLIEntrySHA256);
+ const env={...process.env,PATH:'/usr/bin:/bin',QA_BROWSER_PLAYWRIGHT_CLI:other},cli=path.join(o.root,'bin/qa-browser');
+ const preflight=JSON.parse((await exec(cli,['preflight','--workspace',dir,'--session','task'],{cwd:dir,env})).stdout);assert.equal(preflight.checks.find(c=>c.id==='playwright-cli').status,'pass');
+ const invoked=(await fs.readFile(calls,'utf8')).trim().split('\n').map(JSON.parse);assert.equal(invoked.at(-1).node,plan.paths.node);assert.equal(invoked.at(-1).version,'v22.21.1');await assert.rejects(fs.stat(otherCalls),{code:'ENOENT'});
+ await fs.unlink(selected);const missing=JSON.parse((await exec(cli,['preflight','--workspace',dir,'--session','task'],{cwd:dir,env})).stdout);assert.equal(missing.checks.find(c=>c.id==='playwright-cli').error.code,'CLI_UNAVAILABLE');await assert.rejects(fs.stat(otherCalls),{code:'ENOENT'});
+ assert.equal(JSON.parse((await exec(cli,['version'],{env})).stdout).version,'0.2.0-rc.6');assert.deepEqual(await fs.readFile(plan.paths.receipt),before);assert.deepEqual(await fs.readFile(process.env.QA_BROWSER_CONFIG),config);
+ await assert.rejects(stageSetup(o),{code:'SETUP_EXECUTABLE_UNAVAILABLE'});
+});
+test('an unowned receipt cannot supply an executable during inspection',async t=>{
+ const {dir,options:o}=await fixture(t),called=path.join(dir,'foreign-was-run'),script=path.join(dir,'foreign-cli');
+ await fs.writeFile(script,`#!/bin/sh\n/usr/bin/touch '${called}'\nprintf '{"version":"0.1.20"}'\n`,{mode:0o700});
+ await fs.mkdir(o.root,{recursive:true});await fs.writeFile(path.join(o.root,'receipt.json'),JSON.stringify({schema:1,extensionId:EXTENSION_ID,playwrightCLI:script}));
+ await assert.rejects(inspectSetup(o),{code:'INSTALL_ROOT_FOREIGN'});await assert.rejects(fs.stat(called),{code:'ENOENT'});
 });

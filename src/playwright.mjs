@@ -23,12 +23,13 @@ export async function workspaceAt(start = process.cwd()) {
   return await fs.realpath(start);
 }
 export const sessionKey = (workspace, session) => crypto.createHash('sha256').update(JSON.stringify([workspace, session])).digest('hex');
-export function runCLI(session, args, {workspace, chromeProfileDir, timeout = 45000} = {}) {
+export function runCLI(session, args, {workspace, chromeProfileDir, timeout = 45000, executable, nodeExecutable} = {}) {
   return new Promise((resolve, reject) => {
     const started = performance.now();
     const env = {...process.env, NO_UPDATE_NOTIFIER: '1'};
+    if(nodeExecutable)env.PATH=path.dirname(nodeExecutable)+path.delimiter+(env.PATH||'');
     if (chromeProfileDir) env.PLAYWRIGHT_MCP_PROFILE_DIR_NAME = chromeProfileDir;
-    const child = spawn(process.env.QA_BROWSER_PLAYWRIGHT_CLI || 'playwright-cli', [`-s=${session}`, '--json', ...args], {
+    const child = spawn(executable || process.env.QA_BROWSER_PLAYWRIGHT_CLI || 'playwright-cli', [`-s=${session}`, '--json', ...args], {
       cwd: workspace, env, shell: false, stdio: ['ignore', 'pipe', 'pipe'],
     });
     const stdoutChunks = [], stderrChunks = [];
@@ -51,7 +52,7 @@ export function runCLI(session, args, {workspace, chromeProfileDir, timeout = 45
       if (stderrBytes >= 16384) return;
       const chunk = data.subarray(0, 16384 - stderrBytes); stderrChunks.push(chunk); stderrBytes += chunk.length;
     });
-    child.on('error', () => finish(fault('CLI_UNAVAILABLE', 'Cannot start playwright-cli. Ensure it is installed and on PATH.')));
+    child.on('error', () => finish(fault('CLI_UNAVAILABLE', 'Cannot start the selected Playwright CLI. Check its installed path and Node prerequisite; no other executable was substituted.')));
     child.on('close', (code, signal) => {
       if (ended) return;
       if (abortError) {abortError.diagnostics={command:args[0],exitCode:code,signal:signal??null,elapsedMs:Math.round(performance.now()-started),unknownOutcome:true};return finish(abortError);}

@@ -11,6 +11,7 @@ import {fault} from '../extension/protocol.js';
 import {assertVersion} from './playwright.mjs';
 import {targetsFor} from './install-skills.mjs';
 import {assertSetupPlatform} from './compatibility.mjs';
+import {executableAt} from './setup-prerequisites.mjs';
 const exec=promisify(execFile);
 const json=async p=>JSON.parse(await fs.readFile(p,'utf8'));
 const optional=async p=>{try{return await fs.readFile(p,'utf8')}catch(e){if(e.code==='ENOENT')return null;throw e}};
@@ -50,25 +51,30 @@ async function legacyOwnership(options,p,registration){
 export async function inspectSetup(options={}){
  const platform=await assertSetupPlatform();
  const p=setupPaths(options),kit=path.resolve(options.kit||ROOT),release=await verifyKit(kit);
+ p.node=await executableAt(p.node);
  let node;
  try{node=JSON.parse((await exec(p.node,['-p','JSON.stringify({version:process.version,platform:process.platform,architecture:process.arch})'],{timeout:5000})).stdout)}catch{throw fault('SETUP_NODE_VERSION','Cannot verify the selected Node executable. Required: '+release.nodeVersion+' for macOS arm64.');}
  if(node.version!==release.nodeVersion)throw fault('SETUP_NODE_VERSION','Validated Node executable required: '+release.nodeVersion);
  if(node.platform!==platform.platform||node.architecture!==platform.architecture)throw fault('SETUP_NODE_PLATFORM','The selected Node executable must match the qualified macOS arm64 platform.');
- await assertVersion({workspace:kit,timeout:10000});
  const rawReceipt=await optional(p.receipt),receipt=rawReceipt?JSON.parse(rawReceipt):null,registration=await optional(p.registration);
  let legacy=null;
  if(registration&&registration!==receipt?.registration)legacy=await legacyOwnership(options,p,registration);
  if(registration&&registration!==receipt?.registration&&!legacy)throw fault('INSTALL_FOREIGN_REGISTRATION','Existing native registration is not owned by this installation.');
  let activePointer=null,extensionInventory=null;
  if(receipt){
+  const marker=await optional(path.join(p.root,'.latch-root.json'));
+  if(!marker||JSON.parse(marker).schema!==1||JSON.parse(marker).extensionId!==EXTENSION_ID||receipt.schema!==1||receipt.extensionId!==EXTENSION_ID)throw fault('INSTALL_ROOT_FOREIGN','An unowned or unknown receipt cannot select an executable.');
   activePointer=await fs.realpath(p.current);if(activePointer!==receipt.active)throw fault('INSTALL_CHANGED','Active release selection changed.');
   extensionInventory=await extensionValid(p,await payloadValid(receipt.active));
  }
+ const playwrightCLI=await executableAt(options.playwrightCLI||process.env.QA_BROWSER_PLAYWRIGHT_CLI||receipt?.playwrightCLI||'playwright-cli',kit);
+ const cliVersion=await assertVersion({workspace:kit,timeout:10000,executable:playwrightCLI,nodeExecutable:p.node});
+ const playwrightCLIEntrySHA256=hash(await fs.readFile(playwrightCLI));
  const existingManifest=receipt?await json(path.join(p.extension,'manifest.json')):legacy?await json(path.join(legacy.rollbackKit,'extension/manifest.json')):null;
  const permissionDelta=(await json(path.join(kit,'extension/manifest.json'))).permissions.filter(name=>!existingManifest?.permissions?.includes(name));
  const gate=await fs.lstat(p.gate).then(()=>true,e=>{if(e.code==='ENOENT')return false;throw e});
- const token=hash(JSON.stringify({activePointer,extensionInventory,release:hash(await fs.readFile(path.join(kit,'release.json'))),root:p.root,registration,node:p.node,receipt:rawReceipt,configuration:p.configuration,runtimeDirectory:p.runtimeDirectory,legacy,skillLinks:receipt?.skillLinks||[]}));
- return {platform,paths:p,kit,release,receipt,registration,legacy,gate,transaction:await optional(p.transaction),planToken:token,permissionDelta,changes:{registrationPath:registration?JSON.parse(registration).path:null,newRegistrationPath:path.join(p.root,'bin/native-host'),extensionDirectory:p.extension},blockers:gate?['SETUP_BUSY']:[]};
+ const token=hash(JSON.stringify({activePointer,extensionInventory,release:hash(await fs.readFile(path.join(kit,'release.json'))),root:p.root,registration,node:p.node,playwrightCLI,playwrightCLIEntrySHA256,receipt:rawReceipt,configuration:p.configuration,runtimeDirectory:p.runtimeDirectory,legacy,skillLinks:receipt?.skillLinks||[]}));
+ return {platform,paths:p,prerequisites:{node:p.node,playwrightCLI,cliVersion,playwrightCLIEntrySHA256},kit,release,receipt,registration,legacy,gate,transaction:await optional(p.transaction),planToken:token,permissionDelta,changes:{registrationPath:registration?JSON.parse(registration).path:null,newRegistrationPath:path.join(p.root,'bin/native-host'),extensionDirectory:p.extension},blockers:gate?['SETUP_BUSY']:[]};
 }
 export async function stageSetup(options={}){
  const plan=await inspectSetup(options);if(plan.gate)throw fault('SETUP_BUSY','An installer transaction already exists; inspect it without removing its gate.');
@@ -94,7 +100,7 @@ async function extensionValid(p,descriptor){
 }
 async function installBoot(p){
  await privateDirectory(path.join(p.root,'bin'));
- const source=`import fs from 'node:fs/promises';import path from 'node:path';import {pathToFileURL,fileURLToPath} from 'node:url';try{const root=path.dirname(fileURLToPath(import.meta.url)),receipt=JSON.parse(await fs.readFile(path.join(root,'receipt.json'),'utf8')),release=await fs.realpath(path.join(root,'current'));if(release!==receipt.active)throw new Error('Active release/receipt mismatch');process.env.QA_BROWSER_CONFIG=receipt.configuration;process.env.QA_BROWSER_RUNTIME_DIR=receipt.runtimeDirectory;const mode=process.argv[2];if(!['native-host','cli'].includes(mode))throw new Error('Invalid launcher');const target=path.join(release,'src',mode+'.mjs');process.argv=[process.argv[0],target,...process.argv.slice(3)];await import(pathToFileURL(target).href)}catch(e){process.stderr.write(JSON.stringify({ok:false,error:{code:'LATCH_ACTIVE_RUNTIME_UNAVAILABLE',message:e.message}})+'\\n');process.exitCode=1}`;
+ const source=`import fs from 'node:fs/promises';import path from 'node:path';import {pathToFileURL,fileURLToPath} from 'node:url';try{const root=path.dirname(fileURLToPath(import.meta.url)),receipt=JSON.parse(await fs.readFile(path.join(root,'receipt.json'),'utf8')),release=await fs.realpath(path.join(root,'current'));if(release!==receipt.active)throw new Error('Active release/receipt mismatch');process.env.QA_BROWSER_CONFIG=receipt.configuration;process.env.QA_BROWSER_RUNTIME_DIR=receipt.runtimeDirectory;process.env.PATH=path.dirname(receipt.node)+path.delimiter+(process.env.PATH||'');if(receipt.playwrightCLI)process.env.QA_BROWSER_PLAYWRIGHT_CLI=receipt.playwrightCLI;const mode=process.argv[2];if(!['native-host','cli'].includes(mode))throw new Error('Invalid launcher');const target=path.join(release,'src',mode+'.mjs');process.argv=[process.argv[0],target,...process.argv.slice(3)];await import(pathToFileURL(target).href)}catch(e){process.stderr.write(JSON.stringify({ok:false,error:{code:'LATCH_ACTIVE_RUNTIME_UNAVAILABLE',message:e.message}})+'\\n');process.exitCode=1}`;
  await atomic(path.join(p.root,'boot.mjs'),source);
  for(const [name,mode] of [['native-host','native-host'],['qa-browser','cli']]){const file=path.join(p.root,'bin',name);await atomic(file,`#!/bin/sh\nexec ${quote(p.node)} ${quote(path.join(p.root,'boot.mjs'))} ${quote(mode)} "$@"\n`);await fs.chmod(file,0o700)}
 }
@@ -126,7 +132,7 @@ export async function activateSetup(options={}){
    await installBoot(p);await pointer(p.current,staged.staged);await replaceExtension(p,staged.staged);
    const registration=JSON.stringify({name:HOST_NAME,description:'Latch local browser transport',path:path.join(p.root,'bin/native-host'),type:'stdio',allowed_origins:[`chrome-extension://${EXTENSION_ID}/`]},null,2)+'\n';
    await privateDirectory(path.dirname(p.registration));await atomic(p.registration,registration);
-   const receipt={schema:1,version:staged.release.version,chromeVersion:staged.release.chromeVersion,configuration:p.configuration,runtimeDirectory:p.runtimeDirectory,active:staged.staged,previous,registration,node:p.node,extensionId:EXTENSION_ID,skillLinks:fresh.receipt?.skillLinks||[],skillBefore:fresh.receipt?.skillBefore||[],legacySkillSource:fresh.receipt?.legacySkillSource||(fresh.legacy?path.join(fresh.legacy.legacy,'skills/latch'):null),maintenance:proof};await atomic(p.receipt,JSON.stringify(receipt,null,2)+'\n');
+   const receipt={schema:1,version:staged.release.version,chromeVersion:staged.release.chromeVersion,configuration:p.configuration,runtimeDirectory:p.runtimeDirectory,active:staged.staged,previous,registration,node:p.node,playwrightCLI:fresh.prerequisites.playwrightCLI,playwrightCLIEntrySHA256:fresh.prerequisites.playwrightCLIEntrySHA256,extensionId:EXTENSION_ID,skillLinks:fresh.receipt?.skillLinks||[],skillBefore:fresh.receipt?.skillBefore||[],legacySkillSource:fresh.receipt?.legacySkillSource||(fresh.legacy?path.join(fresh.legacy.legacy,'skills/latch'):null),maintenance:proof};await atomic(p.receipt,JSON.stringify(receipt,null,2)+'\n');
    await atomic(p.transaction,JSON.stringify({state:'activated-awaiting-browser-verification',active:staged.staged,previous}));
    return {activated:true,verified:false,version:receipt.version,extensionDirectory:p.extension,cli:path.join(p.root,'bin/qa-browser'),retainedPrevious:previous};
   }catch(e){

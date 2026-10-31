@@ -6,6 +6,7 @@ import http from 'node:http';
 import {pathToFileURL, fileURLToPath} from 'node:url';
 import {chromePath, eventually, command, stopBrowser, control, HEADLESS_ARGS} from './native-browser.mjs';
 import {redact,sessionKey} from '../../src/playwright.mjs';
+import {installedControl} from './installed-control.mjs';
 
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const quote=value=>"'"+value.replaceAll("'","'\\''")+"'";
@@ -123,7 +124,14 @@ export async function attachmentFixture(t, app, transport) {
   }
   const delivery=deliveryURL?`setInterval(async()=>{try{const url=await(await fetch(${JSON.stringify(deliveryURL)})).json();if(url)await chrome.tabs.create({url})}catch{}},100);`:'';
   await fs.writeFile(path.join(extension,'fixture-seed.js'),`const run=${JSON.stringify(run)};${seed}${delivery}`);
-  if(app.installed){const seeder=path.join(temp,'fixture-seeder');await fs.mkdir(seeder);await fs.writeFile(path.join(seeder,'manifest.json'),JSON.stringify({manifest_version:3,name:'Private installation fixture seeder',version:'1',permissions:['tabs','management'],background:{service_worker:'seed.js',type:'module'}}));await fs.writeFile(path.join(seeder,'seed.js'),''+await fs.readFile(path.join(extension,'fixture-seed.js'),'utf8'));await fs.writeFile(path.join(seeder,'control.html'),'<script type="module" src="control.js"></script>');await fs.writeFile(path.join(seeder,'control.js'),`const endpoint=${JSON.stringify(recoveryURL)},id=${JSON.stringify(extensionId)};let busy=false;setInterval(async()=>{if(busy)return;busy=true;let task;try{task=await(await fetch(endpoint)).json();if(!task)return;let result;if(['enable','disable'].includes(task.action)){await chrome.management.setEnabled(id,task.action==='enable');result=await chrome.management.get(id)}else if(task.action==='extension-info')result=await chrome.management.get(id);else throw new Error('Unsupported install fixture action');await fetch(endpoint,{method:'POST',body:JSON.stringify({id:task.id,result})})}catch(e){if(task)await fetch(endpoint,{method:'POST',body:JSON.stringify({id:task.id,error:e.message})})}finally{busy=false}},100)`);await fs.appendFile(path.join(seeder,'seed.js'),"\nchrome.tabs.create({url:chrome.runtime.getURL('control.html'),active:false});");extensions.push(seeder)}else await fs.appendFile(path.join(extension,'background.js'),"\nimport './fixture-seed.js';\n");
+  if(app.installed){
+    const seeder=path.join(temp,'fixture-seeder');await fs.mkdir(seeder);
+    await fs.writeFile(path.join(seeder,'manifest.json'),JSON.stringify({manifest_version:3,name:'Private installation fixture seeder',version:'1',permissions:['tabs','management',...(app.popup?['debugger']:[])],background:{service_worker:'seed.js',type:'module'}}));
+    await fs.writeFile(path.join(seeder,'seed.js'),''+await fs.readFile(path.join(extension,'fixture-seed.js'),'utf8'));
+    await fs.writeFile(path.join(seeder,'control.html'),'<script type="module" src="control.js"></script>');
+    await fs.writeFile(path.join(seeder,'control.js'),installedControl(recoveryURL,extensionId,app.popup));
+    await fs.appendFile(path.join(seeder,'seed.js'),"\nchrome.tabs.create({url:chrome.runtime.getURL('control.html'),active:false});");extensions.push(seeder);
+  }else await fs.appendFile(path.join(extension,'background.js'),"\nimport './fixture-seed.js';\n");
   const progress=(kind,index,operation,event)=>fs.appendFile(path.join(temp,'progress.jsonl'),JSON.stringify({kind,index,operation,event,at:Date.now()})+'\n');
   const protocolEvents=async()=>{
     const events=[];
@@ -194,23 +202,27 @@ export async function attachmentFixture(t, app, transport) {
     await fs.rm(runtime,{recursive:true,force:true});
   };
   t.after(close);
+  // Test-only access lets a separate disposable driver inspect Latch's real
+  // popup without patching the packaged extension. Never used with Work.
+  const popupFlags=app.installed&&app.popup?['--silent-debugger-extension-api','--extensions-on-extension-urls']:app.recovery?['--silent-debugger-extension-api']:[];
   const args=[...HEADLESS_ARGS,`--user-data-dir=${profile}`,'--profile-directory=Default','--no-first-run','--no-default-browser-check',
     '--use-mock-keychain','--password-store=basic','--disable-background-networking','--enable-logging=stderr',
-    `--disable-extensions-except=${extensions.join(',')}`,`--load-extension=${extensions.join(',')}`,...(app.launchArgs||[]),...(app.recovery?['--silent-debugger-extension-api']:[]),'about:blank'];
-  const log=await fs.open(path.join(temp,'chrome.stderr.log'),'w');browser=spawn(chrome,args,{env:app.installed?env:process.env,stdio:['ignore','ignore',log.fd]});await log.close();
+    `--disable-extensions-except=${extensions.join(',')}`,`--load-extension=${extensions.join(',')}`,...(app.launchArgs||[]),...popupFlags,'about:blank'];
+  const browserEnv=app.installed?{...env,...(app.minimalHostPath?{PATH:'/usr/bin:/bin',QA_BROWSER_PLAYWRIGHT_CLI:undefined}:{})}:process.env;
+  const log=await fs.open(path.join(temp,'chrome.stderr.log'),'w');browser=spawn(chrome,args,{env:browserEnv,stdio:['ignore','ignore',log.fd]});await log.close();
   console.log(`${transport} comparison: ${temp}`);
   identity=await eventually(async()=> (await latch(0,['discover'])).profiles[0],20000);
   await latch(0,['pair','--profile','work','--instance',identity.instanceId,'--chrome-profile-dir','Default']);
   await eventually(()=>app.seeds.has(run)&&[...app.states.values()].filter(s=>s.actor.startsWith(run)&&s.role===(app.rootRole||'/root')).length===3);
   const seedInfo=app.seeds.get(run);
   await verifyInbox();
-  return {run,temp,profile,evidence,extension,extensionLoad,extensionId,hostName,journalBarrier,popupBarrier,popupPause,get identity(){return identity},workspaces,env,transport,versions,headless:true,get browserPID(){return browser.pid},nativeStatus,browserInbox,verifyInbox,connectionPageDelivery:deliveryURL?'fixture-only URL delivery shim':'not needed',launchArgs:[...HEADLESS_ARGS,'--use-mock-keychain','--password-store=basic',...(app.launchArgs||[]),...(app.recovery?['--silent-debugger-extension-api']:[])],protocolEvents,tabs:seedInfo.tabs,latch,pw,close,
+  return {run,temp,profile,evidence,extension,extensionLoad,extensionId,hostName,journalBarrier,popupBarrier,popupPause,get identity(){return identity},workspaces,env,transport,versions,headless:true,get browserPID(){return browser.pid},nativeStatus,browserInbox,verifyInbox,connectionPageDelivery:deliveryURL?'fixture-only URL delivery shim':'not needed',launchArgs:[...HEADLESS_ARGS,'--use-mock-keychain','--password-store=basic',...(app.launchArgs||[]),...popupFlags],protocolEvents,tabs:seedInfo.tabs,latch,pw,close,
     fault:async(action,params={})=>{if(!app.recovery&&!app.installed)throw new Error('Not a recovery fixture');const id=crypto.randomUUID();faults.push({id,action,params});const ack=await eventually(()=>acks.get(id),10000);acks.delete(id);if(ack.error)throw new Error(ack.error);return ack.result},
     refreshIdentity:async(timeout=20000)=>identity=await eventually(async()=> (await latch(0,['discover'])).profiles.find(p=>p.instanceId===identity.instanceId),timeout),
     suspendHost:async()=>{if(await fs.readFile(hostFile,'utf8')!==registration)throw new Error('Fixture registration changed');await fs.rename(hostFile,hostFile+'.paused')},
     restoreHost:async()=>{if(await fs.readFile(hostFile+'.paused','utf8')!==registration)throw new Error('Fixture registration changed');await fs.rename(hostFile+'.paused',hostFile)},
     stop:async()=>stopBrowser(browser),
-    restartBrowser:async()=>{await stopBrowser(browser);browser=spawn(chrome,args,{env:app.installed?env:process.env,stdio:['ignore','ignore','ignore']});return browser.pid},
+    restartBrowser:async()=>{await stopBrowser(browser);browser=spawn(chrome,args,{env:browserEnv,stdio:['ignore','ignore','ignore']});return browser.pid},
     connect:async(index,tabId,{background=false}={})=>latch(index,['connect','--profile','work','--transport',transport,
       ...(background&&transport==='native'?['--focus-emulation','on']:[]),'--session','agent','--tab',String(tabId)]),
     states:()=>[...app.states.values()].filter(state=>state.actor.startsWith(run))};

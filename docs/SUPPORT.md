@@ -1,6 +1,6 @@
 # macOS candidate support matrix
 
-This is the RC4 compatibility baseline used by the RC5 development candidate. RC3 remains installed in Work; source changes
+This is the RC4 compatibility baseline used by the RC6 development candidate. RC3 remains installed in Work; source changes
 do not update Chrome or establish final-release acceptance.
 
 | Component | Candidate requirement | Evidence / boundary |
@@ -11,7 +11,7 @@ do not update Chrome or establish final-release acceptance.
 | Playwright CLI | Exactly 0.1.20 | External prerequisite; `pw` preserves ordinary commands and normalizes errors |
 | Chrome | 147 or later | Qualification floor 147.0.7727.15; current lane 153.0.8010.12 |
 | Browser transport | Latch native schema 4, recovery contract 1, popup control 1 | No official Playwright extension required; no automatic fallback |
-| Coding client | Actual Codex RC3 native smoke established | RC5/reporting real-client acceptance pending; Claude Code and Cursor remain unverified |
+| Coding client | Actual Codex RC3 native smoke established | RC6/reporting real-client acceptance pending; Claude Code and Cursor remain unverified |
 | Client permissions | Access to paired Unix socket, local loopback, task and exact CLI cache directories | Run `preflight` in the actual client context; this does not grant permissions |
 
 The native Chrome manifest requires 147. Chrome's flat debugger session API was
@@ -40,3 +40,8 @@ managed browser-download retrieval, already-running worker backfill, arbitrary
 JavaScript isolation and client marketplace/plugin distribution. Release kit,
 second-user acceptance, owner license/distribution decisions and exact final
 artifact promotion remain gates in the macOS release plan.
+
+The native relay reports a synthetic `Browser.getVersion` identity. Do not use
+`browser.version()` as proof of the real Chrome build; record a separately observed
+build/version or label it unverified. Test fixtures validate their pinned executable
+with its own `--version` output before launch.

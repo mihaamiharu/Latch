@@ -16,6 +16,7 @@ export async function build({root=ROOT,out=path.join(root,'dist')}={}) {
   for(const file of ['package.json','package-lock.json'])await fs.copyFile(path.join(root,file),path.join(kit,file));
   await fs.copyFile(path.join(root,'SETUP.md'),path.join(kit,'README.md'));
   await fs.copyFile(path.join(root,'docs/SUPPORT.md'),path.join(kit,'SUPPORT.md'));
+  for(const file of ['PRIVACY.md','THIRD_PARTY_NOTICES.md'])await fs.copyFile(path.join(root,file),path.join(kit,file));
   await fs.rm(path.join(kit,'src/build.mjs'));
   for(const size of [16,32,48,128])await fs.rm(path.join(kit,`extension/icons/icon-${size}.png`),{force:true});
   await fs.writeFile(path.join(kit,'extension/manifest.json'),JSON.stringify(manifest,null,2)+'\n');

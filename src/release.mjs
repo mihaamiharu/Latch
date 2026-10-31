@@ -49,6 +49,7 @@ export async function verifyKit(dir) {
   if(pkg.version!==descriptor.version||pkg.dependencies?.ws!=='8.22.0')throw fault('RELEASE_VERSION_INVALID','Package and release contract differ.');
   if(requiresSupportContract(pkg.version)&&(manifest.minimum_chrome_version!==SUPPORT.minimumChrome||pkg.engines?.node!==SUPPORT.node.slice(1)))throw fault('RELEASE_SUPPORT_INVALID','Chrome/Node prerequisites differ from the release contract.');
   if(requiresSupportContract(pkg.version))await fs.access(path.join(dir,'SUPPORT.md'));
+  if(pkg.version!=='0.1.2'&&!/^0\.2\.0-rc\.[1-5]$/.test(pkg.version))for(const file of ['PRIVACY.md','THIRD_PARTY_NOTICES.md'])await fs.access(path.join(dir,file));
   const assets=[manifest.background?.service_worker,manifest.action?.default_popup,...Object.values(manifest.icons||{}),...Object.values(manifest.action?.default_icon||{})];
   const asset=async name=>{if(typeof name!=='string'||!name||path.isAbsolute(name)||name.split('/').includes('..'))throw fault('RELEASE_ASSET_INVALID','Invalid extension asset path.');await fs.access(path.join(dir,'extension',name));};
   for(const name of assets)await asset(name);

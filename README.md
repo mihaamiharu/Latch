@@ -15,7 +15,9 @@ The agreed first-release scope is macOS only with the existing native bridge.
 The [macOS release execution plan](docs/MACOS-FIRST-RELEASE-PLAN.md) defines the
 remaining implementation, reporting, client acceptance and packaging gates.
 
-The source candidate is now **0.2.0-rc.5**. It adds the maintained evidence recorder,
+The source candidate is now **0.2.0-rc.6**. It pins the validated CLI and Node
+execution environment for GUI-launched native-host cleanup, and includes local
+data-handling/third-party notices. RC5 adds the maintained evidence recorder,
 offline reports/integrity checks and explicitly selected evidence exports. RC4 adds checked macOS prerequisites,
 a qualified Chrome minimum, pinned floor/current browser test lanes, verified
 native-default setup and same-client `preflight` for task/cache/bridge access.
@@ -36,7 +38,7 @@ The native preview integrates the normal CLI/helper with paired profiles and ind
 npm run build
 ```
 
-This builds `dist/latch/`, its extension ZIP, and the complete `dist/latch-0.2.0-rc.5/` kit plus kit ZIP. It validates the fixed identity, module inventory, permissions, dependency/licenses and file hashes. Build does not modify the source manifest, native registration or installed launchers. Load the built stable installation directory after setup; the source manifest remains the installed-compatibility baseline.
+This builds `dist/latch/`, its extension ZIP, and the complete `dist/latch-0.2.0-rc.6/` kit plus kit ZIP. It validates the fixed identity, module inventory, permissions, dependency/licenses and file hashes. Build does not modify the source manifest, native registration or installed launchers. Load the built stable installation directory after setup; the source manifest remains the installed-compatibility baseline.
 
 Latch 0.1.1 uses the agent-and-latch icon in 16, 32, 48 and 128px sizes. The original generated master and prompt are preserved in `assets/latch/`. The extension ID, `qa-browser` command, native host name and existing config path are preserved.
 
@@ -68,7 +70,7 @@ Follow [SETUP.md](SETUP.md) for candidate inspect/stage/activate/verify, retaine
 22.21.1 and Playwright CLI 0.1.20 without installing dependencies globally. It uses
 a versioned local runtime and a stable physical extension directory. Chrome
 enable/permission acceptance is a one-time operator step, separate from daily
-agent operation. Installed Work remains RC3; RC5 Work acceptance is pending.
+agent operation. Installed Work remains RC3; RC6 Work acceptance is pending.
 
 `node src/install.mjs prepare` now writes an **unregistered development preview**
 under `dist/setup-preview/` only. The historical `apply` command is replaced by
