@@ -8,6 +8,19 @@ This is an execution plan, not a claim that the remaining work is implemented.
 No publication, credentials, global permission changes or live Work update is
 performed by writing this plan.
 
+## Execution checkpoint — November 1, 2026
+
+Software checkpoint `76e8c54` begins RC4 without updating installed Work RC3.
+M1 compatibility contracts and M2 native setup/preflight are implemented. Candidate
+qualification uses Apple Silicon/macOS 27.0.1, Chrome floor 147.0.7727.15 and current
+lane 153.0.8010.12; older OS/Intel qualification remains outside these claims.
+
+The detailed [M1/M2 acceptance record](acceptance/macos-rc4-m1-m2-2026-11-01/README.md)
+separates committed-kit headless evidence from real-client/live-Work gates.
+M3's maintained evidence recorder/report command is the next implementation work.
+M4–M7, final artifact promotion and publication remain open. No plugin package,
+remote, public release or new Work installation is implied by this checkpoint.
+
 ## 1. Architecture and scope decisions
 
 Keep the native architecture already implemented:
