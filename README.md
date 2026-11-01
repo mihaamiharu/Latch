@@ -7,10 +7,9 @@ selected and the official extension off. The upgrade changed the extension's
 stored instance ID; an explicitly approved pairing repair restored access. The
 cause remains unproven, so identity-preserving live upgrade is **not accepted**.
 The Work fixture pilot passed normal recording/error/cleanup, a background read
-with operator-reported Personal foreground, and peer usability after observed
-lease loss. Popup Stop is unverified: its prior idle PASS was withdrawn because
-button-click causation was not confirmed. Fresh actual Codex CLI RC6 acceptance
-also remains open.
+with operator-reported Personal foreground, and a fresh operator-clicked idle
+popup Stop with peer survival. Earlier unconfirmed attempts remain unverified.
+Held-action Work Stop and fresh actual Codex CLI RC6 acceptance remain open.
 See the [Work pilot record](docs/acceptance/macos-work-rc6-2026-11-01/README.md).
 
 An earlier actual Codex CLI RC3 smoke passed under per-session Full Access;

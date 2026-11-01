@@ -22,7 +22,8 @@ values were collected; metadata preservation does not prove signed-in app reuse.
 | Normal peer B | PASS after A disconnected; both cleanup and artifact integrity confirmed |
 | Personal foreground | Work fixture B read passed; operator confirmed Personal stayed in front; no Personal content accessed; OS focus not independently measured |
 | Idle popup Stop | **Unverified; prior PASS withdrawn.** A lease was absent and B lease/read survived, but the operator says they did not stop the session; button-click causation is unconfirmed |
-| Final cleanup | Zero native leases and controller sessions; original tabs retained; all recorded cleanup/integrity checks confirmed |
+| Fresh `rc6-click-a` idle Stop | **PASS**: operator clicked Stop and reported the exact success notice; A journal retired/cleanup confirmed before terminal cleanup, B page read passed, both fixture tabs retained |
+| Final cleanup | Zero native leases/controller sessions; both fixture tabs and the remaining original tab retained. Operator confirmed closing one YouTube tab; no unexpected closure is inferred from that missing baseline entry |
 | Held-action popup Stop | **Unverified**: timed action ended and agent cleanup ran before the operator could use Stop; no control PASS claimed |
 | Actual Codex CLI RC6 | Pending; desktop-agent pilot is not a substitute |
 | Signed-in real app read | Not performed; synthetic local fixtures are insufficient proof |
@@ -36,7 +37,8 @@ UNKNOWN because no application assertion was made in that run. The independent
 host/journal/peer observations establish lease absence and peer usability, but do
 not prove that a popup button caused revocation. The prior idle Stop PASS is
 withdrawn after the operator’s correction; clarification is pending. Original raw
-reports and logs are preserved.
+reports and logs are preserved. A later fresh test with explicit button interaction
+is recorded separately below.
 
 The timed attempt returned `page.evaluate: Execution context was destroyed` after
 one fixture marker receipt. Its original error/exit and UNKNOWN overall report
@@ -46,7 +48,14 @@ focused recorder follow-up. Do not rewrite the original evidence. A stopped brow
 button caused revocation. The operator subsequently saw no sessions because
 terminal cleanup had already run. A fresh idle test was coordinated without a
 countdown, but its button-click causation is now unverified following the
-operator’s correction. Neither attempt passes the required Work popup Stop gate.
+operator’s correction. Neither earlier attempt passes the required Work popup Stop gate. The separate
+`rc6-click-a` test now passes **idle** popup Stop: the operator was explicitly
+asked to click, initially confirmed they had not yet clicked, and subsequently
+reported “Session stopped. Your tabs are still open.” Before terminal cleanup,
+A’s journal was retired with cleanup confirmed and B remained usable. The
+operator confirmed closing one unrelated YouTube tab; both fixture tabs remained
+open. The old web-tab baseline was therefore not an all-tabs preservation oracle.
+Held-action Work Stop remains unverified.
 
 A supplementary disposable **headless** regression now keeps its browser running
 through the disabled RC3 → RC6 update and explicit extension runtime reload. It
@@ -71,7 +80,7 @@ qualification. The corrected pass does not reproduce or resolve the real Work
 identity change. It does not establish human Chrome permission or headed focus.
 
 This is a **local internal checkpoint**, not final `0.2.0` acceptance. Identity
-preservation, confirmed idle/held-action Work popup Stop, fresh actual Codex CLI
+preservation, held-action Work popup Stop, fresh actual Codex CLI
 acceptance, intended
 signed-in read and exact final artifact qualification remain gates. Repository,
 public project license and hosted distribution remain deferred by the owner.

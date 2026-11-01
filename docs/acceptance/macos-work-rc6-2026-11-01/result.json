@@ -135,7 +135,7 @@
     "acceptance": "unverified",
     "priorPopupStopPassWithdrawn": true,
     "revocationCause": "unverified",
-    "operatorClarification": "Operator says they did not stop the session; whether this refers to the latest idle attempt is being clarified.",
+    "operatorClarification": "Operator explicitly confirmed they had not clicked Stop in that earlier attempt; its PASS stays withdrawn.",
     "runnerFailure": null
   },
   "heldPopupAttempt": {
@@ -298,10 +298,12 @@
   "finalCleanup": {
     "activeNativeLeases": 0,
     "controllerSessions": 0,
-    "existingTabsRetained": true
+    "bothFixtureTabsRetained": true,
+    "remainingOriginalTabsRetained": true,
+    "expectedOperatorClosedTabs": 1
   },
   "openGates": [
-    "Confirmed operator popup Stop in Work, including held-action case",
+    "Held-action popup Stop in Work; fresh idle button test now passed",
     "Recorder context-loss uncertainty classification review",
     "Live update identity preservation cause/acceptance",
     "Fresh actual Codex CLI discovery/permission/report acceptance",
@@ -314,5 +316,93 @@
     "recordedOperationOutcome": "failed",
     "overallReportOutcome": "unknown",
     "requiredReview": "Classify context-loss action outcome as unknown without rewriting the captured RC6 evidence."
+  },
+  "confirmedIdlePopupStop": {
+    "acceptance": "pass",
+    "scope": "Fresh idle popup Stop with explicit operator button interaction; earlier attempts stay unverified; held-action Work Stop remains open",
+    "operatorMessage": "Session stopped. Your tabs are still open.",
+    "operatorExpectedTabClosure": {
+      "description": "Operator confirmed closing one YouTube tab during testing",
+      "inferredFromSingleMissingBaselineTab": true
+    },
+    "aRetiredBeforeTerminalCleanup": true,
+    "aCleanupConfirmedBeforeTerminalCleanup": true,
+    "bPeerReadPassed": true,
+    "bothFixtureTabsRetained": true,
+    "remainingOriginalTabsRetained": true,
+    "reports": [
+      {
+        "session": "rc6-click-a",
+        "outcome": "unknown",
+        "cleanup": {
+          "status": "confirmed",
+          "step": "cleanup",
+          "preservedUserTabs": null
+        },
+        "integrity": {
+          "verified": true,
+          "mode": "current-files",
+          "problems": []
+        },
+        "checks": [
+          {
+            "id": "connect",
+            "status": "pass",
+            "observed": {
+              "connected": true,
+              "transport": "native",
+              "focusEmulation": true
+            }
+          },
+          {
+            "id": "cleanup",
+            "status": "pass",
+            "observed": {
+              "disconnected": true
+            }
+          }
+        ]
+      },
+      {
+        "session": "rc6-click-b",
+        "outcome": "pass",
+        "cleanup": {
+          "status": "confirmed",
+          "step": "cleanup",
+          "preservedUserTabs": true
+        },
+        "integrity": {
+          "verified": true,
+          "mode": "current-files",
+          "problems": []
+        },
+        "checks": [
+          {
+            "id": "connect",
+            "status": "pass",
+            "observed": {
+              "connected": true,
+              "transport": "native",
+              "focusEmulation": true
+            }
+          },
+          {
+            "id": "peer-after-confirmed-popup-stop",
+            "status": "pass",
+            "observed": "b"
+          },
+          {
+            "id": "cleanup",
+            "status": "pass",
+            "observed": {
+              "disconnected": true,
+              "preservedUserTabs": true
+            }
+          }
+        ]
+      }
+    ],
+    "activeNativeLeasesAfterCleanup": 0,
+    "controllerSessionsAfterCleanup": 0
   }
 }

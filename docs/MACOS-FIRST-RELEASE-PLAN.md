@@ -30,9 +30,9 @@ finding; it is not live Work acceptance. RC6 was initially staged inactive.
 The subsequent [Work pilot](acceptance/macos-work-rc6-2026-11-01/README.md) enabled
 that exact kit, but the stored instance changed and required an explicitly approved
 pairing repair. Normal recording/cleanup, operator-reported Personal foreground
-and peer usability passed. The idle popup Stop PASS was withdrawn after operator
-clarification: button-click causation is unconfirmed. Identity-preserving update,
-confirmed Work popup Stop (idle and held-action) and fresh actual Codex CLI
+and peer usability passed. A prior idle Stop claim was withdrawn; a separate
+fresh operator-clicked idle popup Stop now passed with journal/peer evidence.
+Identity-preserving update, held-action Work Stop and fresh actual Codex CLI
 acceptance remain open. M4–M7 and exact final
 artifact promotion remain open. Publication is deferred
 by the owner; local packaging and acceptance continue. No plugin package,
