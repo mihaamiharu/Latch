@@ -96,9 +96,7 @@
     "operatorObservation": "Personal stayed in front; both sessions visible"
   },
   "idlePopupStop": {
-    "operatorReported": "A stopped; tabs still open",
-    "scope": "Idle popup Stop only; held-action popup acceptance remains unverified",
-    "aLeaseRevokedBeforeDisconnect": true,
+    "scope": "Lease absence, peer usability and terminal cleanup observed; popup-button causation unverified",
     "bLeasePreservedBeforeDisconnect": true,
     "peerReadPassed": true,
     "existingTabsRetained": true,
@@ -132,7 +130,13 @@
         }
       }
     ],
-    "failure": null
+    "priorOperatorReported": "A stopped; tabs still open",
+    "observedALeaseAbsentBeforeDisconnect": true,
+    "acceptance": "unverified",
+    "priorPopupStopPassWithdrawn": true,
+    "revocationCause": "unverified",
+    "operatorClarification": "Operator says they did not stop the session; whether this refers to the latest idle attempt is being clarified.",
+    "runnerFailure": null
   },
   "heldPopupAttempt": {
     "heldExit": 1,
@@ -297,9 +301,9 @@
     "existingTabsRetained": true
   },
   "openGates": [
+    "Confirmed operator popup Stop in Work, including held-action case",
     "Recorder context-loss uncertainty classification review",
     "Live update identity preservation cause/acceptance",
-    "Held-action popup Stop in Work",
     "Fresh actual Codex CLI discovery/permission/report acceptance",
     "Intended already signed-in app read",
     "Exact final 0.2.0 package qualification"

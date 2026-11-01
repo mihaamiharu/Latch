@@ -21,7 +21,7 @@ values were collected; metadata preservation does not prove signed-in app reuse.
 | Intentional adapter error | PASS assertion; actual helper/Playwright exit 1 preserved separately |
 | Normal peer B | PASS after A disconnected; both cleanup and artifact integrity confirmed |
 | Personal foreground | Work fixture B read passed; operator confirmed Personal stayed in front; no Personal content accessed; OS focus not independently measured |
-| Idle popup Stop | Operator stopped A; its lease was absent and journal retired with cleanup confirmed before terminal cleanup; B lease/read survived |
+| Idle popup Stop | **Unverified; prior PASS withdrawn.** A lease was absent and B lease/read survived, but the operator says they did not stop the session; button-click causation is unconfirmed |
 | Final cleanup | Zero native leases and controller sessions; original tabs retained; all recorded cleanup/integrity checks confirmed |
 | Held-action popup Stop | **Unverified**: timed action ended and agent cleanup ran before the operator could use Stop; no control PASS claimed |
 | Actual Codex CLI RC6 | Pending; desktop-agent pilot is not a substitute |
@@ -33,7 +33,10 @@ metadata are included; raw private paths/context and unselected outputs remain
 local. The full A/B reports are under the private pilot's `a/work/latch/` and
 `b/work/latch/` directories. Normal A/B reports pass; the idle A report remains
 UNKNOWN because no application assertion was made in that run. The independent
-host/journal/peer observations above establish idle Stop, not an application PASS.
+host/journal/peer observations establish lease absence and peer usability, but do
+not prove that a popup button caused revocation. The prior idle Stop PASS is
+withdrawn after the operator’s correction; clarification is pending. Original raw
+reports and logs are preserved.
 
 The timed attempt returned `page.evaluate: Execution context was destroyed` after
 one fixture marker receipt. Its original error/exit and UNKNOWN overall report
@@ -42,8 +45,8 @@ overall report is UNKNOWN; context-loss uncertainty classification needs a
 focused recorder follow-up. Do not rewrite the original evidence. A stopped browser call alone does not establish that the popup
 button caused revocation. The operator subsequently saw no sessions because
 terminal cleanup had already run. A fresh idle test was coordinated without a
-countdown and provided the separate Stop evidence; it does not replace the
-required held-action Work check.
+countdown, but its button-click causation is now unverified following the
+operator’s correction. Neither attempt passes the required Work popup Stop gate.
 
 A supplementary disposable **headless** regression now keeps its browser running
 through the disabled RC3 → RC6 update and explicit extension runtime reload. It
@@ -68,6 +71,7 @@ qualification. The corrected pass does not reproduce or resolve the real Work
 identity change. It does not establish human Chrome permission or headed focus.
 
 This is a **local internal checkpoint**, not final `0.2.0` acceptance. Identity
-preservation, held-action Work Stop, fresh actual Codex CLI acceptance, intended
+preservation, confirmed idle/held-action Work popup Stop, fresh actual Codex CLI
+acceptance, intended
 signed-in read and exact final artifact qualification remain gates. Repository,
 public project license and hosted distribution remain deferred by the owner.
