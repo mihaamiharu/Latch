@@ -1,3 +1,4 @@
+import {CANDIDATE_VERSION} from './helpers/candidate.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import path from 'node:path';import crypto from 'node:crypto';import os from 'node:os';import {execFile} from 'node:child_process';import {promisify} from 'node:util';
 import {ROOT,HOST_NAME,EXTENSION_ID} from '../src/release.mjs';import {build} from '../src/build.mjs';import {inspectSetup,stageSetup,activateSetup,rollbackSetup,setupSkills,uninstallSetup,configureNativeSetup} from '../src/setup.mjs';
 const exec=promisify(execFile);
@@ -7,8 +8,8 @@ async function fixture(t){
 }
 test('setup stages without registration, activates idempotently, installs stable managed links and preserves data on uninstall',async t=>{
  const f=await fixture(t),o=f.options,before=await fs.readFile(process.env.QA_BROWSER_CONFIG,'utf8');const plan=await inspectSetup(o);const staged=await stageSetup(o);assert.equal(staged.planToken,plan.planToken);await assert.rejects(fs.stat(plan.paths.registration),{code:'ENOENT'});
- await assert.rejects(activateSetup({...o,expect:'bad'}),{code:'SETUP_PLAN_CHANGED'});const active=await activateSetup({...o,expect:plan.planToken});assert.equal(active.activated,true);assert.equal(active.verified,false);assert.equal(JSON.parse((await exec(active.cli,['version'])).stdout).version,'0.2.0-rc.6');
- await setupSkills(o);await setupSkills(o);const link=path.join(o.userRoot,'.agents/skills/latch');assert.equal(await fs.readlink(link),path.join(o.root,'current/skills/latch'));const cwd=path.join(f.dir,'task with spaces');await fs.mkdir(cwd);const result=await exec(process.execPath,[path.join(link,'scripts/latch.mjs'),'version'],{cwd});assert.equal(JSON.parse(result.stdout).version,'0.2.0-rc.6');
+ await assert.rejects(activateSetup({...o,expect:'bad'}),{code:'SETUP_PLAN_CHANGED'});const active=await activateSetup({...o,expect:plan.planToken});assert.equal(active.activated,true);assert.equal(active.verified,false);assert.equal(JSON.parse((await exec(active.cli,['version'])).stdout).version,CANDIDATE_VERSION);
+ await setupSkills(o);await setupSkills(o);const link=path.join(o.userRoot,'.agents/skills/latch');assert.equal(await fs.readlink(link),path.join(o.root,'current/skills/latch'));const cwd=path.join(f.dir,'task with spaces');await fs.mkdir(cwd);const result=await exec(process.execPath,[path.join(link,'scripts/latch.mjs'),'version'],{cwd});assert.equal(JSON.parse(result.stdout).version,CANDIDATE_VERSION);
  const again=await inspectSetup(o);await activateSetup({...o,expect:again.planToken});assert.equal(await fs.readFile(process.env.QA_BROWSER_CONFIG,'utf8'),before);const marker=path.join(o.root,'evidence.txt');await fs.writeFile(marker,'keep');await uninstallSetup(o);assert.equal(await fs.readFile(marker,'utf8'),'keep');assert.equal(await fs.readFile(process.env.QA_BROWSER_CONFIG,'utf8'),before);await assert.rejects(fs.lstat(link),{code:'ENOENT'});
 });
 test('foreign registration, skill collisions, missing maintenance and old installer gates remain untouched',async t=>{
@@ -64,7 +65,7 @@ test('managed CLI pins its validated executable and Node for minimal PATH, rejec
  const preflight=JSON.parse((await exec(cli,['preflight','--workspace',dir,'--session','task'],{cwd:dir,env})).stdout);assert.equal(preflight.checks.find(c=>c.id==='playwright-cli').status,'pass');
  const invoked=(await fs.readFile(calls,'utf8')).trim().split('\n').map(JSON.parse);assert.equal(invoked.at(-1).node,plan.paths.node);assert.equal(invoked.at(-1).version,'v22.21.1');await assert.rejects(fs.stat(otherCalls),{code:'ENOENT'});
  await fs.unlink(selected);const missing=JSON.parse((await exec(cli,['preflight','--workspace',dir,'--session','task'],{cwd:dir,env})).stdout);assert.equal(missing.checks.find(c=>c.id==='playwright-cli').error.code,'CLI_UNAVAILABLE');await assert.rejects(fs.stat(otherCalls),{code:'ENOENT'});
- assert.equal(JSON.parse((await exec(cli,['version'],{env})).stdout).version,'0.2.0-rc.6');assert.deepEqual(await fs.readFile(plan.paths.receipt),before);assert.deepEqual(await fs.readFile(process.env.QA_BROWSER_CONFIG),config);
+ assert.equal(JSON.parse((await exec(cli,['version'],{env})).stdout).version,CANDIDATE_VERSION);assert.deepEqual(await fs.readFile(plan.paths.receipt),before);assert.deepEqual(await fs.readFile(process.env.QA_BROWSER_CONFIG),config);
  await assert.rejects(stageSetup(o),{code:'SETUP_EXECUTABLE_UNAVAILABLE'});
 });
 test('an unowned receipt cannot supply an executable during inspection',async t=>{

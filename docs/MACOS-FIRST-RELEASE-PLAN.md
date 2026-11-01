@@ -31,6 +31,13 @@ RC3. M4–M7 and exact final artifact promotion remain open. Publication is defe
 by the owner; local packaging and acceptance continue. No plugin package,
 remote, public release or new Work installation is implied by this checkpoint.
 
+The [local qualification procedure](LOCAL-QUALIFICATION.md) provides the release
+lane while the repository decision is deferred. Install/recovery tests select
+the versioned kit from committed source, so final promotion cannot silently keep
+testing a retained RC6 directory. This harness preparation is not final-package
+acceptance. The [operator/client handoff](MACOS-LOCAL-RELEASE-HANDOFF.md) retains
+the exact staged RC6 artifact and required live gates.
+
 ## 1. Architecture and scope decisions
 
 Keep the native architecture already implemented:
