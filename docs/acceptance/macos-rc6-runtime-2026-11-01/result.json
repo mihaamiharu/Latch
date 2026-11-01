@@ -1,0 +1,296 @@
+{
+  "schema": 1,
+  "date": "2026-11-01",
+  "release": "0.2.0-rc.6",
+  "softwareRevision": "1dd3eb294d4b216b32b0aa175a21690c07b0061e",
+  "scope": "Exact RC6 packaged headless qualification; not actual coding-client or live Work acceptance",
+  "tests": {
+    "rc6-clean-default.tap": {
+      "tests": 155,
+      "pass": 111,
+      "fail": 0,
+      "skipped": 44,
+      "cancelled": 0,
+      "sha256": "b67851a00cc338a7dd2499cea1816240e877722ddeccdfcf56693cc5308c55b6"
+    },
+    "rc6-clean-installed.tap": {
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "sha256": "1a7e04498afebd0a12bed09c7c780f3125fcaacc54090ee157a08cd1e67a9015"
+    },
+    "rc6-clean-floor.tap": {
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "sha256": "d45b4dea6331b0bc244538c27f2b626f63b6ce75f3309c94d31af6a466abf032"
+    },
+    "rc6-clean-compatibility.tap": {
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "sha256": "04891d4936e064ad48058aa247fb2559e4a49771759807f9a330751d0322ea99"
+    },
+    "rc6-clean-native-update.tap": {
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "sha256": "f05c359dbcdc4d86f3f265ccafbbb2271a9655b406a42c7058737e628f973701"
+    }
+  },
+  "countsNote": "111 default passes plus ten optional headless executions across two browser lanes. Clean install repeats across lanes; development reruns excluded. The new native-update case is not registered in the frozen software checkout default suite.",
+  "kit": {
+    "files": 82,
+    "descriptorSHA256": "1e022c2963012b2082eb18b35ca558cd2051e3df42e07463ff4988c1bc8ebe01",
+    "archives": [
+      {
+        "file": "latch-0.2.0-rc.6-kit.zip",
+        "sha256": "b8f977dbae34ad6fbc4c013c58d1165645de11aad6709b6725c89b3052f11d75"
+      },
+      {
+        "file": "latch-0.2.0-rc.6.zip",
+        "sha256": "d1a0ee4eaca0113d50ab6e29231f331141333d44a001a4997aeff5bae7a42366"
+      }
+    ]
+  },
+  "qualification": {
+    "installedRuntime": {
+      "headless": true,
+      "versions": {
+        "node": "v22.21.1",
+        "playwrightCLI": "0.1.20",
+        "chrome": "Google Chrome for Testing 153.0.8010.12"
+      },
+      "launchArgs": [
+        "--headless=new",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--use-mock-keychain",
+        "--password-store=basic",
+        "--silent-debugger-extension-api",
+        "--extensions-on-extension-urls"
+      ],
+      "browserPATH": "/usr/bin:/bin",
+      "ambientCLIOverrideAbsent": true,
+      "cliAndNodePinned": true,
+      "installedArtifactUnmodified": true,
+      "normalDisconnect": true,
+      "popupStopCleanupConfirmed": true,
+      "peerPreservedUntilHostFault": true,
+      "hostSIGKILL": true,
+      "exactReconciliation": true,
+      "unknownOutcomesPreserved": true,
+      "fixtureAuthRetained": true,
+      "tabsPreserved": true,
+      "mutationReceipts": {
+        "stop": 1,
+        "recovery": 1
+      },
+      "pairingUnchanged": true,
+      "humanPermissionAcceptanceUnverified": true
+    },
+    "cleanInstall": {
+      "headless": true,
+      "versions": {
+        "node": "v22.21.1",
+        "playwrightCLI": "0.1.20",
+        "chrome": "Google Chrome for Testing 153.0.8010.12"
+      },
+      "launchArgs": [
+        "--headless=new",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--use-mock-keychain",
+        "--password-store=basic"
+      ],
+      "upgrade": false,
+      "artifactManifestUnmodified": true,
+      "hostAndCLIFromInstalledKit": true,
+      "sourceCheckoutNotRuntime": true,
+      "stableInstance": true,
+      "actualLegacyRollback": false,
+      "profileDefaultNativeWithoutFlag": true,
+      "existingNativeSessionAfterOfficialDefault": true,
+      "reloadMechanism": "extension disabled, private browser stopped, physical files replaced, private browser restarted, extension disabled/reenabled",
+      "humanPermissionAcceptanceUnverified": true,
+      "pairingPreserved": true,
+      "fixtureAuthenticationStatePreserved": false,
+      "physicalTabRetentionAcrossRestartUnverified": true,
+      "officialExtensionPresent": false,
+      "minimalBrowserPATH": true,
+      "ambientCLIOverrideAbsent": true,
+      "verified": true
+    },
+    "legacyUpdate": {
+      "headless": true,
+      "versions": {
+        "node": "v22.21.1",
+        "playwrightCLI": "0.1.20",
+        "chrome": "Google Chrome for Testing 153.0.8010.12",
+        "officialExtension": "0.4.0"
+      },
+      "launchArgs": [
+        "--headless=new",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--use-mock-keychain",
+        "--password-store=basic"
+      ],
+      "upgrade": true,
+      "artifactManifestUnmodified": true,
+      "hostAndCLIFromInstalledKit": true,
+      "sourceCheckoutNotRuntime": true,
+      "stableInstance": true,
+      "actualLegacyRollback": true,
+      "profileDefaultNativeWithoutFlag": false,
+      "existingNativeSessionAfterOfficialDefault": false,
+      "reloadMechanism": "extension disabled, private browser stopped, physical files replaced, private browser restarted, extension disabled/reenabled",
+      "humanPermissionAcceptanceUnverified": true,
+      "pairingPreserved": true,
+      "fixtureAuthenticationStatePreserved": true,
+      "physicalTabRetentionAcrossRestartUnverified": true,
+      "officialExtensionPresent": true,
+      "minimalBrowserPATH": true,
+      "ambientCLIOverrideAbsent": true,
+      "verified": true
+    },
+    "floorRecorder": {
+      "headless": true,
+      "versions": {
+        "node": "v22.21.1",
+        "playwrightCLI": "0.1.20",
+        "chrome": "Google Chrome for Testing 147.0.7727.15"
+      },
+      "launchArgs": [
+        "--headless=new",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--use-mock-keychain",
+        "--password-store=basic"
+      ],
+      "officialExtensionPresent": false,
+      "twoTaskIsolation": true,
+      "beforeAfterImages": true,
+      "mutationReceipts": 1,
+      "actualErrorExit": 1,
+      "upstreamErrorExit": 1,
+      "expectedErrorAssertion": "pass",
+      "normalOutcome": "pass",
+      "assertionFailureOutcome": "fail",
+      "offlineReportAndSelectiveExport": true,
+      "cleanupConfirmed": true,
+      "tabsPreserved": true
+    },
+    "floorInstall": {
+      "headless": true,
+      "versions": {
+        "node": "v22.21.1",
+        "playwrightCLI": "0.1.20",
+        "chrome": "Google Chrome for Testing 147.0.7727.15"
+      },
+      "launchArgs": [
+        "--headless=new",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--use-mock-keychain",
+        "--password-store=basic"
+      ],
+      "upgrade": false,
+      "artifactManifestUnmodified": true,
+      "hostAndCLIFromInstalledKit": true,
+      "sourceCheckoutNotRuntime": true,
+      "stableInstance": true,
+      "actualLegacyRollback": false,
+      "profileDefaultNativeWithoutFlag": true,
+      "existingNativeSessionAfterOfficialDefault": true,
+      "reloadMechanism": "extension disabled, private browser stopped, physical files replaced, private browser restarted, extension disabled/reenabled",
+      "humanPermissionAcceptanceUnverified": true,
+      "pairingPreserved": true,
+      "fixtureAuthenticationStatePreserved": false,
+      "physicalTabRetentionAcrossRestartUnverified": true,
+      "officialExtensionPresent": false,
+      "minimalBrowserPATH": true,
+      "ambientCLIOverrideAbsent": true,
+      "verified": true
+    },
+    "nativeUpdate": {
+      "headless": true,
+      "versions": {
+        "node": "v22.21.1",
+        "playwrightCLI": "0.1.20",
+        "chrome": "Google Chrome for Testing 153.0.8010.12"
+      },
+      "launchArgs": [
+        "--headless=new",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--use-mock-keychain",
+        "--password-store=basic"
+      ],
+      "baseline": "0.2.0-rc.3",
+      "candidate": "0.2.0-rc.6",
+      "candidateDescriptorSHA256": "1e022c2963012b2082eb18b35ca558cd2051e3df42e07463ff4988c1bc8ebe01",
+      "nativeOnly": true,
+      "officialExtensionPresent": false,
+      "baselineEnvironment": "terminal PATH",
+      "candidateAndRollbackPATH": "/usr/bin:/bin",
+      "update": true,
+      "rollback": true,
+      "reactivation": true,
+      "stableInstance": true,
+      "configurationUnchanged": true,
+      "syntheticAuthRetained": true,
+      "physicalTabRetentionAcrossRestartsUnverified": true,
+      "humanPermissionAcceptanceUnverified": true
+    }
+  },
+  "compatibilityCases": [
+    "native large evidence integrity",
+    "native uploads/download receipt",
+    "native frames/workers",
+    "native popup workflow"
+  ],
+  "finding": {
+    "id": "M2-M5-GUI-CLI-PATH",
+    "status": "closed in controlled packaged fixtures",
+    "change": "Owned receipt pins validated CLI entrypoint and Node execution environment; no global PATH/security changes.",
+    "boundary": "No claim of prior failure or new acceptance in live Work."
+  },
+  "harness": {
+    "nativeUpdateTestSHA256": "9d5c25c512470a5696ce17f8fea0f3e8535df75460a44eaf94a98e39e4acf770",
+    "attachmentFixtureSHA256": "d28f277203485cf22dfbee433ac58dff0fff6ad40f609ae7c0ec282722d82c0d",
+    "note": "Additional update harness runs outside the frozen candidate and selects its exact descriptor; candidate payload is unmodified."
+  },
+  "installedWork": {
+    "activeRelease": "0.2.0-rc.3",
+    "rc6StagedInactive": true,
+    "activationPerformed": false,
+    "historicalInterruptedRecord": "gherkin-msg-v2 preserved; prior application outcome unknown"
+  },
+  "ownerDecisions": {
+    "delivery": "local internal",
+    "publicProjectLicense": "not selected",
+    "repository": "deferred",
+    "pushOrUploadAuthorized": false
+  },
+  "openGates": [
+    "M4 actual Codex discovery/context/permissions/report workflow",
+    "M5 operator-assisted Work, Personal-foreground and intended signed-in read acceptance",
+    "M6 final local delivery procedure and support claims",
+    "M7 committed exact 0.2.0 build/install/native evidence/cleanup/update/rollback"
+  ]
+}

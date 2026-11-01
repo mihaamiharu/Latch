@@ -77,7 +77,8 @@ keeps profile/website data under its own lifecycle.
 
 ## Publication and support
 
-Public distribution, project license and support/contact destinations require
-owner selection before final promotion. No remote publishing or account
+The owner selected local internal delivery, with no public project license yet.
+Repository setup, public distribution and public support/contact URLs are deferred
+until separately chosen and authorized. No remote publishing or account
 provisioning is performed by installing this local candidate. See `SUPPORT.md` in
 the kit for the tested matrix and current acceptance limitations.

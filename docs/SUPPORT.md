@@ -37,9 +37,10 @@ mode, not proof of restricted-sandbox acceptance.
 
 Excluded from this candidate's claims: Windows/Linux, Intel, remote/cloud agents,
 managed browser-download retrieval, already-running worker backfill, arbitrary
-JavaScript isolation and client marketplace/plugin distribution. Release kit,
-second-user acceptance, owner license/distribution decisions and exact final
-artifact promotion remain gates in the macOS release plan.
+JavaScript isolation and client marketplace/plugin distribution. The owner selected local internal delivery with no public project license yet;
+repository setup and hosted publication are deferred. Actual client/live Work
+acceptance and exact final artifact promotion remain gates in the macOS release
+plan. A second Mac/account is not qualified by disposable profiles on this Mac.
 
 The native relay reports a synthetic `Browser.getVersion` identity. Do not use
 `browser.version()` as proof of the real Chrome build; record a separately observed

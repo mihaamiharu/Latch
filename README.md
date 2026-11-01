@@ -11,7 +11,10 @@ unverified. Unconfigured profiles still use the legacy official default.
 See the [portable acceptance evidence](docs/acceptance/codex-native-rc3-2026-10-30/README.md)
 and [release/agent/artifact review](docs/RELEASE-READINESS-2026-10-30.md).
 
-The agreed first-release scope is macOS only with the existing native bridge.
+The agreed first-release scope is **local and internal**, macOS only, with the
+existing native bridge. The repository decision is deferred; no remote, push or
+upload is authorized. No public project license has been selected. Third-party
+notices retain their own terms.
 The [macOS release execution plan](docs/MACOS-FIRST-RELEASE-PLAN.md) defines the
 remaining implementation, reporting, client acceptance and packaging gates.
 

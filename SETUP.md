@@ -46,8 +46,10 @@ Inspect a repaired path with `--playwright-cli` and use the normal drained/unloa
 activation procedure; do not replace receipts or clear recovery state manually.
 
 The kit includes [data handling](PRIVACY.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
-Project license and public support/distribution destinations remain owner decisions
-before final release promotion.
+The owner selected local internal delivery and no public project license yet.
+Repository setup, uploads and public support/distribution URLs are deferred. This
+kit does not grant a public project license; third-party notices retain their own
+terms. These choices do not replace the remaining local acceptance gates.
 
 A pre-receipt 0.1.2 registration requires both `--legacy-root` (the original checkout
 with its exact `install/preview.json` and native manifest) and `--rollback-kit`

@@ -208,8 +208,8 @@ export async function attachmentFixture(t, app, transport) {
   const args=[...HEADLESS_ARGS,`--user-data-dir=${profile}`,'--profile-directory=Default','--no-first-run','--no-default-browser-check',
     '--use-mock-keychain','--password-store=basic','--disable-background-networking','--enable-logging=stderr',
     `--disable-extensions-except=${extensions.join(',')}`,`--load-extension=${extensions.join(',')}`,...(app.launchArgs||[]),...popupFlags,'about:blank'];
-  const browserEnv=app.installed?{...env,...(app.minimalHostPath?{PATH:'/usr/bin:/bin',QA_BROWSER_PLAYWRIGHT_CLI:undefined}:{})}:process.env;
-  const log=await fs.open(path.join(temp,'chrome.stderr.log'),'w');browser=spawn(chrome,args,{env:browserEnv,stdio:['ignore','ignore',log.fd]});await log.close();
+  const browserEnv=()=>app.installed?{...env,...(app.minimalHostPath?{PATH:'/usr/bin:/bin',QA_BROWSER_PLAYWRIGHT_CLI:undefined}:{})}:process.env;
+  const log=await fs.open(path.join(temp,'chrome.stderr.log'),'w');browser=spawn(chrome,args,{env:browserEnv(),stdio:['ignore','ignore',log.fd]});await log.close();
   console.log(`${transport} comparison: ${temp}`);
   identity=await eventually(async()=> (await latch(0,['discover'])).profiles[0],20000);
   await latch(0,['pair','--profile','work','--instance',identity.instanceId,'--chrome-profile-dir','Default']);
@@ -222,7 +222,7 @@ export async function attachmentFixture(t, app, transport) {
     suspendHost:async()=>{if(await fs.readFile(hostFile,'utf8')!==registration)throw new Error('Fixture registration changed');await fs.rename(hostFile,hostFile+'.paused')},
     restoreHost:async()=>{if(await fs.readFile(hostFile+'.paused','utf8')!==registration)throw new Error('Fixture registration changed');await fs.rename(hostFile+'.paused',hostFile)},
     stop:async()=>stopBrowser(browser),
-    restartBrowser:async()=>{await stopBrowser(browser);browser=spawn(chrome,args,{env:browserEnv,stdio:['ignore','ignore','ignore']});return browser.pid},
+    restartBrowser:async()=>{await stopBrowser(browser);browser=spawn(chrome,args,{env:browserEnv(),stdio:['ignore','ignore','ignore']});return browser.pid},
     connect:async(index,tabId,{background=false}={})=>latch(index,['connect','--profile','work','--transport',transport,
       ...(background&&transport==='native'?['--focus-emulation','on']:[]),'--session','agent','--tab',String(tabId)]),
     states:()=>[...app.states.values()].filter(state=>state.actor.startsWith(run))};

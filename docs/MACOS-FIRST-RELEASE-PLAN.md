@@ -2,8 +2,10 @@
 
 Prepared October 30, 2026 (Asia/Jakarta), after checkpoint `dc2535e`.
 
-**Target:** Latch `0.2.0`, macOS only, delivered first to a small beta cohort and
-then released with an explicit support matrix. Windows and Linux follow later.
+**Target:** Latch `0.2.0`, macOS only, prepared first as a local internal release
+with an explicit support matrix. The owner deferred the repository decision; no
+remote, push, GitHub release or upload is authorized. No public project license
+has been selected. Windows and Linux follow later.
 This is an execution plan, not a claim that the remaining work is implemented.
 No publication, credentials, global permission changes or live Work update is
 performed by writing this plan.
@@ -20,10 +22,13 @@ separates committed-kit headless evidence from real-client/live-Work gates.
 RC5 software `fc682a2` implements M3's maintained recorder, reports and selected
 exports. Its [M3 acceptance record](acceptance/macos-rc5-m3-2026-11-01/README.md)
 contains clean-checkout, packaged, interruption and popup Stop evidence.
-A controlled minimal-PATH probe found a remaining host CLI lookup dependency;
-pin the validated CLI/runtime environment and test GUI-like host execution before
-the live pilot. Then continue M4 client acceptance and M5/M6 release gates.
-M4–M7, final artifact promotion and publication remain open. No plugin package,
+RC6 software `1dd3eb2` pins the validated CLI and Node environment in owned setup.
+Its [qualification record](acceptance/macos-rc6-runtime-2026-11-01/README.md) covers
+minimal-PATH installed cleanup, popup Stop, host recovery, floor/current browser
+lanes and retained native update/rollback. This closes the controlled CLI lookup
+finding; it is not live Work acceptance. RC6 is staged inactive and Work remains
+RC3. M4–M7 and exact final artifact promotion remain open. Publication is deferred
+by the owner; local packaging and acceptance continue. No plugin package,
 remote, public release or new Work installation is implied by this checkpoint.
 
 ## 1. Architecture and scope decisions
@@ -144,13 +149,16 @@ kit. Native contract/schema changes, if any, are separately versioned and tested
 extension. Same-context preflight explains denied access correctly, no forbidden
 fallback occurs, and update/uninstall/rollback preserve unrelated configuration.
 
-**Open M2/M5 follow-up (November 1):** a version-only probe finds CLI 0.1.20
+**M2/M5 finding and closure (November 1):** a version-only probe finds CLI 0.1.20
 under the terminal PATH and `CLI_UNAVAILABLE` under `/usr/bin:/bin`. Setup captures
 Node's executable but host-side detach still resolves Playwright CLI from PATH.
 Pin the validated CLI executable and its Node execution environment in owned
 runtime setup; verify normal disconnect, popup Stop and recovery under a minimal
 host PATH. Preserve pairing, unrelated settings and retained rollback payloads.
-This is controlled probe evidence, not an observed failure in the live Work GUI.
+RC6 implements this pin and passes the installed minimal-PATH cleanup/recovery
+and retained native update/rollback checks in its qualification record. The
+original finding was controlled probe evidence, not an observed failure in the
+live Work GUI. Live Work remains a separate gate.
 
 ### M3 — Maintained evidence runner and human/agent reports
 
@@ -287,10 +295,13 @@ or cleanup ambiguity from the release acceptance run is concealed.
 **Primary areas:** build/release/installer scripts, selected CI workflow,
 README/SETUP, release notes, license/privacy/support documentation.
 
-1. Choose the release repository/home and visibility; add a remote only when the
-   owner supplies/authorizes it. Keep publication credentials out of source and
+1. Owner decision: keep the first delivery local and internal; repository/home
+   and hosted CI are deferred. Add a remote only when the owner later supplies
+   and authorizes it. Keep publication credentials out of source and
    release kits. Existing no-push direction remains in force until changed.
-2. Choose the project's license and support/privacy URLs. Retain upstream licenses
+2. Owner decision: no public project license yet. State internal status without
+   inventing a public license grant; public support/privacy URLs are deferred.
+   Local PRIVACY/SUPPORT documents accompany the kit. Retain upstream licenses
    and document local artifact retention, browser access, actual telemetry/egress
    behavior and the coding agent/provider's data handling. A local Latch bridge
    does not imply that content viewed by a cloud-backed agent stays on the Mac.
@@ -298,7 +309,8 @@ README/SETUP, release notes, license/privacy/support documentation.
    descriptor from a committed clean checkout. Include required project notices
    and skill/report resources; exclude user profiles, raw private acceptance data,
    local credentials and development-only files.
-4. CI uses disposable macOS users/profiles/registrations and pinned prerequisites,
+4. Local qualification (and future CI) uses disposable macOS profiles/registrations
+   and pinned prerequisites,
    selected headless checks, clean-checkout builds and package verification. Publish
    no raw signed-in browser evidence as CI artifacts. Record opt-in skips honestly.
 5. Native host name, extension ID/key, installed `allowed_origins` and selected
@@ -313,9 +325,11 @@ README/SETUP, release notes, license/privacy/support documentation.
    notarization and its update strategy for that format. A plugin/store extension
    does not replace installing the local host.
 
-**Gate M6:** a new supported user can follow the exact published procedure without
+**Gate M6:** a new supported internal user can follow the exact local-kit procedure without
 the maintainer's checkout or private machine paths; identity/integrity and rollback
-are verified. Release metadata and required owner decisions contain no placeholders.
+are verified. Local-release metadata and required owner decisions contain no placeholders.
+Hosted CI, repository setup and public license/URLs are deferred by the owner,
+not represented as completed publication work.
 
 ### M7 — Exact artifact promotion and first-release sign-off
 
@@ -358,9 +372,9 @@ Do not rebuild the current RC3 identity to pick up source documentation changes.
 
 | Decision | Default proposal | When needed |
 | --- | --- | --- |
-| First delivery | Complete ZIP kit + owned per-user native installer | Before beta packaging; no signing account required for the current script-kit format |
-| Public repository/release destination and visibility | Owner-supplied | Before remote setup / CI publication |
-| Project license and support/privacy URLs | Owner chooses | Before public bundle/listing |
+| First delivery | **Local internal** complete ZIP kit + owned per-user native installer | Before beta packaging; no signing account required for the current script-kit format |
+| Public repository/release destination and visibility | **Deferred by owner; keep local** | Before remote setup / CI publication |
+| Project license and support/privacy URLs | **Internal; no public license yet.** Local PRIVACY/SUPPORT docs included; public URLs deferred | Before public bundle/listing |
 | Hardware and OS minimum | Exact tested matrix; Apple Silicon first until Intel has evidence | Before beta claims |
 | Claimed agents | Codex required; add Claude/Cursor only when validated | Before release notes |
 | Store/app/pkg/agent marketplaces | Deferred from core beta | Before provisioning distribution identities/credentials |
