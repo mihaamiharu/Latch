@@ -10,8 +10,10 @@ older macOS/Intel qualification is deferred. Unsupported prerequisites fail befo
 setup changes the installation or configuration.
 
 Automated browser tests use disposable headless profiles. The current operator-
-assisted Work installation is RC3 with native selected explicitly for that profile.
-Its actual Codex CLI smoke passed under per-session Full Access; other client and
+assisted Work installation now runs RC6 with native selected for that profile.
+Its live update changed the stored instance ID and needed an explicitly approved
+pairing repair; identity preservation is not accepted. An earlier actual Codex CLI
+RC3 smoke passed under per-session Full Access; fresh RC6 client and other
 permission modes remain unverified. The procedure below also serves first installs,
 whose profile/default selection must be verified explicitly. See the current
 release-readiness review in the source repository. The frozen installed RC3 kit

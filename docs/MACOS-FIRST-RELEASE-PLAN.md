@@ -26,8 +26,13 @@ RC6 software `1dd3eb2` pins the validated CLI and Node environment in owned setu
 Its [qualification record](acceptance/macos-rc6-runtime-2026-11-01/README.md) covers
 minimal-PATH installed cleanup, popup Stop, host recovery, floor/current browser
 lanes and retained native update/rollback. This closes the controlled CLI lookup
-finding; it is not live Work acceptance. RC6 is staged inactive and Work remains
-RC3. M4–M7 and exact final artifact promotion remain open. Publication is deferred
+finding; it is not live Work acceptance. RC6 was initially staged inactive.
+The subsequent [Work pilot](acceptance/macos-work-rc6-2026-11-01/README.md) enabled
+that exact kit, but the stored instance changed and required an explicitly approved
+pairing repair. Normal recording/cleanup, operator-reported Personal foreground
+and idle popup Stop/peer survival passed; identity-preserving update, held-action
+Stop and fresh actual Codex CLI acceptance remain open. M4–M7 and exact final
+artifact promotion remain open. Publication is deferred
 by the owner; local packaging and acceptance continue. No plugin package,
 remote, public release or new Work installation is implied by this checkpoint.
 

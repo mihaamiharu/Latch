@@ -2,14 +2,20 @@
 
 A macOS Chrome companion extension and local CLI for connecting existing Work-profile tabs to Playwright CLI. Run `npm ci` after cloning/updating this source branch: the native host now depends on the pinned `ws` transport library.
 
-**Status (October 30, 2026):** RC3 is installed and healthy in Work; that profile's
-default is native and the official Playwright extension is off. An actual Codex
-CLI smoke passed connect, evidence, navigation, error normalization and cleanup
-with focus emulation on. Its recorded execution policy was per-session Full
-Access; restricted workspace-write, Claude Code and Cursor CLI workflows remain
-unverified. Unconfigured profiles still use the legacy official default.
-See the [portable acceptance evidence](docs/acceptance/codex-native-rc3-2026-10-30/README.md)
-and [release/agent/artifact review](docs/RELEASE-READINESS-2026-10-30.md).
+**Status (November 1, 2026):** RC6 is installed and verified in Work, with native
+selected and the official extension off. The upgrade changed the extension's
+stored instance ID; an explicitly approved pairing repair restored access. The
+cause remains unproven, so identity-preserving live upgrade is **not accepted**.
+The Work fixture pilot passed normal recording/error/cleanup, a background read
+with operator-reported Personal foreground, and idle popup Stop with peer survival.
+Held-action popup Stop and fresh actual Codex CLI RC6 acceptance remain open.
+See the [Work pilot record](docs/acceptance/macos-work-rc6-2026-11-01/README.md).
+
+An earlier actual Codex CLI RC3 smoke passed under per-session Full Access;
+restricted workspace-write, Claude Code and Cursor CLI remain unverified. Profiles
+without an explicit native preference retain the legacy official default. See the
+[RC3 acceptance](docs/acceptance/codex-native-rc3-2026-10-30/README.md) and
+[release/agent/artifact review](docs/RELEASE-READINESS-2026-10-30.md).
 
 The agreed first-release scope is **local and internal**, macOS only, with the
 existing native bridge. The repository decision is deferred; no remote, push or
@@ -29,7 +35,8 @@ warns about native focus-off interactions and adds `qa-browser pw` to normalize
 Playwright action errors.
 See [RC3 failure handling](docs/RC3-FAILURE-HANDLING.md) for the preparation record.
 The later operator-assisted update and Work-default change are recorded separately;
-the installed payload remains the frozen software checkpoint `b0891c1`.
+the installed RC6 payload is the frozen software checkpoint `1dd3eb2`; its retained
+RC3 rollback payload remains `b0891c1`.
 
 The native candidate removes that extension dependency while keeping Playwright CLI. See [the single-extension migration plan](docs/SINGLE-EXTENSION-PLAN.md) for architecture, acceptance gates and rollback. Broader release acceptance remains in progress; Work's explicit native preference does not change the default for other unconfigured profiles.
 
@@ -73,7 +80,8 @@ Follow [SETUP.md](SETUP.md) for candidate inspect/stage/activate/verify, retaine
 22.21.1 and Playwright CLI 0.1.20 without installing dependencies globally. It uses
 a versioned local runtime and a stable physical extension directory. Chrome
 enable/permission acceptance is a one-time operator step, separate from daily
-agent operation. Installed Work remains RC3; RC6 Work acceptance is pending.
+agent operation. Installed Work runs RC6 after approved pairing repair; remaining Work/client
+acceptance is recorded separately.
 
 `node src/install.mjs prepare` now writes an **unregistered development preview**
 under `dist/setup-preview/` only. The historical `apply` command is replaced by

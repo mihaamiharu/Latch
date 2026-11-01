@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "type": "selected-export",
+  "runId": "7d5bac08-79e8-4a0f-aac2-33a873102a40",
+  "releaseVersion": "0.2.0-rc.6",
+  "sourceLedgerSHA256": "16f4aad7827e5f87a365f183f61f96ab9a876ad644205fdeb0f6000bb1a69568",
+  "exportedAt": "2026-11-01T03:36:10.086Z",
+  "cleanup": {
+    "status": "confirmed",
+    "step": "cleanup",
+    "preservedUserTabs": true
+  },
+  "checks": [
+    {
+      "id": "before",
+      "kind": "capture",
+      "command": "screenshot",
+      "expected": null,
+      "status": "pass",
+      "observed": {
+        "capture": "screenshots/before.png",
+        "bytes": 18422,
+        "application": "not-asserted"
+      },
+      "operation": {
+        "outcome": "succeeded",
+        "helperExitCode": 0,
+        "helperSignal": null,
+        "assertionExitCode": 0,
+        "normalizedToolExitCode": 0,
+        "upstreamExitCode": 0,
+        "upstreamSignal": null
+      },
+      "evidence": [
+        "screenshots/before.png"
+      ],
+      "startedAt": "2026-11-01T03:33:52.334Z",
+      "finishedAt": "2026-11-01T03:33:52.785Z"
+    },
+    {
+      "id": "after",
+      "kind": "capture",
+      "command": "screenshot",
+      "expected": null,
+      "status": "pass",
+      "observed": {
+        "capture": "screenshots/after.png",
+        "bytes": 22452,
+        "application": "not-asserted"
+      },
+      "operation": {
+        "outcome": "succeeded",
+        "helperExitCode": 0,
+        "helperSignal": null,
+        "assertionExitCode": 0,
+        "normalizedToolExitCode": 0,
+        "upstreamExitCode": 0,
+        "upstreamSignal": null
+      },
+      "evidence": [
+        "screenshots/after.png"
+      ],
+      "startedAt": "2026-11-01T03:33:55.185Z",
+      "finishedAt": "2026-11-01T03:33:55.614Z"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "screenshots/before.png",
+      "type": "screenshot",
+      "bytes": 18422,
+      "sha256": "769fb112db2155e2861a5a4318713daaada8f039f0a48824235fe67c7611503e",
+      "complete": true,
+      "valid": true
+    },
+    {
+      "path": "screenshots/after.png",
+      "type": "screenshot",
+      "bytes": 22452,
+      "sha256": "c8ba3d582614ac55b4c32fb49c18aba3ab2e632ce325f85c3bd8ac0ef02a97fa",
+      "complete": true,
+      "valid": true
+    }
+  ],
+  "privacy": "Only explicitly selected artifacts and their check metadata are included. Review page content and screenshots before sharing; visual redaction is not automatic."
+}

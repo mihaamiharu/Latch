@@ -1,0 +1,314 @@
+{
+  "schema": 1,
+  "date": "2026-11-01",
+  "release": "0.2.0-rc.6",
+  "softwareRevision": "1dd3eb294d4b216b32b0aa175a21690c07b0061e",
+  "descriptorSHA256": "1e022c2963012b2082eb18b35ca558cd2051e3df42e07463ff4988c1bc8ebe01",
+  "scope": "Operator-assisted actual Work local fixtures plus separate disposable headless regression; not final release or actual Codex CLI acceptance",
+  "installation": {
+    "verifiedAfterRepair": true,
+    "extensionVersion": "0.1.99.6",
+    "nativeDefaultPreserved": true,
+    "identityPreservation": "failed",
+    "oldInstancePrefix": "e55052a6",
+    "newInstancePrefix": "e4ce81c8",
+    "repair": "Operator explicitly approved changing only profiles.work.instanceId; original configuration retained",
+    "rootCause": "unproven",
+    "originalWebTabs": 2,
+    "originalTabWindowGroupURLTitleMetadataMatched": true,
+    "officialExtension": "operator-confirmed off; not changed by agent",
+    "globalSecurityChanges": false,
+    "browserRestartByAgent": false,
+    "historicalInterruptedRecord": "gherkin-msg-v2 preserved; prior application outcome unknown"
+  },
+  "normal": {
+    "reports": [
+      {
+        "actor": "a",
+        "outcome": "pass",
+        "cleanup": {
+          "status": "confirmed",
+          "step": "cleanup",
+          "preservedUserTabs": true
+        },
+        "integrity": {
+          "verified": true,
+          "mode": "current-files",
+          "problems": []
+        }
+      },
+      {
+        "actor": "b",
+        "outcome": "pass",
+        "cleanup": {
+          "status": "confirmed",
+          "step": "cleanup",
+          "preservedUserTabs": true
+        },
+        "integrity": {
+          "verified": true,
+          "mode": "current-files",
+          "problems": []
+        }
+      }
+    ],
+    "matchingSaveReceipts": 1,
+    "expectedError": {
+      "assertion": "pass",
+      "operation": {
+        "outcome": "failed",
+        "helperExitCode": 1,
+        "helperSignal": null,
+        "assertionExitCode": 0,
+        "normalizedToolExitCode": 1,
+        "upstreamExitCode": 1,
+        "upstreamSignal": null
+      }
+    },
+    "connection": {
+      "transport": "native",
+      "focusEmulation": true,
+      "extensionVersion": "0.1.99.6",
+      "extensionRelease": "0.2.0-rc.6"
+    },
+    "peerUsableAfterADisconnect": true
+  },
+  "personalForeground": {
+    "operatorReportedPersonalForeground": true,
+    "osForegroundIndependentlyObserved": false,
+    "personalContentAccessed": false,
+    "workTarget": "local fixture B",
+    "focusEmulation": true,
+    "pageReadOnly": true,
+    "outcome": "pass",
+    "cleanup": {
+      "status": "confirmed",
+      "step": "disconnect",
+      "preservedUserTabs": true
+    },
+    "integrity": {
+      "verified": true,
+      "mode": "current-files",
+      "problems": []
+    },
+    "failure": null,
+    "operatorConfirmedStayedForeground": true,
+    "operatorObservation": "Personal stayed in front; both sessions visible"
+  },
+  "idlePopupStop": {
+    "operatorReported": "A stopped; tabs still open",
+    "scope": "Idle popup Stop only; held-action popup acceptance remains unverified",
+    "aLeaseRevokedBeforeDisconnect": true,
+    "bLeasePreservedBeforeDisconnect": true,
+    "peerReadPassed": true,
+    "existingTabsRetained": true,
+    "reports": [
+      {
+        "session": "rc6-popup-a",
+        "outcome": "unknown",
+        "cleanup": {
+          "status": "confirmed",
+          "step": "cleanup",
+          "preservedUserTabs": null
+        },
+        "integrity": {
+          "verified": true,
+          "mode": "current-files",
+          "problems": []
+        }
+      },
+      {
+        "session": "rc6-popup-b",
+        "outcome": "pass",
+        "cleanup": {
+          "status": "confirmed",
+          "step": "cleanup",
+          "preservedUserTabs": true
+        },
+        "integrity": {
+          "verified": true,
+          "mode": "current-files",
+          "problems": []
+        }
+      }
+    ],
+    "failure": null
+  },
+  "heldPopupAttempt": {
+    "heldExit": 1,
+    "peerUsable": true,
+    "markerReceipts": 1,
+    "reports": [
+      {
+        "session": "rc6-stop-a",
+        "outcome": "unknown",
+        "cleanup": {
+          "status": "confirmed",
+          "step": "cleanup",
+          "preservedUserTabs": true
+        },
+        "integrity": {
+          "verified": true,
+          "mode": "current-files",
+          "problems": []
+        },
+        "heldOperation": {
+          "outcome": "failed",
+          "helperExitCode": 1,
+          "helperSignal": null,
+          "assertionExitCode": 1,
+          "normalizedToolExitCode": 1,
+          "upstreamExitCode": 1,
+          "upstreamSignal": null
+        }
+      },
+      {
+        "session": "rc6-stop-b",
+        "outcome": "pass",
+        "cleanup": {
+          "status": "confirmed",
+          "step": "cleanup",
+          "preservedUserTabs": true
+        },
+        "integrity": {
+          "verified": true,
+          "mode": "current-files",
+          "problems": []
+        },
+        "heldOperation": null
+      }
+    ],
+    "failure": null,
+    "operatorObservationPending": true,
+    "acceptance": "unverified",
+    "reason": "Bounded action ended and agent cleaned up before operator could use Stop. Context-destroyed error retained; no popup Stop claimed."
+  },
+  "supplementalHeadless": {
+    "test": "test/native-live-update.test.mjs",
+    "testSHA256": "399e771857c6aead237e04ec524a9b0f569f50ee3a466b02446db30f49e72ace",
+    "log": "rc6-native-live-update-authorized-flags.tap",
+    "logSHA256": "d44dd89293bc603d50717142d2b2978e0b0a1d99af5b898f71d66ea4159728bf",
+    "pass": 1,
+    "fail": 0,
+    "result": {
+      "headless": true,
+      "versions": {
+        "node": "v22.21.1",
+        "playwrightCLI": "0.1.20",
+        "chrome": "Google Chrome for Testing 153.0.8010.12"
+      },
+      "launchArgs": [
+        "--headless=new",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--use-mock-keychain",
+        "--password-store=basic",
+        "--silent-debugger-extension-api",
+        "--extensions-on-extension-urls"
+      ],
+      "setupLaunchArgs": [
+        "--disable-field-trial-config",
+        "--disable-background-networking",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-back-forward-cache",
+        "--disable-breakpad",
+        "--disable-client-side-phishing-detection",
+        "--disable-component-extensions-with-background-pages",
+        "--disable-component-update",
+        "--no-default-browser-check",
+        "--disable-default-apps",
+        "--disable-dev-shm-usage",
+        "--disable-edgeupdater",
+        "--disable-extensions",
+        "--disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,BlockOriginHeaderModificationOnRedirect,Translate,AutoDeElevate,OptimizationHints,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion",
+        "--enable-features=CDPScreenshotNewSurface",
+        "--allow-pre-commit-input",
+        "--disable-hang-monitor",
+        "--disable-ipc-flooding-protection",
+        "--disable-popup-blocking",
+        "--disable-prompt-on-repost",
+        "--disable-renderer-backgrounding",
+        "--disable-updater-scheduler",
+        "--force-color-profile=srgb",
+        "--metrics-recording-only",
+        "--no-first-run",
+        "--password-store=basic",
+        "--use-mock-keychain",
+        "--no-service-autorun",
+        "--export-tagged-pdf",
+        "--disable-search-engine-choice-screen",
+        "--unsafely-disable-devtools-self-xss-warnings",
+        "--edge-skip-compat-layer-relaunch",
+        "--disable-infobars",
+        "--disable-search-engine-choice-screen",
+        "--disable-sync",
+        "--enable-unsafe-swiftshader",
+        "--headless",
+        "--hide-scrollbars",
+        "--mute-audio",
+        "--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4",
+        "--no-sandbox",
+        "--use-mock-keychain",
+        "--password-store=basic",
+        "--enable-automation",
+        "--user-data-dir=<disposable-profile>",
+        "--remote-debugging-pipe",
+        "--noerrdialogs",
+        "--flag-switches-begin",
+        "--flag-switches-end",
+        "--enable-unsafe-swiftshader",
+        "about:blank"
+      ],
+      "testProfileDeveloperMode": true,
+      "browserRestarted": false,
+      "browserPIDUnchanged": true,
+      "baselineRelease": "0.2.0-rc.3",
+      "candidateRelease": "0.2.0-rc.6",
+      "candidateDescriptorSHA256": "1e022c2963012b2082eb18b35ca558cd2051e3df42e07463ff4988c1bc8ebe01",
+      "observedRelease": "0.2.0-rc.6",
+      "extensionVersionAfterEnable": "0.1.99.3",
+      "extensionVersionAfterExplicitReload": "0.1.99.6",
+      "enabledManifestVersion": "0.1.99.3",
+      "settledManifestVersion": "0.1.99.6",
+      "explicitRuntimeReload": true,
+      "identityPreserved": true,
+      "configurationUnchanged": true,
+      "officialExtensionPresent": false,
+      "humanPermissionAcceptanceUnverified": true,
+      "tabsAndGroupsPreserved": true,
+      "unsavedInputAndHeapPreserved": true,
+      "syntheticAuthenticationPreserved": true,
+      "cleanupConfirmed": true
+    },
+    "limitation": "Not a reproduction or resolution of the Work identity change. Earlier version-only probe did not validate the loaded extension manifest. Failed reload/setup development logs retained."
+  },
+  "client": {
+    "operatorPilot": "Current desktop agent; version unverified; context agent-supplied",
+    "actualCodexCLIRC6": "pending",
+    "ClaudeCode": "unverified",
+    "CursorCLI": "unverified",
+    "restrictedSandboxAcceptance": "unverified"
+  },
+  "finalCleanup": {
+    "activeNativeLeases": 0,
+    "controllerSessions": 0,
+    "existingTabsRetained": true
+  },
+  "openGates": [
+    "Recorder context-loss uncertainty classification review",
+    "Live update identity preservation cause/acceptance",
+    "Held-action popup Stop in Work",
+    "Fresh actual Codex CLI discovery/permission/report acceptance",
+    "Intended already signed-in app read",
+    "Exact final 0.2.0 package qualification"
+  ],
+  "delivery": "local internal; no public project license; repository/push/upload deferred",
+  "recorderFollowUp": {
+    "observedError": "page.evaluate: Execution context was destroyed",
+    "recordedOperationOutcome": "failed",
+    "overallReportOutcome": "unknown",
+    "requiredReview": "Classify context-loss action outcome as unknown without rewriting the captured RC6 evidence."
+  }
+}

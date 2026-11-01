@@ -1,7 +1,10 @@
 # macOS candidate support matrix
 
-This is the RC4 compatibility baseline used by the RC6 development candidate. RC3 remains installed in Work; source changes
-do not update Chrome or establish final-release acceptance.
+This is the RC4 compatibility baseline used by RC6. RC6 is installed in Work
+after an explicitly approved pairing repair. Its normal local fixture workflow
+and idle popup Stop passed, but identity-preserving live upgrade, held-action
+popup Stop and fresh actual RC6 client acceptance remain open. This is not final
+release acceptance.
 
 | Component | Candidate requirement | Evidence / boundary |
 | --- | --- | --- |
