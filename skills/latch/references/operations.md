@@ -4,6 +4,10 @@ Read this when you need command details or a concrete recovery path. The runtime
 
 ## Permission preflight (RC4+)
 
+For Codex CLI on macOS with socket EPERM and disabled approval categories, read
+[Codex permissions](codex-permissions.md) for the qualified diagnostic scope and
+operator-selected per-invocation approval path. Do not infer tool availability.
+
 `preflight --profile work --session <task> --workspace <path>` checks the current
 caller's platform, exact Node/CLI versions, paired bridge/controller, native
 schema, task/cache writes and local loopback. Require `ready: true`, not merely

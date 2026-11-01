@@ -89,7 +89,11 @@ what the task needs. Offline reporting never replays browser actions.
 
 ## Release the session
 
-Unless the user asked to keep the task's session connected, run cleanup after success or failure:
+Unless the user asked to keep the task's session connected, run cleanup after
+using an attached session or attempting connection, including partial failure.
+If diagnostics/preflight blocked the task before any attachment attempt, stop
+there: do not issue a disconnect merely to retry the same denied socket. Report
+that no attachment was attempted; do not claim a successful disconnect.
 
 ```bash
 node "$LATCH_SKILL_DIR/scripts/latch.mjs" disconnect --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE"

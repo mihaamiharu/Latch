@@ -475,5 +475,56 @@
       "backendVersion": "0.166.0 as reported by the run",
       "pathExecutableVersion": "0.165.0 as separately reported by the run"
     }
+  },
+  "restrictedCodexAttempt": {
+    "aggregateOutcome": "blocked",
+    "indexedArtifactsIndependentlyRehashed": 3,
+    "connectionCreated": false,
+    "cleanupInDeniedContext": {
+      "status": "failed",
+      "step": "cleanup-own-session"
+    },
+    "separateHostObservation": {
+      "bridgeHealthy": true,
+      "extensionVersion": "0.1.99.6",
+      "blockedSessionLeasePresent": false,
+      "doesNotRewriteDeniedDisconnectAsSuccess": true
+    },
+    "reportedPolicy": {
+      "filesystem": "workspace-write",
+      "network": "restricted; disabled in inherited environment",
+      "approval": "granular; sandbox escalation auto-rejected",
+      "permissionGrantToolAvailable": false,
+      "provenance": "supplied session context and reported observations"
+    },
+    "clientSurface": "unverified for this new attempt; prior terminal confirmation applies to the prior attempt",
+    "sourceFileSHA256": {
+      "report.md": "57b281886eee78cfae1ad40965cdacc7ce54486037218d452be4ba028ee6d48f",
+      "result.json": "a2da85db0798f553a194036a78ec409fcaa7d94ce5090c1e1ecf3a9d53ea2014",
+      "commands.jsonl": "37bbfd5b0e85dacbd2859a664f2844c198ad8efbdc91b5c5529713ffb76a609b"
+    },
+    "originalRunPreserved": true,
+    "globalSecuritySettingsChanged": false
+  },
+  "codexSandboxDiagnosticProbes": {
+    "version": "0.166.0",
+    "scope": "Non-agent, no-attachment CLI sandbox probes with managed requirements included",
+    "workspaceDefaultDiagnose": "blocked EPERM",
+    "exactPairedUnixSocketAllowDiagnose": "healthy",
+    "unixOnlyPreflight": {
+      "ready": false,
+      "bridgeAndNative": "pass",
+      "workspaceAndTempWrites": "pass",
+      "daemonCacheWrite": "blocked EPERM",
+      "loopbackListenConnect": "blocked EPERM"
+    },
+    "notAnExistingAgentPermissionGrant": true,
+    "notBrowserAcceptance": true,
+    "globalConfigEdited": false,
+    "sourceFileSHA256": {
+      "rc6-sandbox-workspace-default.json": "fc79ae7ff73adc344356ff765ea0defda2559212966c150af2cef8874b5fdfa5",
+      "rc6-sandbox-workspace-exact-unix.json": "befc3691b841b783d5f60643dd8e9d44e1529be9562e1a7912e2c5af95ea1c2d",
+      "rc6-sandbox-unix-only-preflight.json": "c058dbcbd59ed3a192878e856bb9b0a97e651b97345a814037a4f2ad1cff14f0"
+    }
   }
 }

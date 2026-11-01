@@ -128,3 +128,28 @@ retain the reported backend version 0.166.0 and separate PATH executable version
 0.165.0 without conflating them. This adds launch provenance to the original
 report; it does not rewrite its supplied context, failed runner step or BLOCKED
 aggregate. A clean end-to-end RC6 acceptance still needs the corrected fresh run.
+
+## Restricted-context attempt and controlled permission probes
+
+The next fresh attempt remained BLOCKED before attachment: its supplied policy
+was workspace-write/restricted networking with granular sandbox escalation
+auto-rejected and no permission-grant tool available. Its three indexed artifacts
+were independently rehashed. The original failed disconnect remains failed;
+a separate current-context host read found no lease for that session and a
+healthy RC6 bridge. That observation does not rewrite denied-context cleanup as
+successful. Previous indexed evidence/source file hashes remained intact.
+
+Controlled Codex 0.166.0 sandbox commands included managed requirements and
+reproduced the denial under `:workspace`. Adding only the exact paired Unix
+socket made read-only diagnose healthy. Preflight then passed bridge/native and
+workspace/temp checks but blocked daemon-cache writes and loopback with EPERM.
+No browser attachment, application mutation, existing-agent grant or global
+configuration edit occurred. This is diagnostic permission qualification, not
+restricted-sandbox browser acceptance.
+
+The source skill now documents the
+[Codex permission boundary](../../../skills/latch/references/codex-permissions.md).
+A private operator handoff provides a per-invocation workspace-write/on-request
+launch and a V3 prompt. Exact approved commands can execute outside the sandbox;
+any subsequent acceptance must report that boundary. Higher-priority managed
+requirements still apply. No blanket Full Access change is part of this path.
