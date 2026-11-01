@@ -84,3 +84,38 @@ preservation, held-action Work popup Stop, fresh actual Codex CLI
 acceptance, intended
 signed-in read and exact final artifact qualification remain gates. Repository,
 public project license and hosted distribution remain deferred by the owner.
+
+## Codex backend attempt
+
+A subsequent non-Git-workspace run supplied a Codex **0.166.0 app-server backend**
+identity and a separate PATH executable version **0.165.0**. Its client/policy
+context remains agent-supplied, including claims attributed to shell observations.
+This does not independently prove a fresh interactive terminal launch or startup
+skill discovery. The supplied catalog contained Latch before explicit reading.
+
+The saved run's aggregate is **BLOCKED**, preserved unchanged. All 23 indexed
+artifacts were independently rehashed, and the unique Codex save marker matched
+exactly one receipt in the fixture server record. HTTP 200, saved response and
+visible result assertions passed. Expected-error exits and cleanup were correct.
+
+Two runner issues prevent a clean acceptance. The initial session-aware doctor
+checked the fresh absent session: `bridgeHealthy:true` but task `healthy:false`.
+Profile-only and post-connect doctor passed. The save callback then used an
+unavailable `URL` global after one click; read-only response/receipt/page checks
+confirmed that Save succeeded without replay. Context JSON initially placed in
+an uninitialized recorder directory was also rejected before task actions; the
+agent moved it outside. These are recorded orchestration findings, not evidence
+that the native bridge or fixture save failed.
+
+Source file hashes are retained in `codexBackendAttempt` in the machine record.
+Acceptance notes and receipt comparison are supplemental, outside the recorder's
+artifact index; their hashes here do not retroactively put them in that index.
+The original local run is `latch-rc6-codex-20261101T041126Z-f569a5` under the
+operator's `/Users/ekkisyam/Workspace/qa/test/work/latch/` directory.
+
+The source shared skill now distinguishes profile-only pre-attachment doctor from
+session-aware post-attachment checks, keeps context outside recorder-owned fresh
+directories, and documents a response-URL string predicate. The separate V2 prompt
+applies these corrections to the installed frozen RC6 kit; no installed payload
+was modified. A new run needs a new session, evidence directory and marker. This
+blocked run is never edited into a passing acceptance.

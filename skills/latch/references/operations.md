@@ -41,7 +41,17 @@ playwright-cli -s="$LATCH_SESSION" console error
 playwright-cli -s="$LATCH_SESSION" requests
 ```
 
-Create the task's evidence directory before writing files. Check installed command help if an option differs. `run-code` executes an async Playwright function with `page`; return the result rather than relying on `console.log`. For structured assertions, `--json` returns a wrapper whose `result` can itself be a JSON string. Inspect `isError` even if a command exits zero.
+For manual evidence, create the task's output directory before writing files. On
+RC5+ with the maintained recorder, let it initialize its own fresh evidence
+directory and keep context/preparatory files outside it; see `evidence.md`.
+Check installed command help if an option differs. `run-code` executes an async Playwright function with `page`; return the result rather than relying on `console.log`. For structured assertions, `--json` returns a wrapper whose `result` can itself be a JSON string. Inspect `isError` even if a command exits zero.
+
+The `run-code` environment does not guarantee Node globals such as `URL`. For a
+response predicate, compare Playwright's URL string directly, for example
+`response => response.url() === expectedURL && response.request().method() === 'POST'`.
+Register the response wait before the authorized click and await it afterward.
+If a callback fails after a mutation, inspect independent receipts/page state;
+do not repeat the click merely to repair the runner or its report.
 
 Example read-only observation:
 

@@ -12,6 +12,19 @@ session-to-directory lookup. The recorder verifies workspace/session/profile and
 runtime identity. Do not reuse another task's directory or start a new connected
 run in a completed directory.
 
+Keep `--context-file` and other preparatory files outside the fresh evidence
+directory, for example `work/latch/<session>-context.json`. The recorder owns and
+initializes its directory; pre-populating it causes `EVIDENCE_DIRECTORY_FOREIGN`.
+Supplemental files added later are outside the artifact index unless explicitly
+indexed by the recorder; do not imply its integrity check covers them.
+
+Run the initial profile-only `doctor` without `--session` or recorder flags and
+keep its JSON as a sidecar. Record `diagnose` and `preflight` in the task run.
+After attachment, a recorded session-aware doctor is appropriate. A deliberately
+requested pre-attachment session doctor reports the absent session as unhealthy;
+it does not establish that the healthy paired bridge is unavailable. Preserve any
+such blocked check rather than editing its ledger to obtain a passing aggregate.
+
 ```bash
 node "$LATCH_SKILL_DIR/scripts/latch.mjs" connect --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE" --transport native --focus-emulation on --tab "$LATCH_TAB_ID" --evidence-dir "$LATCH_EVIDENCE" --step attach
 node "$LATCH_SKILL_DIR/scripts/latch.mjs" pw --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE" --evidence-dir "$LATCH_EVIDENCE" --step before -- screenshot

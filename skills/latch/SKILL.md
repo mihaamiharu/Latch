@@ -20,6 +20,11 @@ node "$LATCH_SKILL_DIR/scripts/latch.mjs" tabs --profile work --workspace "$LATC
 
 Inspect JSON and the process exit code. A failed connection check is a setup/blocking result, not a failed application test. For an unfamiliar command, run the helper with `help` or run `playwright-cli <command> --help`.
 
+Before attachment, keep `doctor` profile-only: omit `--session` and recorder flags.
+Session-aware doctor checks an existing attached task; a fresh absent session is
+not a bridge failure. Record `diagnose`/`preflight` when needed, then use
+session-aware doctor after connection. See `references/evidence.md`.
+
 On RC4+ (`help` lists `preflight`), run this before tab discovery/connection in the
 same client context, using the chosen task workspace/session:
 

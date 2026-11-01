@@ -404,5 +404,69 @@
     ],
     "activeNativeLeasesAfterCleanup": 0,
     "controllerSessionsAfterCleanup": 0
+  },
+  "codexBackendAttempt": {
+    "aggregateOutcome": "blocked",
+    "browserOutcome": "pass; independently supported by stored assertions and one matching server receipt",
+    "scope": "Reported Codex app-server/backend execution; fresh interactive terminal launch unverified",
+    "clientReported": {
+      "backendVersion": "0.166.0",
+      "pathExecutableVersion": "0.165.0",
+      "permissionProfile": ":danger-full-access",
+      "approvalPolicy": "never",
+      "skillPresentInSuppliedCatalog": true
+    },
+    "clientContextProvenance": "agent-supplied; original report distinguishes reported shell observations from session context",
+    "workspaceBranch": "N/A; non-Git workspace",
+    "release": "0.2.0-rc.6",
+    "indexedArtifactsIndependentlyRehashed": 23,
+    "independentReceiptMatchingCount": 1,
+    "initialDoctor": {
+      "status": "blocked",
+      "bridgeHealthy": true,
+      "sessionRecoveryStatus": "absent",
+      "explanation": "Session-aware doctor ran before fresh session attachment; profile-only and post-connect checks were healthy."
+    },
+    "unexpectedRunnerError": {
+      "code": "PLAYWRIGHT_ERROR",
+      "message": "ReferenceError: page.waitForResponse: URL is not defined",
+      "saveReplayed": false,
+      "applicationResultRecoveredWithReadOnlyEvidence": true
+    },
+    "expectedError": {
+      "status": "pass",
+      "operation": {
+        "outcome": "failed",
+        "helperExitCode": 1,
+        "helperSignal": null,
+        "assertionExitCode": 0,
+        "normalizedToolExitCode": 1,
+        "upstreamExitCode": 1,
+        "upstreamSignal": null
+      }
+    },
+    "cleanup": {
+      "status": "confirmed",
+      "step": "cleanup",
+      "preservedUserTabs": true
+    },
+    "integrity": {
+      "verified": true,
+      "mode": "current-files",
+      "problems": []
+    },
+    "originalEvidencePreserved": true,
+    "sourceFileSHA256": {
+      "report.md": "05c7f6b623e8ffb068b15628cc0720405cfbc792f1053e924647eed763c9197b",
+      "result.json": "955e59d790f8ac6ff5e24388215a86dd58f1d62886d5c6c4db6443ff187d0dc0",
+      "commands.jsonl": "c9c8ee7415d729f90914388780fe2b7014eda00927b9a0b203469b5d6e4ece21",
+      "acceptance-notes.md": "57fc88e9e2bda0cf39f521026b88be14c98f4f3443428d5cdef06357ddcfd0ea",
+      "receipt-comparison.json": "53f509bf2b4d19c945ccf580d2ad9f1d1bec5571b6d7191e068f1460460c50bd"
+    },
+    "supplementalFilesOutsideRecorderIndex": [
+      "acceptance-notes.md",
+      "receipt-comparison.json"
+    ],
+    "nextRun": "Fresh session/evidence directory and unique fixture marker using V2 instructions; do not relabel this blocked run as passing"
   }
 }
