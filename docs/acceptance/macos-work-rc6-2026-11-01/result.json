@@ -290,7 +290,7 @@
   },
   "client": {
     "operatorPilot": "Current desktop agent; version unverified; context agent-supplied",
-    "actualCodexCLIRC6": "pending",
+    "actualCodexCLIRC6": "Terminal launch operator-confirmed; fixture behavior passed, clean end-to-end acceptance pending V2 run",
     "ClaudeCode": "unverified",
     "CursorCLI": "unverified",
     "restrictedSandboxAcceptance": "unverified"
@@ -408,7 +408,7 @@
   "codexBackendAttempt": {
     "aggregateOutcome": "blocked",
     "browserOutcome": "pass; independently supported by stored assertions and one matching server receipt",
-    "scope": "Reported Codex app-server/backend execution; fresh interactive terminal launch unverified",
+    "scope": "Operator-confirmed Terminal Codex execution; original aggregate remains blocked by test orchestration findings",
     "clientReported": {
       "backendVersion": "0.166.0",
       "pathExecutableVersion": "0.165.0",
@@ -467,6 +467,13 @@
       "acceptance-notes.md",
       "receipt-comparison.json"
     ],
-    "nextRun": "Fresh session/evidence directory and unique fixture marker using V2 instructions; do not relabel this blocked run as passing"
+    "nextRun": "Fresh session/evidence directory and unique fixture marker using V2 instructions; do not relabel this blocked run as passing",
+    "clientSurface": {
+      "surface": "Terminal Codex",
+      "launch": "Separate terminal; typed codex",
+      "provenance": "operator-confirmed in chat after reviewing the report",
+      "backendVersion": "0.166.0 as reported by the run",
+      "pathExecutableVersion": "0.165.0 as separately reported by the run"
+    }
   }
 }

@@ -119,3 +119,12 @@ directories, and documents a response-URL string predicate. The separate V2 prom
 applies these corrections to the installed frozen RC6 kit; no installed payload
 was modified. A new run needs a new session, evidence directory and marker. This
 blocked run is never edited into a passing acceptance.
+
+### Terminal launch clarification
+
+The operator subsequently confirmed launching this run in a separate terminal by
+typing `codex`. Record its client surface as **operator-confirmed Terminal Codex**;
+retain the reported backend version 0.166.0 and separate PATH executable version
+0.165.0 without conflating them. This adds launch provenance to the original
+report; it does not rewrite its supplied context, failed runner step or BLOCKED
+aggregate. A clean end-to-end RC6 acceptance still needs the corrected fresh run.
