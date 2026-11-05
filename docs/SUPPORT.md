@@ -3,8 +3,9 @@
 This is the RC4 compatibility baseline used through RC7. Work's RC6 pilot needed
 an explicitly approved pairing repair. Its normal local fixture workflow and a
 fresh operator-clicked idle popup Stop passed on RC6. On RC7, an operator-clicked Stop
-during a held fixture action passed with peer survival. Identity-preserving live upgrade
-across all paths, a signed-in app read and fresh actual client acceptance remain open.
+during a held fixture action passed with peer survival, and an actual Codex CLI fixture
+run passed with per-command approval. Identity-preserving live upgrade across all paths
+remains open. A signed-in app read was skipped by the owner.
 Earlier unconfirmed Stop attempts remain unverified. This is not final release
 acceptance.
 
@@ -16,7 +17,7 @@ acceptance.
 | Playwright CLI | Exactly 0.1.20 | External prerequisite; `pw` preserves ordinary commands and normalizes errors |
 | Chrome | 147 or later | Qualification floor 147.0.7727.15; current lane 157.0.8103.39 (RC6 and earlier used 153.0.8010.12) |
 | Browser transport | Latch native schema 4, recovery contract 1, popup control 1 | No official Playwright extension required; no automatic fallback |
-| Coding client | Actual Codex RC3 native smoke established | RC7/reporting real-client acceptance pending; Claude Code and Cursor remain unverified |
+| Coding client | Actual Codex CLI 0.166.0 RC7 fixture run with per-command approval | Approved commands run outside the sandbox, so this is not a restricted-sandbox pass; Claude Code and Cursor remain unverified |
 | Client permissions | Access to paired Unix socket, local loopback, task and exact CLI cache directories | Run `preflight` in the actual client context; this does not grant permissions |
 
 The native Chrome manifest requires 147. Chrome's flat debugger session API was

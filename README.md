@@ -13,8 +13,10 @@ which logs an open intermittent setup timeout. The RC6 Work fixture pilot
 passed normal recording/error/cleanup, a background read with operator-reported
 Personal foreground, and a fresh operator-clicked idle popup Stop with peer survival.
 Earlier unconfirmed attempts remain unverified. On RC7, an operator-clicked Stop during
-a held fixture action passed with peer survival. A signed-in app read and fresh actual
-Codex CLI acceptance remain open.
+a held fixture action passed with peer survival, and an actual
+[Codex CLI fixture run](docs/acceptance/macos-codex-rc7-2026-11-05/README.md) passed with
+per-command approval. A signed-in app read was skipped by the owner, so signed-in reuse
+is not established.
 See the [Work pilot record](docs/acceptance/macos-work-rc6-2026-11-01/README.md).
 
 An earlier actual Codex CLI RC3 smoke passed under per-session Full Access;
