@@ -1,6 +1,6 @@
 # macOS candidate support matrix
 
-This is the RC4 compatibility baseline used through RC8. An update can change the
+This is the RC4 compatibility baseline used through 0.2.0. An update can change the
 extension's instance ID: Latch then refuses to proceed until a confirmed
 `pair --replace`, and this release does not claim that the ID always survives. Work's RC6 pilot needed
 an explicitly approved pairing repair. Its normal local fixture workflow and a

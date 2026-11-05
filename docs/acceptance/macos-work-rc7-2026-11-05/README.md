@@ -103,9 +103,38 @@ headless evidence.
 The 2026-11-01 held attempt ended with the same `Execution context was destroyed` error as
 `rc7-hold-c`, so it probably hit the same 30-second limit. That was not retested.
 
+## RC8 update and the identity fix
+
+The owner chose to fix the ID problem before `0.2.0`. A host-restored ID was rejected: the
+host learns the ID from the extension's hello and cannot tell Chrome profiles apart, so it
+could give one profile another's identity. RC8 instead keeps a backup inside the extension
+and adds `pair --replace`. The headless matrix did not find the cause: no scenario showed
+a reset, its restart scenarios and Remove control were invalid, and only the folder-change
+rows are usable (ID kept, including loading another folder while off and then switching on).
+
+The watched update from RC7 to RC8, source `8ff7ed2`, kit
+`dcd380d2205a806d6a23a783beea92c59dbf2b3a477e1d5527ebadb925d082c6`, kept `dffe7611` after both
+the switch and the reload, with no new error reported. `verify` and `preflight` passed, and
+`config.json` was unchanged.
+
+`pair --replace` ran against the real extension and host with a disposable copy of the
+configuration. The real configuration was byte-identical afterwards.
+
+| Case | Result |
+| --- | --- |
+| Copy names the gone `e4ce81c8`, live instance `dffe7611` | Replaced, one backup written, other fields kept |
+| Old instance still running | Refused, `PAIRING_OLD_INSTANCE_LIVE` |
+| New instance not running | Refused, `PROFILE_UNAVAILABLE` |
+| Copy does not match `--expect-old` | Refused, `PAIRING_CHANGED` |
+| Plain `pair` over a different ID | Refused, `PROFILE_ALREADY_PAIRED` |
+
+Not established: recovery from a genuine ID change in Chrome, whether the backup survives
+whatever caused the real resets, and the cause itself. In fixtures, clearing `storage.local`
+restored the ID, and wiping both copies changed it.
+
 ## Limits
 
-One machine, one profile and two watched transitions. Chrome's own record of extension
+One machine, one profile and three watched updates plus one watched rollback. Chrome's own record of extension
 state was not read. The headless fixture does not reproduce either ID change. Latch
 fails closed when the ID changes: `verify` refuses and no pairing is changed
 automatically. A signed-in app read, fresh Codex acceptance and the final `0.2.0`

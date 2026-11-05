@@ -1,6 +1,6 @@
-# Latch 0.2.0-rc.8 local setup
+# Latch 0.2.0 local setup
 
-This private macOS candidate includes the native extension, host/CLI, shared skill,
+This private macOS release includes the native extension, host/CLI, shared skill,
 `ws` 8.22.0 and third-party licenses. Node **22.21.1** and Playwright CLI **0.1.20**
 are external prerequisites. Setup validates them without installing anything
 globally. Keep the full kit together; the extension ZIP alone is insufficient.
@@ -26,7 +26,7 @@ Unzip the complete kit into a permanent local directory. Use the selected Node
 executable, then inspect from that directory:
 
 ```bash
-LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.8'
+LATCH_KIT='/absolute/path/to/latch-0.2.0'
 node "$LATCH_KIT/src/install.mjs" inspect --kit "$LATCH_KIT"
 node "$LATCH_KIT/src/install.mjs" stage --kit "$LATCH_KIT"
 ```
@@ -138,7 +138,7 @@ node "$LATCH_KIT/src/install.mjs" verify --profile work
 ```
 
 Verification checks the installed identity/readiness and requires extension
-`0.1.99.8` (display name `0.2.0-rc.8`), release `0.2.0-rc.8`, native schema 4 and
+`0.2.0`, release `0.2.0`, native schema 4 and
 UI capability 1. It separately reports `applicationSmokeRequired: true`. Complete
 a disposable native CLI smoke against the intended app before calling rollout
 successful; do not silently fall back to another adapter.
