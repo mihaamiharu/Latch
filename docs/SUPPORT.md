@@ -13,7 +13,7 @@ acceptance.
 | CPU / Node binary | Apple Silicon, arm64 | Intel and Rosetta are unqualified and rejected by setup |
 | Node | Exactly 22.21.1 | External prerequisite; no automatic global installation |
 | Playwright CLI | Exactly 0.1.20 | External prerequisite; `pw` preserves ordinary commands and normalizes errors |
-| Chrome | 147 or later | Qualification floor 147.0.7727.15; current lane 153.0.8010.12 |
+| Chrome | 147 or later | Qualification floor 147.0.7727.15; current lane 157.0.8103.39 (RC6 and earlier used 153.0.8010.12) |
 | Browser transport | Latch native schema 4, recovery contract 1, popup control 1 | No official Playwright extension required; no automatic fallback |
 | Coding client | Actual Codex RC3 native smoke established | RC7/reporting real-client acceptance pending; Claude Code and Cursor remain unverified |
 | Client permissions | Access to paired Unix socket, local loopback, task and exact CLI cache directories | Run `preflight` in the actual client context; this does not grant permissions |
@@ -28,6 +28,10 @@ Automatic browser qualification is headless with disposable profiles and test-on
 launch flags, recorded in each fixture. It does not establish headed focus,
 Personal-foreground behavior or real permission acceptance. The test browser is
 pinned by `test/browser-versions.json`; set `LATCH_BROWSER_LANE=floor` or `current`.
+The current lane is Chrome for Testing, not branded Chrome, and is installed from
+Google's `chrome-for-testing-public` storage as `chromium-cft-<version>` in the
+Playwright cache. Branded Chrome updates itself, so each live acceptance records the
+version actually running, read from the process rather than the on-disk app.
 Explicit binary paths are accepted only if their reported version matches the
 selected pin. Tests never silently select the newest cached browser.
 
