@@ -4,6 +4,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {discoverDetailed, request, readConfig, updateConfig, uuid} from './local.mjs';
 import {diagnose} from './diagnostics.mjs';
+import {replacePairing} from './pair-replace.mjs';
 import {fault, safeError} from '../extension/protocol.js';
 import {workspaceAt, sessionKey, runCLI, assertVersion, connectionURL, selectAndVerify, cliError} from './playwright.mjs';
 import {runSessionCLI, validatePlaywrightArgs} from './playwright-command.mjs';
@@ -23,7 +24,7 @@ const releaseVersion=JSON.parse(await fs.readFile(path.join(ROOT,'package.json')
 
 const usage = `Latch ${releaseVersion}
   qa-browser discover
-  qa-browser pair --profile work --instance <uuid> --chrome-profile-dir <directory>
+  qa-browser pair --profile work --instance <uuid> --chrome-profile-dir <directory> [--replace --expect-old <uuid>]
   qa-browser doctor --profile work
   qa-browser transport --profile work [--set official|native]
   qa-browser diagnose --profile work
@@ -47,13 +48,13 @@ function parse(argv) {
   const command = argv.shift() || 'help';
   const flags = {};
   let playwrightArgs;
-  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'workspace', 'json', 'transport', 'focus-emulation', 'apply', 'expect', 'set','evidence-dir','step','expect-result','expect-error','check-kind','context-file','inline','export-dir','include','renderer']);
+  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'workspace', 'json', 'transport', 'focus-emulation', 'apply', 'expect', 'set','evidence-dir','step','expect-result','expect-error','check-kind','context-file','inline','export-dir','include','renderer','replace','expect-old']);
   while (argv.length) {
     const flag = argv.shift();
     if (flag === '--' && command === 'pw') { playwrightArgs = argv.splice(0); break; }
     if (!flag.startsWith('--') || !allowed.has(flag.slice(2))) throw fault('INVALID_ARGUMENT', 'Unknown argument. Use qa-browser help.');
     const key = flag.slice(2);
-    if (['json', 'apply','inline'].includes(key)) { if (flags[key]) throw fault('INVALID_ARGUMENT', 'Repeated flag.'); flags[key] = true; continue; }
+    if (['json', 'apply','inline','replace'].includes(key)) { if (flags[key]) throw fault('INVALID_ARGUMENT', 'Repeated flag.'); flags[key] = true; continue; }
     const value = argv.shift();
     if (!value || value.startsWith('--') || flags[key]) throw fault('INVALID_ARGUMENT', `Missing or repeated --${key}.`);
     flags[key] = value;
@@ -85,6 +86,7 @@ export async function executeCLI({command,flags:f,playwrightArgs}) {
     throw fault('INVALID_ARGUMENT', 'Use --focus-emulation on|off with native connect.');
   if (!/^[a-zA-Z0-9_-]{1,40}$/.test(alias)) throw fault('INVALID_PROFILE', 'Use a simple profile alias.');
   if (f.set !== undefined && command !== 'transport') throw fault('INVALID_ARGUMENT', 'Use --set only with transport.');
+  if ((f.replace || f['expect-old']) && (command !== 'pair' || !f.replace || !f['expect-old'])) throw fault('INVALID_ARGUMENT', 'Use --replace and --expect-old together, only with pair.');
   if (command === 'transport') return transportPreference(alias, f.set);
   if (command === 'diagnose') return await diagnose(alias);
   if (command === 'preflight') {
@@ -94,10 +96,11 @@ export async function executeCLI({command,flags:f,playwrightArgs}) {
   if (command === 'pair') {
     if (!uuid.test(f.instance || '') || !/^(Default|Profile \d+)$/.test(f['chrome-profile-dir'] || ''))
       throw fault('INVALID_PAIRING', 'Specify the extension instance UUID and Chrome profile directory (Default or Profile N).');
+    if (f.replace) return replacePairing({alias, instance: f.instance, expectOld: f['expect-old'], chromeProfileDir: f['chrome-profile-dir']});
     const live = await request(f.instance, 'status');
     return updateConfig(config => {
       if (config.profiles?.[alias] && config.profiles[alias].instanceId !== f.instance)
-        throw fault('PROFILE_ALREADY_PAIRED', 'This alias is already paired to another instance. Review the config before changing it.');
+        throw fault('PROFILE_ALREADY_PAIRED', 'This alias is already paired to another instance. Review it, then use pair --replace --expect-old <uuid> if the instance really changed.');
       config.profiles ||= {};
       config.profiles[alias] = {...config.profiles[alias], instanceId: live.instanceId, chromeProfileDir: f['chrome-profile-dir']};
       return {paired: true, profile: alias, ...config.profiles[alias], note: 'Profile-directory correspondence will be checked by the first connection.'};

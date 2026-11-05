@@ -36,7 +36,8 @@
     "test:upgrade-probe": "LATCH_UPGRADE_PROBE=1 node --test test/upgrade-probe.test.mjs",
     "test:path-migration": "LATCH_PATH_MIGRATION=1 node --test test/path-migration.test.mjs",
     "test:transport": "node --test test/transport.test.mjs test/diagnostics.test.mjs",
-    "test:action-failures": "LATCH_ACTION_FAILURES=1 node --test --test-concurrency=1 test/action-failures-browser.test.mjs"
+    "test:action-failures": "LATCH_ACTION_FAILURES=1 node --test --test-concurrency=1 test/action-failures-browser.test.mjs",
+    "test:identity": "LATCH_IDENTITY=1 node --test test/identity-browser.test.mjs"
   },
   "dependencies": {
     "ws": "8.22.0"

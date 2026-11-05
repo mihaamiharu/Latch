@@ -2,6 +2,7 @@ import {HOST, fault, safeError} from './protocol.js';
 import {createController} from './controller.js';
 import {createDebuggerTransport} from './debugger-transport.js';
 import {createBridgeConnection} from './bridge-connection.js';
+import {createIdentityBackup, resolveInstanceId} from './identity-store.js';
 
 let controller, connection, identity;
 const nativeTransport = createDebuggerTransport(chrome, {
@@ -9,9 +10,7 @@ const nativeTransport = createDebuggerTransport(chrome, {
   onWarning: (key, warning, leaseId) => { void controller?.nativeWarning(key, warning, leaseId); },
 });
 const initialized = (async () => {
-  const stored = await chrome.storage.local.get('instanceId');
-  const instanceId = stored.instanceId || crypto.randomUUID();
-  if (!stored.instanceId) await chrome.storage.local.set({instanceId});
+  const {instanceId} = await resolveInstanceId({storage: chrome.storage.local, backup: createIdentityBackup(indexedDB), randomUUID: () => crypto.randomUUID()});
   identity = {instanceId, epoch: crypto.randomUUID(), extensionVersion: chrome.runtime.getManifest().version};
   controller = createController(chrome, identity, {nativeTransport, nativeRecovery: true});
   connection = createBridgeConnection(chrome, {host: HOST,
