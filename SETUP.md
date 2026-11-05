@@ -1,4 +1,4 @@
-# Latch 0.2.0-rc.7 local setup
+# Latch 0.2.0-rc.8 local setup
 
 This private macOS candidate includes the native extension, host/CLI, shared skill,
 `ws` 8.22.0 and third-party licenses. Node **22.21.1** and Playwright CLI **0.1.20**
@@ -25,7 +25,7 @@ Unzip the complete kit into a permanent local directory. Use the selected Node
 executable, then inspect from that directory:
 
 ```bash
-LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.7'
+LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.8'
 node "$LATCH_KIT/src/install.mjs" inspect --kit "$LATCH_KIT"
 node "$LATCH_KIT/src/install.mjs" stage --kit "$LATCH_KIT"
 ```
@@ -108,10 +108,23 @@ this was observed, and the cause is unknown.
 Do not press Remove, and do not use Load unpacked for an update. Latch's instance ID
 lives in the extension's own storage, which removal is expected to erase. Do not load
 the kit's own `extension/` folder or `dist/`: activation only updates the stable
-directory. The watched switch-and-reload update kept the ID in both directions, but
-earlier ID changes remain unexplained, so if `verify` refuses, inspect it rather than
-re-pairing automatically. "Unloaded" on the setup commands means switched off, not
-removed.
+directory. "Unloaded" on the setup commands means switched off, not removed.
+
+**If `verify` refuses because the instance changed:** a watched switch-and-reload update
+kept the ID in both directions, but earlier ID changes remain unexplained. Nothing
+re-pairs automatically, because another Chrome profile's Latch could have the new ID.
+Open the Latch popup in the profile you intend to pair and read its instance ID under
+**Connection details**. Then, using the old ID from your configuration:
+
+```bash
+qa-browser pair --profile work --instance <new uuid from that popup> \
+  --chrome-profile-dir <same directory as before> --replace --expect-old <old uuid>
+```
+
+The command refuses if the old instance is still running, since the new ID may then
+belong to another profile, or if the new instance is not verified and ready. It saves a
+backup of the configuration next to it, changes only the instance, and keeps the session
+records under the old instance. Confirm the result with `verify` and a first connection.
 
 For an existing profile, preserve its stored instance and pairing. For a clean
 profile only, inspect the popup/discovery result, then explicitly pair that exact
@@ -124,7 +137,7 @@ node "$LATCH_KIT/src/install.mjs" verify --profile work
 ```
 
 Verification checks the installed identity/readiness and requires extension
-`0.1.99.7` (display name `0.2.0-rc.7`), release `0.2.0-rc.7`, native schema 4 and
+`0.1.99.8` (display name `0.2.0-rc.8`), release `0.2.0-rc.8`, native schema 4 and
 UI capability 1. It separately reports `applicationSmokeRequired: true`. Complete
 a disposable native CLI smoke against the intended app before calling rollout
 successful; do not silently fall back to another adapter.

@@ -1,6 +1,8 @@
 # macOS candidate support matrix
 
-This is the RC4 compatibility baseline used through RC7. Work's RC6 pilot needed
+This is the RC4 compatibility baseline used through RC8. An update can change the
+extension's instance ID: Latch then refuses to proceed until a confirmed
+`pair --replace`, and this release does not claim that the ID always survives. Work's RC6 pilot needed
 an explicitly approved pairing repair. Its normal local fixture workflow and a
 fresh operator-clicked idle popup Stop passed on RC6. On RC7, an operator-clicked Stop
 during a held fixture action passed with peer survival, and an actual Codex CLI fixture

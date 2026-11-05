@@ -2,8 +2,9 @@
 
 A macOS Chrome companion extension and local CLI for connecting existing Work-profile tabs to Playwright CLI. Run `npm ci` after cloning/updating this source branch: the native host now depends on the pinned `ws` transport library.
 
-**Status (November 5, 2026):** the source candidate is **0.2.0-rc.7**, which adds
-live view to RC6, and Work runs it after an approved pairing repair. A watched
+**Status (November 5, 2026):** the source candidate is **0.2.0-rc.8**, which adds an
+in-extension backup of the instance ID and a confirmed `pair --replace` to RC7. Work runs
+RC7 after an approved pairing repair; RC8 is not installed there yet. A watched
 switch-and-reload update kept the instance ID in both directions, but earlier ID
 changes on the RC3 to RC6 and RC7 updates remain unexplained, so identity-preserving
 live upgrade is observed on that path and **not accepted** in general. See the
@@ -57,7 +58,7 @@ The native preview integrates the normal CLI/helper with paired profiles and ind
 npm run build
 ```
 
-This builds `dist/latch/`, its extension ZIP, and the complete `dist/latch-0.2.0-rc.7/` kit plus kit ZIP. It validates the fixed identity, module inventory, permissions, dependency/licenses and file hashes. Build does not modify the source manifest, native registration or installed launchers. Load the built stable installation directory after setup; the source manifest remains the installed-compatibility baseline.
+This builds `dist/latch/`, its extension ZIP, and the complete `dist/latch-0.2.0-rc.8/` kit plus kit ZIP. It validates the fixed identity, module inventory, permissions, dependency/licenses and file hashes. Build does not modify the source manifest, native registration or installed launchers. Load the built stable installation directory after setup; the source manifest remains the installed-compatibility baseline.
 
 Latch 0.1.1 uses the agent-and-latch icon in 16, 32, 48 and 128px sizes. The original generated master and prompt are preserved in `assets/latch/`. The extension ID, `qa-browser` command, native host name and existing config path are preserved.
 
