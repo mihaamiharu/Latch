@@ -6,6 +6,12 @@ import {pathToFileURL} from 'node:url';
 import {ROOT,EXTENSION_ID,HOST_NAME,hash,filesIn,releaseManifest,verifyKit} from './release.mjs';
 import {SUPPORT, requiresSupportContract} from './compatibility.mjs';
 
+// A revision alone overstates provenance: a modified tree is not that commit.
+export function sourceProvenance(root) {
+  const git=(...args)=>spawnSync('git',args,{cwd:root,encoding:'utf8'});
+  const revision=git('rev-parse','HEAD'),status=git('status','--porcelain');
+  return {sourceRevision:revision.status===0?revision.stdout.trim():null,sourceDirty:status.status===0?status.stdout.trim()!=='':null};
+}
 export async function build({root=ROOT,out=path.join(root,'dist')}={}) {
   const manifest=await releaseManifest(root),pkg=JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8'));
   const kit=path.join(out,'latch-'+pkg.version),extension=path.join(out,'latch');
@@ -23,8 +29,7 @@ export async function build({root=ROOT,out=path.join(root,'dist')}={}) {
   await fs.writeFile(path.join(kit,'extension/manifest.json'),JSON.stringify(manifest,null,2)+'\n');
   const files={};for(const name of await filesIn(kit))files[name]=hash(await fs.readFile(path.join(kit,name)));
   // No clock or user-machine paths in the descriptor: identical payloads hash identically.
-  const revision=spawnSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'});
-  const descriptor={schema:1,sourceRevision:revision.status===0?revision.stdout.trim():null,version:pkg.version,chromeVersion:manifest.version,extensionId:EXTENSION_ID,hostName:HOST_NAME,nodeVersion:'v22.21.1',cliVersion:'0.1.20',nativeSchema:4,uiControl:1,files};
+  const descriptor={schema:1,...sourceProvenance(root),version:pkg.version,chromeVersion:manifest.version,extensionId:EXTENSION_ID,hostName:HOST_NAME,nodeVersion:'v22.21.1',cliVersion:'0.1.20',nativeSchema:4,uiControl:1,files};
   if(requiresSupportContract(pkg.version))descriptor.support=SUPPORT;
   await fs.writeFile(path.join(kit,'release.json'),JSON.stringify(descriptor,null,2)+'\n');
   await verifyKit(kit);await fs.cp(path.join(kit,'extension'),extension,{recursive:true});

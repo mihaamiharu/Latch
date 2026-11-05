@@ -1,5 +1,5 @@
 import {CANDIDATE_VERSION} from './helpers/candidate.mjs';
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import path from 'node:path';import {build} from '../src/build.mjs';import {ROOT,hash,verifyKit,chromeVersion,releaseManifest} from '../src/release.mjs';
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import path from 'node:path';import {spawnSync} from 'node:child_process';import {build,sourceProvenance} from '../src/build.mjs';import {ROOT,hash,verifyKit,chromeVersion,releaseManifest} from '../src/release.mjs';
 import {SUPPORT,assertMacOSVersion} from '../src/compatibility.mjs';
 test('native release is reproducible, complete and leaves source/integration untouched',async t=>{
  const dir=await fs.mkdtemp(path.join(ROOT,'work/release-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));const before=await fs.readFile(path.join(ROOT,'extension/manifest.json'));
@@ -11,6 +11,14 @@ test('native release is reproducible, complete and leaves source/integration unt
  descriptor.support=SUPPORT;manifest.minimum_chrome_version='120';await fs.writeFile(manifestFile,JSON.stringify(manifest));descriptor.files['extension/manifest.json']=hash(await fs.readFile(manifestFile));await fs.writeFile(descriptorFile,JSON.stringify(descriptor));await assert.rejects(verifyKit(a.kit),{code:'RELEASE_SUPPORT_INVALID'});
  await fs.writeFile(descriptorFile,originalDescriptor);await fs.writeFile(manifestFile,originalManifest);
  assert.ok(!Object.keys(descriptor.files).some(n=>/^(work|test|install|\.git|assets)\//.test(n)));await fs.appendFile(path.join(a.kit,'extension/popup.js'),'\n// changed');await assert.rejects(verifyKit(a.kit),{code:'RELEASE_HASH_CHANGED'});
+});
+test('descriptor provenance distinguishes a committed tree from modified or unknown source',async t=>{
+ const dir=await fs.mkdtemp('/tmp/latch-provenance-');t.after(()=>fs.rm(dir,{recursive:true,force:true}));
+ assert.deepEqual(sourceProvenance(dir),{sourceRevision:null,sourceDirty:null});
+ const git=(...args)=>assert.equal(spawnSync('git',['-c','user.name=fixture','-c','user.email=fixture@example.test',...args],{cwd:dir}).status,0);
+ git('init','-q');await fs.writeFile(path.join(dir,'file'),'a');git('add','file');git('commit','-qm','fixture');
+ const clean=sourceProvenance(dir);assert.match(clean.sourceRevision,/^[0-9a-f]{40}$/);assert.equal(clean.sourceDirty,false);
+ await fs.writeFile(path.join(dir,'file'),'b');assert.deepEqual(sourceProvenance(dir),{sourceRevision:clean.sourceRevision,sourceDirty:true});
 });
 test('missing identity and invalid Chrome version mapping fail instead of regenerating identity',async t=>{
  assert.equal(chromeVersion('0.2.0-rc.6'),'0.1.99.6');assert.equal(chromeVersion('0.2.0'),'0.2.0');assert.throws(()=>chromeVersion('0.2.0-rc.0'),{code:'RELEASE_VERSION_INVALID'});
