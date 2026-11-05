@@ -15,9 +15,9 @@ retarget it. Root-tab loss closes the viewer rather than switching to another ta
 ## Installation status
 
 An installed runtime does not gain this feature when source files change. Both the
-CLI and native host need it. The frozen RC6 kit does not contain it. Work has run an
-earlier live view build, `0.2.0-rc.6-75833d720037`, since November 4; RC7 is the
-identifiable replacement. Use the normal build, inspect, stage and activate workflow
+CLI and native host need it. The frozen RC6 kit does not contain it. An earlier live
+view build, `0.2.0-rc.6-75833d720037`, carries the RC6 version; RC7 is the identifiable
+release and is what Work runs. Use the normal build, inspect, stage and activate workflow
 in SETUP.md, retaining the previous runtime. Activation requires drained tasks and
 Latch switched off, not removed; do not attest those conditions without actually
 completing them. No installed Work configuration is changed by building or testing

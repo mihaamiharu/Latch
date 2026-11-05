@@ -98,12 +98,20 @@ for future updates; do not keep loading the checkout. The headless fixture neede
 explicit enable after the directory move. Its API-based permission enable does not
 prove real human permission acceptance.
 
-**Update of a profile already loading that folder:** turn Latch back on with its
-switch. Do not press Remove: Latch's instance ID lives in the extension's own
-storage, which removal is expected to erase. If `verify` reports the previous
-extension version, press the reload icon on the Latch card and verify again.
-Chrome can keep its cached manifest after a re-enable. "Unloaded" on the setup
-commands means switched off, not removed.
+**Update of a profile already loading that folder:** check that the card's "Loaded
+from" is the stable directory, turn Latch back on with its switch, then press the
+reload icon on the card once. The switch alone leaves Chrome reporting the previous
+extension version, so `verify` fails until you reload. Chrome may show "An unknown
+error occurred when fetching the script" after the switch; Latch kept working when
+this was observed, and the cause is unknown.
+
+Do not press Remove, and do not use Load unpacked for an update. Latch's instance ID
+lives in the extension's own storage, which removal is expected to erase. Do not load
+the kit's own `extension/` folder or `dist/`: activation only updates the stable
+directory. The watched switch-and-reload update kept the ID in both directions, but
+earlier ID changes remain unexplained, so if `verify` refuses, inspect it rather than
+re-pairing automatically. "Unloaded" on the setup commands means switched off, not
+removed.
 
 For an existing profile, preserve its stored instance and pairing. For a clean
 profile only, inspect the popup/discovery result, then explicitly pair that exact

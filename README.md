@@ -3,13 +3,13 @@
 A macOS Chrome companion extension and local CLI for connecting existing Work-profile tabs to Playwright CLI. Run `npm ci` after cloning/updating this source branch: the native host now depends on the pinned `ws` transport library.
 
 **Status (November 5, 2026):** the source candidate is **0.2.0-rc.7**, which adds
-live view to RC6. Work is not running the frozen RC6 kit: on November 4 the operator
-activated an earlier live view build, `0.2.0-rc.6-75833d720037`. It carries the RC6
-version, and its `sourceRevision` (`dfb4d1a`) does not contain the code it shipped.
-That update kept the paired instance, but its installer transaction still awaits
-browser verification. The earlier RC3 to RC6 update changed the stored instance ID
-and needed an explicitly approved pairing repair. The cause remains unproven, so
-identity-preserving live upgrade is **not accepted**. The RC6 Work fixture pilot
+live view to RC6, and Work runs it after an approved pairing repair. A watched
+switch-and-reload update kept the instance ID in both directions, but earlier ID
+changes on the RC3 to RC6 and RC7 updates remain unexplained, so identity-preserving
+live upgrade is observed on that path and **not accepted** in general. See the
+[RC7 Work record](docs/acceptance/macos-work-rc7-2026-11-05/README.md) and
+[headless qualification](docs/acceptance/macos-rc7-qualification-2026-11-05/README.md),
+which logs an open intermittent setup timeout. The RC6 Work fixture pilot
 passed normal recording/error/cleanup, a background read with operator-reported
 Personal foreground, and a fresh operator-clicked idle popup Stop with peer survival.
 Earlier unconfirmed attempts remain unverified. Held-action Work Stop, a signed-in
