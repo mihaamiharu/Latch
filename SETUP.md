@@ -9,12 +9,13 @@ This candidate requires Apple Silicon (arm64), macOS 27.0.1 or later and Chrome
 older macOS/Intel qualification is deferred. Unsupported prerequisites fail before
 setup changes the installation or configuration.
 
-Automated browser tests use disposable headless profiles. RC7 adds the view-only
-live pane to RC6. The RC3 to RC6 live update in Work changed the stored instance ID
-and needed an explicitly approved pairing repair; the cause is unproven and identity
-preservation is not accepted. An earlier actual Codex CLI RC3 smoke passed under
-per-session Full Access; fresh client runs and other permission modes remain
-unverified. The procedure below also serves first installs,
+Automated browser tests use disposable headless profiles. Two live updates in Work
+changed the stored instance ID and needed an approved pairing repair; the cause is
+unproven. RC8 keeps a backup of the ID inside the extension and adds a confirmed
+re-pair command. An update usually keeps the ID, but this is not guaranteed. A Codex
+CLI fixture run passed with per-command approval; restricted-sandbox operation,
+signed-in app reuse, Claude Code and Cursor remain unverified. The procedure below
+also serves first installs,
 whose profile/default selection must be verified explicitly. See the current
 release-readiness review in the source repository. The frozen installed RC3 kit
 is not rewritten when this source document is updated.
