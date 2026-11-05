@@ -68,10 +68,45 @@ backup was taken first, and a field comparison showed no other change. Records u
 | 11-05 | Live view build to RC7, with the Load unpacked above | Yes | **Changed**, to `dffe7611` |
 | 11-05 | RC7 to live view build and back, watched | Yes, both ways | Kept, twice |
 
+## Held-action popup Stop
+
+**Passed once, on a local fixture.** The operator clicked **Stop session** on
+`rc7-hold-e` while a waiting action was running, with `rc7-hold-b` connected to a second
+tab as the peer. The action only waits, and it was never rerun.
+
+| Time | Observation |
+| --- | --- |
+| 12:52:55 | Action starts, planned to run about 3 minutes |
+| 12:53:42 | Agent confirms it is still running, then tells the operator to click |
+| 12:54:23 | Action errors with `Target page, context or browser has been closed`; lease moves to `interrupted/revoking` |
+| 12:54:24 | Session retires with `outcome=unknown` and `cleanup=confirmed` |
+
+The operator confirmed clicking at about 12:54:23. The peer passed a read afterwards,
+both fixture tabs stayed open and the host did not restart. Peer disconnect left zero
+controller sessions.
+
+Limits: the action ran through `playwright-cli` directly, because `pw` has a 45-second
+limit and a single evaluate call has a 30-second limit, so the recorder did not capture
+that step; its output and a one-second monitor were saved separately. The popup's message
+text was not captured. Closing the popup mid-Stop was not observed in Work; that remains
+headless evidence.
+
+### Earlier attempts, not counted
+
+| Session | What happened |
+| --- | --- |
+| `rc7-stop-a`, `rc7-stop-b` | Operator stopped both before the action started. Idle Stop cleaned up each, and the tabs stayed open |
+| `rc7-hold-a` | Retired about 5 seconds before the action started, with `rc7-hold-b` left healthy. Consistent with an early Stop, but not confirmed |
+| `rc7-hold-c` | A single long evaluate ended at the 30-second limit; the operator did not click, and the popup correctly offered reconciliation instead of Stop. Outcome recorded as `unknown` and cleaned up through `reconcile` |
+| `rc7-hold-d` | `pw` client ended at its 45-second limit. The operator clicked afterwards, and the session retired at 12:52:10, about when the daemon's loop was due to finish, so causation is unclear |
+
+The 2026-11-01 held attempt ended with the same `Execution context was destroyed` error as
+`rc7-hold-c`, so it probably hit the same 30-second limit. That was not retested.
+
 ## Limits
 
 One machine, one profile and two watched transitions. Chrome's own record of extension
 state was not read. The headless fixture does not reproduce either ID change. Latch
 fails closed when the ID changes: `verify` refuses and no pairing is changed
-automatically. Held-action Stop, a signed-in app read, fresh Codex acceptance and the
-final `0.2.0` package remain open.
+automatically. A signed-in app read, fresh Codex acceptance and the final `0.2.0`
+package remain open.

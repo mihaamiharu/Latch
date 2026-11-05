@@ -2,8 +2,9 @@
 
 This is the RC4 compatibility baseline used through RC7. Work's RC6 pilot needed
 an explicitly approved pairing repair. Its normal local fixture workflow and a
-fresh operator-clicked idle popup Stop passed on RC6, not on RC7. Identity-preserving
-live upgrade, held-action Work Stop and fresh actual client acceptance remain open.
+fresh operator-clicked idle popup Stop passed on RC6. On RC7, an operator-clicked Stop
+during a held fixture action passed with peer survival. Identity-preserving live upgrade
+across all paths, a signed-in app read and fresh actual client acceptance remain open.
 Earlier unconfirmed Stop attempts remain unverified. This is not final release
 acceptance.
 

@@ -12,8 +12,9 @@ live upgrade is observed on that path and **not accepted** in general. See the
 which logs an open intermittent setup timeout. The RC6 Work fixture pilot
 passed normal recording/error/cleanup, a background read with operator-reported
 Personal foreground, and a fresh operator-clicked idle popup Stop with peer survival.
-Earlier unconfirmed attempts remain unverified. Held-action Work Stop, a signed-in
-app read and fresh actual Codex CLI acceptance remain open.
+Earlier unconfirmed attempts remain unverified. On RC7, an operator-clicked Stop during
+a held fixture action passed with peer survival. A signed-in app read and fresh actual
+Codex CLI acceptance remain open.
 See the [Work pilot record](docs/acceptance/macos-work-rc6-2026-11-01/README.md).
 
 An earlier actual Codex CLI RC3 smoke passed under per-session Full Access;
