@@ -20,6 +20,10 @@ test('retained native RC3 updates, rolls back and reactivates with pairing/auth 
   t.after(async()=>{await f?.close();await app.close()});f=await attachmentFixture(t,app,'native');const instance=f.identity.instanceId;
   await f.latch(0,['transport','--set','native']);const configuration=await fs.readFile(f.env.QA_BROWSER_CONFIG);
   await f.connect(0,f.tabs[0],{background:true});await f.pw(0,['run-code','async(page)=>page.evaluate(()=>localStorage.setItem("native-update-auth","retained"))']);await f.latch(0,['disconnect','--session','agent']);
+  // The fixture stops Chrome with SIGTERM, and this checks retention of committed
+  // state. Without Latch, Chrome 157 lost a value at 4s (0/5) and kept it from 6s
+  // (5/5) after the write; graceful close kept it immediately (4/4). Chrome 147 kept it at 0s.
+  await new Promise(resolve=>setTimeout(resolve,8000));
   const maintenance=async()=>{await f.fault('disable');await f.stop();await eventually(()=>fs.lstat(path.join(f.env.QA_BROWSER_RUNTIME_DIR,instance+'.sock')).then(()=>false,e=>e.code==='ENOENT'));app.seeds.delete(f.run)};
   const resumed=async(version)=>{
     await f.restartBrowser();await f.fault('disable');await eventually(()=>fs.lstat(path.join(f.env.QA_BROWSER_RUNTIME_DIR,instance+'.sock')).then(()=>false,e=>e.code==='ENOENT'));await f.fault('enable');await f.refreshIdentity();assert.equal(f.identity.instanceId,instance);assert.equal(f.identity.releaseVersion,version);
