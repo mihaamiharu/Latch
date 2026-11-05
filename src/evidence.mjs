@@ -13,7 +13,7 @@ import {ROOT} from './release.mjs';
 const supported = new Set(['preflight','diagnose','doctor','tabs','connect','pw','release','disconnect']);
 const blocked = /^(?:BRIDGE_|PROFILE_|CLI_UNAVAILABLE|UNSUPPORTED_VERSION|NATIVE_TRANSPORT_UNAVAILABLE|SESSION_|DAEMON_|TAB_UNAVAILABLE|INVALID_|EVIDENCE_)/;
 const uncertain = /(?:CLI_TIMEOUT|CLI_OUTPUT_LARGE|CLI_RESPONSE_INVALID|CONNECTION|DISCONNECTED|TIMEOUT)/;
-const uncertainError = error => uncertain.test(error?.code||'') || /TimeoutError|Target.*closed|Session.*closed|Connection closed|interrupted/i.test(error?.message||'');
+const uncertainError = error => uncertain.test(error?.code||'') || /TimeoutError|Target.*closed|Session.*closed|Connection closed|interrupted|Execution context was destroyed|frame was detached/i.test(error?.message||'');
 function reportingFailure(error, phase, operationOutcome) {
   return Object.assign(fault('EVIDENCE_WRITE_FAILED','Evidence recording failed. Do not repeat a browser action to regenerate evidence; inspect the ledger and render offline when storage is available.'),
     {reporting:{phase,operationOutcome,cause:cliError(error),replayPermitted:false}});
@@ -30,7 +30,7 @@ async function init(dir, identity, contextFile) {
     let context = {provenance:'unverified',value:null};
     if(contextFile)context={provenance:'agent-supplied',value:scrub(JSON.parse(await regularFile(path.resolve(contextFile),16384)))};
     let software={provenance:'unverified',sourceRevision:null};
-    try{const data=await regularFile(path.join(ROOT,'release.json'),65536),descriptor=JSON.parse(data);software={provenance:'descriptor-reported',sourceRevision:descriptor.sourceRevision,descriptorSHA256:digest(data)}}
+    try{const data=await regularFile(path.join(ROOT,'release.json'),65536),descriptor=JSON.parse(data);software={provenance:'descriptor-reported',sourceRevision:descriptor.sourceRevision,dirty:descriptor.sourceDirty??null,descriptorSHA256:digest(data)}}
     catch(e){if(e.code==='ENOENT')try{const revision=(await promisify(execFile)('git',['rev-parse','HEAD'],{cwd:ROOT,timeout:2000,maxBuffer:4096})).stdout.trim(),status=(await promisify(execFile)('git',['status','--porcelain'],{cwd:ROOT,timeout:2000,maxBuffer:65536})).stdout;software={provenance:'observed-source-checkout',sourceRevision:revision,dirty:!!status.trim()}}catch{}}
     run={schema:1,runId:crypto.randomUUID(),createdAt:new Date().toISOString(),...identity,branch,nodeVersion:process.version,platform:process.platform,architecture:process.arch,software,context};
     await exclusive(path.join(dir,'run.json'),JSON.stringify(run,null,2)+'\n');

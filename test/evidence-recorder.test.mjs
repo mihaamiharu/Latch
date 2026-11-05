@@ -55,6 +55,13 @@ test('timeout and cleanup failure retain unknown application outcome and separat
   await assert.rejects(f.run('disconnect','cleanup',async()=>{throw fault('BRIDGE_ACCESS_DENIED','EPERM')}),{code:'BRIDGE_ACCESS_DENIED'});
   const result=await inspectEvidence(f.dir);assert.equal(result.checks[0].operation.outcome,'unknown');assert.equal(result.applicationOutcome,'unknown');assert.equal(result.cleanup.status,'failed');
 });
+test('a lost page context leaves the action outcome unknown, while an ordinary page error stays failed',async t=>{
+  const f=await fixture(t);
+  for(const [step,message] of [['context','page.evaluate: Execution context was destroyed, most likely because of a navigation'],['frame','locator.click: frame was detached']])
+    await assert.rejects(f.run('pw',step,async()=>{throw fault('PLAYWRIGHT_ERROR',message)}),{code:'PLAYWRIGHT_ERROR'});
+  await assert.rejects(f.run('pw','ordinary',async()=>{throw fault('PLAYWRIGHT_ERROR','page.evaluate: Error: LATCH_EXPECTED_FAILURE')}),{code:'PLAYWRIGHT_ERROR'});
+  const {checks}=await inspectEvidence(f.dir);assert.deepEqual(checks.map(c=>c.operation.outcome),['unknown','unknown','failed']);
+});
 test('report-write failure preserves completed action evidence and can be repaired without replay',async t=>{
   const f=await fixture(t);let actions=0;const rename=fs.rename.bind(fs);let failed=false;
   const mock=t.mock.method(fs,'rename',async(a,b)=>{if(b===path.join(f.dir,'result.json')&&!failed){failed=true;throw Object.assign(new Error('disk full fixture'),{code:'ENOSPC'})}return rename(a,b)});
