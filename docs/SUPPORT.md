@@ -1,11 +1,11 @@
 # macOS candidate support matrix
 
-This is the RC4 compatibility baseline used by RC6. RC6 is installed in Work
-after an explicitly approved pairing repair. Its normal local fixture workflow
-and a fresh operator-clicked idle popup Stop passed. Identity-preserving live
-upgrade, held-action Work Stop and fresh actual RC6 client acceptance remain
-open. Earlier unconfirmed Stop attempts remain unverified. This is not final
-release acceptance.
+This is the RC4 compatibility baseline used through RC7. Work's RC6 pilot needed
+an explicitly approved pairing repair. Its normal local fixture workflow and a
+fresh operator-clicked idle popup Stop passed on RC6, not on RC7. Identity-preserving
+live upgrade, held-action Work Stop and fresh actual client acceptance remain open.
+Earlier unconfirmed Stop attempts remain unverified. This is not final release
+acceptance.
 
 | Component | Candidate requirement | Evidence / boundary |
 | --- | --- | --- |
@@ -15,7 +15,7 @@ release acceptance.
 | Playwright CLI | Exactly 0.1.20 | External prerequisite; `pw` preserves ordinary commands and normalizes errors |
 | Chrome | 147 or later | Qualification floor 147.0.7727.15; current lane 153.0.8010.12 |
 | Browser transport | Latch native schema 4, recovery contract 1, popup control 1 | No official Playwright extension required; no automatic fallback |
-| Coding client | Actual Codex RC3 native smoke established | RC6/reporting real-client acceptance pending; Claude Code and Cursor remain unverified |
+| Coding client | Actual Codex RC3 native smoke established | RC7/reporting real-client acceptance pending; Claude Code and Cursor remain unverified |
 | Client permissions | Access to paired Unix socket, local loopback, task and exact CLI cache directories | Run `preflight` in the actual client context; this does not grant permissions |
 
 The native Chrome manifest requires 147. Chrome's flat debugger session API was

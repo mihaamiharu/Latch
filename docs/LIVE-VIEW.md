@@ -1,6 +1,6 @@
 # Live Chrome view in Herdr
 
-This source candidate adds `qa-browser view` and the local `local.latch-view`
+RC7 adds `qa-browser view` and the local `local.latch-view`
 Herdr plugin. It displays the root tab of an **already attached native schema-4
 Latch session**, using that session's existing Chrome debugger attachment. The
 agent remains the controller. It requires no Chrome remote-debugging port, new
@@ -14,12 +14,14 @@ retarget it. Root-tab loss closes the viewer rather than switching to another ta
 
 ## Installation status
 
-The installed RC6 runtime does not gain this feature when source files change.
-Both the CLI and native host need this candidate. Use the normal build, inspect,
-stage and activate workflow in SETUP.md, retaining the previous runtime. Activation
-requires drained tasks and an operator-unloaded extension; do not attest those
-conditions without actually completing them. No installed Work configuration is
-changed by building or testing this source candidate.
+An installed runtime does not gain this feature when source files change. Both the
+CLI and native host need it. The frozen RC6 kit does not contain it. Work has run an
+earlier live view build, `0.2.0-rc.6-75833d720037`, since November 4; RC7 is the
+identifiable replacement. Use the normal build, inspect, stage and activate workflow
+in SETUP.md, retaining the previous runtime. Activation requires drained tasks and
+Latch switched off, not removed; do not attest those conditions without actually
+completing them. No installed Work configuration is changed by building or testing
+this source candidate.
 
 ## Terminal command
 

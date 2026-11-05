@@ -2,14 +2,18 @@
 
 A macOS Chrome companion extension and local CLI for connecting existing Work-profile tabs to Playwright CLI. Run `npm ci` after cloning/updating this source branch: the native host now depends on the pinned `ws` transport library.
 
-**Status (November 1, 2026):** RC6 is installed and verified in Work, with native
-selected and the official extension off. The upgrade changed the extension's
-stored instance ID; an explicitly approved pairing repair restored access. The
-cause remains unproven, so identity-preserving live upgrade is **not accepted**.
-The Work fixture pilot passed normal recording/error/cleanup, a background read
-with operator-reported Personal foreground, and a fresh operator-clicked idle
-popup Stop with peer survival. Earlier unconfirmed attempts remain unverified.
-Held-action Work Stop and fresh actual Codex CLI RC6 acceptance remain open.
+**Status (November 5, 2026):** the source candidate is **0.2.0-rc.7**, which adds
+live view to RC6. Work is not running the frozen RC6 kit: on November 4 the operator
+activated an earlier live view build, `0.2.0-rc.6-75833d720037`. It carries the RC6
+version, and its `sourceRevision` (`dfb4d1a`) does not contain the code it shipped.
+That update kept the paired instance, but its installer transaction still awaits
+browser verification. The earlier RC3 to RC6 update changed the stored instance ID
+and needed an explicitly approved pairing repair. The cause remains unproven, so
+identity-preserving live upgrade is **not accepted**. The RC6 Work fixture pilot
+passed normal recording/error/cleanup, a background read with operator-reported
+Personal foreground, and a fresh operator-clicked idle popup Stop with peer survival.
+Earlier unconfirmed attempts remain unverified. Held-action Work Stop, a signed-in
+app read and fresh actual Codex CLI acceptance remain open.
 See the [Work pilot record](docs/acceptance/macos-work-rc6-2026-11-01/README.md).
 
 An earlier actual Codex CLI RC3 smoke passed under per-session Full Access;
@@ -25,9 +29,10 @@ notices retain their own terms.
 The [macOS release execution plan](docs/MACOS-FIRST-RELEASE-PLAN.md) defines the
 remaining implementation, reporting, client acceptance and packaging gates.
 
-The source candidate is now **0.2.0-rc.6**. It pins the validated CLI and Node
-execution environment for GUI-launched native-host cleanup, and includes local
-data-handling/third-party notices. RC5 adds the maintained evidence recorder,
+RC7 adds [live view](docs/LIVE-VIEW.md), records whether a kit was built from
+modified source and reports lost page contexts as unknown action outcomes. RC6 pins
+the validated CLI and Node execution environment for GUI-launched native-host
+cleanup, and includes local data-handling/third-party notices. RC5 adds the maintained evidence recorder,
 offline reports/integrity checks and explicitly selected evidence exports. RC4 adds checked macOS prerequisites,
 a qualified Chrome minimum, pinned floor/current browser test lanes, verified
 native-default setup and same-client `preflight` for task/cache/bridge access.
@@ -49,7 +54,7 @@ The native preview integrates the normal CLI/helper with paired profiles and ind
 npm run build
 ```
 
-This builds `dist/latch/`, its extension ZIP, and the complete `dist/latch-0.2.0-rc.6/` kit plus kit ZIP. It validates the fixed identity, module inventory, permissions, dependency/licenses and file hashes. Build does not modify the source manifest, native registration or installed launchers. Load the built stable installation directory after setup; the source manifest remains the installed-compatibility baseline.
+This builds `dist/latch/`, its extension ZIP, and the complete `dist/latch-0.2.0-rc.7/` kit plus kit ZIP. It validates the fixed identity, module inventory, permissions, dependency/licenses and file hashes. Build does not modify the source manifest, native registration or installed launchers. Load the built stable installation directory after setup; the source manifest remains the installed-compatibility baseline.
 
 Latch 0.1.1 uses the agent-and-latch icon in 16, 32, 48 and 128px sizes. The original generated master and prompt are preserved in `assets/latch/`. The extension ID, `qa-browser` command, native host name and existing config path are preserved.
 
@@ -98,10 +103,9 @@ The bridge is intended for regular, already open Chrome windows. Native setup us
 
 ## Terminal workflow
 
-The source candidate also provides a view-only live Chrome pane for an existing
-native session. See [live view in Herdr](docs/LIVE-VIEW.md) for the command, optional
-local plugin, upgrade requirements and verification limits. The installed RC6
-host must be updated before this source feature can be used with Work.
+Latch also provides a view-only live Chrome pane for an existing native session.
+See [live view in Herdr](docs/LIVE-VIEW.md) for the command, optional local plugin,
+upgrade requirements and verification limits.
 
 For a managed release installation, use `node src/install.mjs skills` from its kit after verification. For checkout-based development only, run `npm run skills:install` once. It links the canonical `skills/latch/` directory into the local user's `.agents/skills/latch` for Codex/Cursor and `.claude/skills/latch` for Claude Code. Existing unrelated skills are not overwritten. The same skill contains the workflow, wrapper and recovery reference; clients do not need an MCP server configuration for Latch.
 

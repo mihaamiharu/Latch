@@ -1,4 +1,4 @@
-# Latch 0.2.0-rc.6 local setup
+# Latch 0.2.0-rc.7 local setup
 
 This private macOS candidate includes the native extension, host/CLI, shared skill,
 `ws` 8.22.0 and third-party licenses. Node **22.21.1** and Playwright CLI **0.1.20**
@@ -9,12 +9,12 @@ This candidate requires Apple Silicon (arm64), macOS 27.0.1 or later and Chrome
 older macOS/Intel qualification is deferred. Unsupported prerequisites fail before
 setup changes the installation or configuration.
 
-Automated browser tests use disposable headless profiles. The current operator-
-assisted Work installation now runs RC6 with native selected for that profile.
-Its live update changed the stored instance ID and needed an explicitly approved
-pairing repair; identity preservation is not accepted. An earlier actual Codex CLI
-RC3 smoke passed under per-session Full Access; fresh RC6 client and other
-permission modes remain unverified. The procedure below also serves first installs,
+Automated browser tests use disposable headless profiles. RC7 adds the view-only
+live pane to RC6. The RC3 to RC6 live update in Work changed the stored instance ID
+and needed an explicitly approved pairing repair; the cause is unproven and identity
+preservation is not accepted. An earlier actual Codex CLI RC3 smoke passed under
+per-session Full Access; fresh client runs and other permission modes remain
+unverified. The procedure below also serves first installs,
 whose profile/default selection must be verified explicitly. See the current
 release-readiness review in the source repository. The frozen installed RC3 kit
 is not rewritten when this source document is updated.
@@ -25,7 +25,7 @@ Unzip the complete kit into a permanent local directory. Use the selected Node
 executable, then inspect from that directory:
 
 ```bash
-LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.6'
+LATCH_KIT='/absolute/path/to/latch-0.2.0-rc.7'
 node "$LATCH_KIT/src/install.mjs" inspect --kit "$LATCH_KIT"
 node "$LATCH_KIT/src/install.mjs" stage --kit "$LATCH_KIT"
 ```
@@ -90,12 +90,20 @@ bridge sockets to be unreachable; it cannot prove Chrome was unloaded or accept 
 permission prompt. Activation returns `verified: false` until browser verification.
 It does not restart browsers, disconnect tasks, pair profiles or change defaults.
 
-In the intended Chrome profile, use Load unpacked to select the returned stable
-`extensionDirectory`. Review the fixed ID `dlkpkeiejlgggeoibejpoajedoelfcli` and
-explicitly enable the updated extension. Accept Chrome's added debugger permission
-yourself. Use this same path for future updates; do not keep loading the checkout.
-The headless fixture needed an explicit enable after the directory move. Its
-API-based permission enable does not prove real human permission acceptance.
+**First install, or moving from another folder:** in the intended Chrome profile,
+use Load unpacked to select the returned stable `extensionDirectory`. Review the
+fixed ID `dlkpkeiejlgggeoibejpoajedoelfcli` and explicitly enable the updated
+extension. Accept Chrome's added debugger permission yourself. Use this same path
+for future updates; do not keep loading the checkout. The headless fixture needed an
+explicit enable after the directory move. Its API-based permission enable does not
+prove real human permission acceptance.
+
+**Update of a profile already loading that folder:** turn Latch back on with its
+switch. Do not press Remove: Latch's instance ID lives in the extension's own
+storage, which removal is expected to erase. If `verify` reports the previous
+extension version, press the reload icon on the Latch card and verify again.
+Chrome can keep its cached manifest after a re-enable. "Unloaded" on the setup
+commands means switched off, not removed.
 
 For an existing profile, preserve its stored instance and pairing. For a clean
 profile only, inspect the popup/discovery result, then explicitly pair that exact
@@ -108,7 +116,7 @@ node "$LATCH_KIT/src/install.mjs" verify --profile work
 ```
 
 Verification checks the installed identity/readiness and requires extension
-`0.1.99.6` (display name `0.2.0-rc.6`), release `0.2.0-rc.6`, native schema 4 and
+`0.1.99.7` (display name `0.2.0-rc.7`), release `0.2.0-rc.7`, native schema 4 and
 UI capability 1. It separately reports `applicationSmokeRequired: true`. Complete
 a disposable native CLI smoke against the intended app before calling rollout
 successful; do not silently fall back to another adapter.
