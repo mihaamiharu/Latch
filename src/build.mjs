@@ -12,10 +12,11 @@ export async function build({root=ROOT,out=path.join(root,'dist')}={}) {
   await fs.mkdir(out,{recursive:true});
   for(const p of [kit,extension])await fs.rm(p,{recursive:true,force:true});
   await fs.mkdir(kit);
-  for(const folder of ['extension','src','skills/latch','third_party/playwright','node_modules/ws'])await fs.cp(path.join(root,folder),path.join(kit,folder),{recursive:true});
+  for(const folder of ['extension','src','skills/latch','third_party/playwright','node_modules/ws','integrations/herdr'])await fs.cp(path.join(root,folder),path.join(kit,folder),{recursive:true});
   for(const file of ['package.json','package-lock.json'])await fs.copyFile(path.join(root,file),path.join(kit,file));
   await fs.copyFile(path.join(root,'SETUP.md'),path.join(kit,'README.md'));
   await fs.copyFile(path.join(root,'docs/SUPPORT.md'),path.join(kit,'SUPPORT.md'));
+  await fs.copyFile(path.join(root,'docs/LIVE-VIEW.md'),path.join(kit,'LIVE-VIEW.md'));
   for(const file of ['PRIVACY.md','THIRD_PARTY_NOTICES.md'])await fs.copyFile(path.join(root,file),path.join(kit,file));
   await fs.rm(path.join(kit,'src/build.mjs'));
   for(const size of [16,32,48,128])await fs.rm(path.join(kit,`extension/icons/icon-${size}.png`),{force:true});

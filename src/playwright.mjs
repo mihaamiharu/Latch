@@ -10,7 +10,7 @@ export function redact(text) {
     .replace(/wss?:\/\/[^\s"'<>]+/gi, '[endpoint redacted]')
     .replace(/(PLAYWRIGHT_MCP_EXTENSION_TOKEN=)[^\s"'<>]+/g, '$1[redacted]')
     .replace(/([?&](?:token|access_token|key)=)[^\s&"<>]+/gi, '$1[redacted]')
-    .replace(/(\/(?:cdp|extension)\/)[a-f0-9]{64}/gi, '$1[redacted]');
+    .replace(/(\/(?:cdp|extension|view)\/)[a-f0-9]{64}/gi, '$1[redacted]');
 }
 // Local CLI failures retain a bounded cause; bridge errors still use safeError.
 export function cliError(error) {

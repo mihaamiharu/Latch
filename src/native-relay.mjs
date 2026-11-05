@@ -2,6 +2,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import {WebSocket, WebSocketServer} from 'ws';
 import {BrowserModel} from './native-browser-model.mjs';
+import {liveViewStream} from './live-view-stream.mjs';
 import {TRANSPORT_LIMITS,prepareWire,browserDeadline} from '../extension/transport-limits.js';
 
 const MAX_PENDING = TRANSPORT_LIMITS.pending;
@@ -10,12 +11,13 @@ const MAX_PENDING = TRANSPORT_LIMITS.pending;
 // caller's private native/control channel, never in diagnostic trace output.
 export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
   const paths = {extension: `/extension/${crypto.randomBytes(32).toString('hex')}`,
-    cdp: `/cdp/${crypto.randomBytes(32).toString('hex')}`};
+    cdp: `/cdp/${crypto.randomBytes(32).toString('hex')}`,
+    view: `/view/${crypto.randomBytes(32).toString('hex')}`};
   const trace = [];
   const pending = new Map();
   const metrics={sentBytes:0,receivedBytes:0,maxSentMessage:0,maxReceivedMessage:0,maxAdmittedBytes:0,maxObservedBuffered:0,pendingHighWater:0,commands:0,events:0,timeouts:0};
   const retiredRequests=new Set();
-  let sequence = 0, extension, client, stopped = false, initialized = false, stopPromise, stopReason;
+  let sequence = 0, extension, client, stopped = false, initialized = false, stopPromise, stopReason, externalScreencast = false;
   let readyResolve, readyReject;
   const ready = new Promise((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
   ready.catch(() => {});
@@ -46,6 +48,7 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
       catch (error) { clearTimeout(timer); pending.delete(id); reject(error); }
     });
   }
+  const view = liveViewStream({call, rootTab: () => model.tab?.id, isStopped: () => stopped});
   const model = new BrowserModel(call, message => {
     try { if (client) send(client, message); } catch { void stop(); }
   },{onRetire:(tabId,children)=>{
@@ -61,12 +64,13 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
   const wss = new WebSocketServer({noServer: true, maxPayload: TRANSPORT_LIMITS.message, perMessageDeflate: false});
   const rejected = socket => { socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); };
   server.on('upgrade', (req, socket, head) => {
-    const role = req.url === paths.extension ? 'extension' : req.url === paths.cdp ? 'cdp' : null;
+    const role = req.url === paths.extension ? 'extension' : req.url === paths.cdp ? 'cdp' : req.url === paths.view ? 'view' : null;
     const origin = req.headers.origin;
     if (stopped || !role || req.headers.host !== `127.0.0.1:${server.address()?.port}` ||
         (role === 'extension' ? origin !== `chrome-extension://${extensionId}` : origin !== undefined) ||
-        (role === 'extension' ? !!extension : !!client || !initialized)) return rejected(socket);
+        (role === 'extension' ? !!extension : role === 'view' ? !initialized || !client || externalScreencast || !view.available() : !!client || !initialized)) return rejected(socket);
     wss.handleUpgrade(req, socket, head, ws => {
+      if (role === 'view') { void view.attach(ws); return; }
       ws.on('error', error => void stop(error.code==='WS_ERR_UNSUPPORTED_MESSAGE_LENGTH'?'WIRE_MESSAGE_TOO_LARGE':`${role}-error`));
       ws.on('close', (_code,reason) => {const text=reason.toString();void stop(['TRANSPORT_BACKLOG','WIRE_MESSAGE_TOO_LARGE'].includes(text)?text:`${role}-disconnected`)});
       if (role === 'extension') {
@@ -86,10 +90,12 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
               clearTimeout(readyTimer); readyResolve();
             } else if (message.method === 'event' && initialized) {
               if (message.params.method === 'Page.lifecycleEvent') record('event', message.params.method, `${message.params.source.tabId}:${message.params.params?.name}`);
-              metrics.events++;model.onEvent(message.params);
+              metrics.events++;
+              // Viewer-owned PNGs never fan out into the agent's CDP socket.
+              if (!view.event(message.params)) model.onEvent(message.params);
             }
             else if (message.method === 'tab-created' && initialized) void model.addTab(message.params).catch(() => {});
-            else if (message.method === 'tab-removed' && initialized) model.removeTab(message.params?.tabId);
+            else if (message.method === 'tab-removed' && initialized) { if (message.params?.tabId === model.tab?.id) view.stop(); model.removeTab(message.params?.tabId); }
             else throw new Error('Invalid extension message.');
           } catch { void stop(); }
         });
@@ -103,7 +109,11 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
             if (!Number.isSafeInteger(message.id) || typeof message.method !== 'string' || message.method.length > 120)
               throw new Error('Invalid CDP command.');
             record('command', message.method);
+            if (view.active() && ['Page.startScreencast','Page.stopScreencast','Page.screencastFrameAck'].includes(message.method))
+              throw new Error('Live view owns this session screencast. Close the viewer before recording.');
             const result = await model.command(message);
+            if (message.method === 'Page.startScreencast') externalScreencast = true;
+            if (message.method === 'Page.stopScreencast') externalScreencast = false;
             send(ws, {id: message.id, ...(message.sessionId ? {sessionId: message.sessionId} : {}), result});
             model.didSendResponse(message);
           } catch (error) {
@@ -122,6 +132,7 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
   function stop(reason = 'stopped') {
     if (stopPromise) return stopPromise;
     stopped = true;
+    view.stop();
     stopReason = reason;
     clearTimeout(readyTimer);
     readyReject(new Error('Relay stopped.'));
@@ -133,9 +144,10 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
     Promise.resolve().then(() => onStop?.()).catch(() => {});
     return stopPromise;
   }
-  return {extensionEndpoint: base + paths.extension, cdpEndpoint: base + paths.cdp, ready, stop,
+  return {extensionEndpoint: base + paths.extension, cdpEndpoint: base + paths.cdp,
+    viewEndpoint: base + paths.view, ready, stop,
     status: () => ({initialized, stopped, reason: stopReason, lastMethod: trace.at(-1)?.method,
       tabId: model.tab?.id, targetId: model.inventory().find(target => target.tabId === model.tab?.id)?.targetId,
-      targets: model.inventory(), pending: pending.size,metrics:{...metrics},resources:{clients:wss.clients.size,listening:server.listening,pendingTimers:pending.size+(!initialized&&!stopped?1:0)}}),
+      targets: model.inventory(), pending: pending.size, view: view.status(), metrics:{...metrics},resources:{clients:wss.clients.size,listening:server.listening,pendingTimers:pending.size+(!initialized&&!stopped?1:0)}}),
     targets: () => model.inventory(), trace: () => trace.slice()};
 }

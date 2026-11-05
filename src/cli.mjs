@@ -34,6 +34,7 @@ const usage = `Latch ${releaseVersion}
   qa-browser release --profile work --session <name> --tab <id> [--workspace <path>]
   qa-browser disconnect --profile work --session <name> [--workspace <path>]
   qa-browser pw --profile work --session <name> [--workspace <path>] -- <playwright-command> [args...]
+  qa-browser view --profile work --session <name> [--workspace <path>] [--renderer chafa|kitty]
   qa-browser report --evidence-dir <path>
   qa-browser export --evidence-dir <path> --export-dir <new-path> --include <artifact-path,...>
 Recording: add --evidence-dir PATH to task commands; pw supports --step ID,
@@ -46,7 +47,7 @@ function parse(argv) {
   const command = argv.shift() || 'help';
   const flags = {};
   let playwrightArgs;
-  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'workspace', 'json', 'transport', 'focus-emulation', 'apply', 'expect', 'set','evidence-dir','step','expect-result','expect-error','check-kind','context-file','inline','export-dir','include']);
+  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'workspace', 'json', 'transport', 'focus-emulation', 'apply', 'expect', 'set','evidence-dir','step','expect-result','expect-error','check-kind','context-file','inline','export-dir','include','renderer']);
   while (argv.length) {
     const flag = argv.shift();
     if (flag === '--' && command === 'pw') { playwrightArgs = argv.splice(0); break; }
@@ -70,6 +71,13 @@ async function paired(name) {
 export async function executeCLI({command,flags:f,playwrightArgs}) {
   if (['help', '--help'].includes(command)) { console.log(usage); return; }
   if (['version','--version'].includes(command)) return {version:releaseVersion,nativeSessionSchema:4,uiControl:1,validatedCLI:'0.1.20'};
+  if (command === 'view') {
+    if (Object.keys(f).some(k => !['profile','session','workspace','renderer'].includes(k)))
+      throw fault('INVALID_ARGUMENT', 'View accepts only --profile, --session, --workspace and --renderer. It does not record frames.');
+    const {liveView, viewOptions} = await import('./live-view.mjs');
+    return liveView(viewOptions(Object.entries(f).flatMap(([k,v]) => ['--'+k,v])));
+  }
+  if (f.renderer) throw fault('INVALID_ARGUMENT', 'Use --renderer only with view.');
   if (command === 'discover') return await discoverDetailed();
   const alias = f.profile || 'work';
   if (f.transport && !['official', 'native'].includes(f.transport)) throw fault('INVALID_ARGUMENT', 'Transport must be official or native.');

@@ -109,6 +109,13 @@ export class NativeRecovery {
     }
     if (p.action === 'apply') return this.apply(g, p, check);
     if (!sameAuthority(old, {...this.identity, leaseId: old.leaseId})) throw fault('AUTHORITY_STALE', 'Native authority changed; reconcile the interrupted session.');
+    if (p.action === 'view') {
+      const live = this.sessions.sessions.get(g.key);
+      if (old.status !== 'attached' || !live || live.leaseId !== old.leaseId || live.relay.status().stopped)
+        throw fault('SESSION_STALE', 'Connect a healthy native session before opening its viewer.');
+      if (!live.relay.viewEndpoint) throw fault('VIEW_UNSUPPORTED', 'This host does not support live view.');
+      return {endpoint: live.relay.viewEndpoint, tabId: live.tabId};
+    }
     if (p.action === 'cli-attached') {
       const daemon = await daemonIdentity(old.workspace, old.session); check();
       if (!daemon?.socketExists) throw fault('DAEMON_IDENTITY_UNCONFIRMED', 'Attached CLI daemon could not be identified.');

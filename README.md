@@ -98,6 +98,11 @@ The bridge is intended for regular, already open Chrome windows. Native setup us
 
 ## Terminal workflow
 
+The source candidate also provides a view-only live Chrome pane for an existing
+native session. See [live view in Herdr](docs/LIVE-VIEW.md) for the command, optional
+local plugin, upgrade requirements and verification limits. The installed RC6
+host must be updated before this source feature can be used with Work.
+
 For a managed release installation, use `node src/install.mjs skills` from its kit after verification. For checkout-based development only, run `npm run skills:install` once. It links the canonical `skills/latch/` directory into the local user's `.agents/skills/latch` for Codex/Cursor and `.claude/skills/latch` for Claude Code. Existing unrelated skills are not overwritten. The same skill contains the workflow, wrapper and recovery reference; clients do not need an MCP server configuration for Latch.
 
 Start a fresh local agent session, then invoke `$latch` in Codex, `/latch` in Claude Code, or select Latch from Cursor's skill menu. Natural requests such as “Use Latch to verify my existing staging tab” can also trigger it. Runtime capabilities still depend on shell permissions and the installed browser connection.
