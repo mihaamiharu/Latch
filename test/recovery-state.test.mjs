@@ -94,7 +94,7 @@ test('rejected fresh-tab bootstrap releases its early reservation before retirin
  const owner={},g=await f.broker.begin(f.meta,owner);
  await assert.rejects(f.broker.step(g,owner,{action:'open',nonce:g.nonce}),{code:'TAB_CHANGED'});
  assert.equal(disconnected,1);const record=await f.store.read(f.key);
- assert.equal(record.status,'retired');assert.equal(record.createdTabId,77);assert.equal(record.cleanup,'confirmed');
+ assert.equal(record.status,'retired');assert.equal(record.tabId,77);assert.equal(Object.hasOwn(record,'createdTabId'),false);assert.equal(record.cleanup,'confirmed');
  await f.broker.finish(g);
 });
 

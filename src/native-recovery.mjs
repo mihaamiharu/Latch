@@ -72,7 +72,7 @@ export class NativeRecovery {
     const old = g.record, base = {...g.base, leaseId: old?.leaseId};
     if (p.action === 'inspect') return this.inspect(g.key);
     if (['connect','verify','release'].includes(p.action) && (!Number.isSafeInteger(p.tabId) || p.tabId < 0)) throw fault('INVALID_TAB','A numeric tab ID is required.');
-    if (['connect','verify'].includes(p.action) && (typeof p.expectedUrl !== 'string' || p.expectedUrl.length > 16384 || !(webUrl(p.expectedUrl) || p.action === 'verify' && p.expectedUrl === 'about:blank' && old?.createdTabId === p.tabId))) throw fault('INVALID_ARGUMENT','An ordinary discovered HTTP(S) URL is required.');
+    if (['connect','verify'].includes(p.action) && (typeof p.expectedUrl !== 'string' || p.expectedUrl.length > 16384 || !(webUrl(p.expectedUrl) || p.action === 'verify' && p.expectedUrl === 'about:blank' && g.createdTabId === p.tabId))) throw fault('INVALID_ARGUMENT','An ordinary discovered HTTP(S) URL is required.');
     if (p.action === 'connect' || p.action === 'open') {
       if (p.focusEmulation !== undefined && typeof p.focusEmulation !== 'boolean') throw fault('INVALID_ARGUMENT','Focus emulation must be a boolean.');
       if ((await partialJournals(this.identity.instanceId,g.key)).length) throw fault('PARTIAL_JOURNAL_PRESENT','An incomplete journal is preserved. Inspect it before reconnecting.'); check();
@@ -84,14 +84,16 @@ export class NativeRecovery {
         check(); return {...connected, authority: authorityOf(old)};
       }
       const leaseId = crypto.randomUUID();
-      await this.save(g, {v: 4, key: g.key, ...g.meta, ...g.base, leaseId, tabId: p.tabId ?? null, createdTabId: null, focusEmulation: !!p.focusEmulation, status: 'connecting', stage: p.action === 'open' ? 'creating-tab' : 'reserve', outcome: 'unknown', cleanup: null, appliedToken: null, daemonFingerprint: null, daemonSocketFingerprint: null}, check);
+      await this.save(g, {v: 4, key: g.key, ...g.meta, ...g.base, leaseId, tabId: p.tabId ?? null, focusEmulation: !!p.focusEmulation, status: 'connecting', stage: p.action === 'open' ? 'creating-tab' : 'reserve', outcome: 'unknown', cleanup: null, appliedToken: null, daemonFingerprint: null, daemonSocketFingerprint: null}, check);
       g.acquired = true;
       let created;
       if (p.action === 'open') {
         if (this.sessions.sessions.size >= 16) throw fault('SESSION_LIMIT', 'Too many native sessions.');
         created = await this.browser('native-create-tab', {...g.base, leaseId});
         check();
-        await this.save(g, {tabId: created.tabId, createdTabId: created.tabId, stage: 'reserve'}, check);
+        // Keep blank-tab admission within this grant, preserving RC8 journal compatibility.
+        g.createdTabId = created.tabId;
+        await this.save(g, {tabId: created.tabId, stage: 'reserve'}, check);
         p = {...p, tabId: created.tabId, expectedUrl: 'about:blank'};
       }
       let connected;
