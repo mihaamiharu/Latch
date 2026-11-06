@@ -5,7 +5,7 @@ import {pathToFileURL} from 'node:url';
 import {discoverDetailed, request, readConfig, updateConfig, uuid} from './local.mjs';
 import {diagnose} from './diagnostics.mjs';
 import {replacePairing} from './pair-replace.mjs';
-import {fault, safeError} from '../extension/protocol.js';
+import {fault, safeError, webUrl} from '../extension/protocol.js';
 import {workspaceAt, sessionKey, runCLI, assertVersion, connectionURL, selectAndVerify, cliError} from './playwright.mjs';
 import {runSessionCLI, validatePlaywrightArgs} from './playwright-command.mjs';
 import {readSession, writeSession, forgetSession, locked} from './state.mjs';
@@ -31,6 +31,7 @@ const usage = `Latch ${releaseVersion}
   qa-browser preflight --profile work --session <name> [--workspace <path>]
   qa-browser reconcile --profile work --session <name> [--workspace <path>] [--apply --expect <plan-token>]
   qa-browser tabs --profile work
+  qa-browser open --profile work --session <new-name> --url <http(s)-url> [--workspace <path>] [--transport native] [--focus-emulation on|off]
   qa-browser connect --profile work --session <name> --tab <id> [--workspace <path>] [--transport official|native] [--focus-emulation on|off]
   qa-browser release --profile work --session <name> --tab <id> [--workspace <path>]
   qa-browser disconnect --profile work --session <name> [--workspace <path>]
@@ -48,7 +49,7 @@ function parse(argv) {
   const command = argv.shift() || 'help';
   const flags = {};
   let playwrightArgs;
-  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'workspace', 'json', 'transport', 'focus-emulation', 'apply', 'expect', 'set','evidence-dir','step','expect-result','expect-error','check-kind','context-file','inline','export-dir','include','renderer','replace','expect-old']);
+  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'url', 'workspace', 'json', 'transport', 'focus-emulation', 'apply', 'expect', 'set','evidence-dir','step','expect-result','expect-error','check-kind','context-file','inline','export-dir','include','renderer','replace','expect-old']);
   while (argv.length) {
     const flag = argv.shift();
     if (flag === '--' && command === 'pw') { playwrightArgs = argv.splice(0); break; }
@@ -72,6 +73,9 @@ async function paired(name) {
 export async function executeCLI({command,flags:f,playwrightArgs}) {
   if (['help', '--help'].includes(command)) { console.log(usage); return; }
   if (['version','--version'].includes(command)) return {version:releaseVersion,nativeSessionSchema:4,uiControl:1,validatedCLI:'0.1.20'};
+  if (command === 'open' && (!webUrl(f.url) || f.url.length > 16384 || f.tab !== undefined))
+    throw fault('INVALID_ARGUMENT', 'Open needs --url with an ordinary HTTP(S) URL and a fresh --session; omit --tab.');
+  if (command !== 'open' && f.url !== undefined) throw fault('INVALID_ARGUMENT', 'Use --url only with open.');
   if (command === 'view') {
     if (Object.keys(f).some(k => !['profile','session','workspace','renderer'].includes(k)))
       throw fault('INVALID_ARGUMENT', 'View accepts only --profile, --session, --workspace and --renderer. It does not record frames.');
@@ -82,8 +86,8 @@ export async function executeCLI({command,flags:f,playwrightArgs}) {
   if (command === 'discover') return await discoverDetailed();
   const alias = f.profile || 'work';
   if (f.transport && !['official', 'native'].includes(f.transport)) throw fault('INVALID_ARGUMENT', 'Transport must be official or native.');
-  if (f['focus-emulation'] && (command !== 'connect' || !['on', 'off'].includes(f['focus-emulation'])))
-    throw fault('INVALID_ARGUMENT', 'Use --focus-emulation on|off with native connect.');
+  if (f['focus-emulation'] && (!['connect','open'].includes(command) || !['on', 'off'].includes(f['focus-emulation'])))
+    throw fault('INVALID_ARGUMENT', 'Use --focus-emulation on|off with native connect or open.');
   if (!/^[a-zA-Z0-9_-]{1,40}$/.test(alias)) throw fault('INVALID_PROFILE', 'Use a simple profile alias.');
   if (f.set !== undefined && command !== 'transport') throw fault('INVALID_ARGUMENT', 'Use --set only with transport.');
   if ((f.replace || f['expect-old']) && (command !== 'pair' || !f.replace || !f['expect-old'])) throw fault('INVALID_ARGUMENT', 'Use --replace and --expect-old together, only with pair.');
@@ -144,7 +148,7 @@ export async function executeCLI({command,flags:f,playwrightArgs}) {
       attachment: {verified: false, note: 'Doctor checks bridge access and CLI version, not an official Playwright extension handshake. Connect verifies attachment.'}};
   }
   if (command === 'tabs') return {profile: alias, instanceId: profile.instanceId, epoch: profile.epoch, tabs: await call('tabs')};
-  if (!['connect', 'release', 'disconnect', 'pw'].includes(command)) throw fault('INVALID_COMMAND', 'Unknown command. Use qa-browser help.');
+  if (!['connect', 'open', 'release', 'disconnect', 'pw'].includes(command)) throw fault('INVALID_COMMAND', 'Unknown command. Use qa-browser help.');
   const session = f.session;
   if (!/^[a-zA-Z0-9_-]{1,60}$/.test(session || '')) throw fault('INVALID_SESSION', 'Specify a simple --session name.');
   const key = sessionKey(workspace, session);
@@ -154,9 +158,10 @@ export async function executeCLI({command,flags:f,playwrightArgs}) {
   const nativeRecord = await readRecovery(profile.instanceId, key);
   const selection = selectTransport({explicit: f.transport, profile, legacy, nativeRecord, command});
   const selectedTransport = selection.transport;
+  if (command === 'open' && (selectedTransport !== 'native' || profile.capabilities?.nativeSessionSchema !== 4 || profile.capabilities?.createTab !== 1 || legacy)) throw fault('OPEN_UNSUPPORTED', 'Open requires the updated native Latch host/extension and a fresh session.');
   if (command === 'pw') return runSessionCLI({args: playwrightArgs, profile, session, workspace, key, legacy, nativeRecord, selection, call, options});
   if (selectedTransport === 'native' && profile.capabilities?.nativeSessionSchema === 4 && !legacy) {
-    return {...selection, extensionVersion:profile.extensionVersion,extensionRelease:profile.releaseVersion,...await nativeWorkflowV4({command, profile, call, alias, workspace, session, key, tabId, options, requestedFocusEmulation: f['focus-emulation'] === undefined ? undefined : f['focus-emulation'] === 'on'})};
+    return {...selection, extensionVersion:profile.extensionVersion,extensionRelease:profile.releaseVersion,...await nativeWorkflowV4({command, profile, call, alias, workspace, session, key, tabId, url: f.url, options, requestedFocusEmulation: f['focus-emulation'] === undefined ? undefined : f['focus-emulation'] === 'on'})};
   }
   if (selectedTransport !== 'native' && nativeRecord && nativeRecord.status !== 'retired') throw fault('TRANSPORT_MISMATCH', 'Reconcile/disconnect the native lease before changing transport.');
   return await locked(key, async () => {

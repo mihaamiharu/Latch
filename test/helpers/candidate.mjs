@@ -7,4 +7,4 @@ import {ROOT,chromeVersion} from '../../src/release.mjs';
 // rather than accidentally continuing to exercise a retained RC directory.
 export const CANDIDATE_VERSION=JSON.parse(await fs.readFile(path.join(ROOT,'package.json'),'utf8')).version;
 export const CANDIDATE_CHROME_VERSION=chromeVersion(CANDIDATE_VERSION);
-export const CANDIDATE_KIT=path.join(ROOT,'dist','latch-'+CANDIDATE_VERSION);
+export const CANDIDATE_KIT=process.env.LATCH_CANDIDATE_KIT ? path.resolve(process.env.LATCH_CANDIDATE_KIT) : path.join(ROOT,'dist','latch-'+CANDIDATE_VERSION);

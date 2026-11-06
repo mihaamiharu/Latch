@@ -5,7 +5,7 @@ import {configPath, privateDirectory, uuid} from './local.mjs';
 import {fault} from '../extension/protocol.js';
 
 const keyPattern = /^[a-f0-9]{64}$/;
-const recordFields = new Set(['v','key','revision','instanceId','epoch','hostGeneration','leaseId','sessionKey','workspace','session','tabId','focusEmulation','status','stage','outcome','cleanup','appliedToken','daemonFingerprint','daemonSocketFingerprint','rootTabId','targets','updatedAt']);
+const recordFields = new Set(['v','key','revision','instanceId','epoch','hostGeneration','leaseId','sessionKey','workspace','session','tabId','focusEmulation','status','stage','outcome','cleanup','appliedToken','daemonFingerprint','daemonSocketFingerprint','rootTabId','createdTabId','targets','updatedAt']);
 export const recoveryDirectory = instance => {
   if (!uuid.test(instance || '')) throw fault('INVALID_PROFILE', 'Invalid recovery profile.');
   return path.join(path.dirname(configPath()), 'native-v4', instance);

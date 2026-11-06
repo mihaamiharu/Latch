@@ -45,6 +45,31 @@ Run `transport --profile work` to inspect the configured default when supported.
 
 If discovery/doctor fails, run `diagnose --profile work` with the same helper **inside the same agent execution context**. Save that JSON with the report. `PROFILE_UNAVAILABLE` means the local socket could not be reached; it does not mean the pairing is missing. Only report an unpaired profile when configuration actually lacks the alias. Preserve the operating-system error, socket path and runtime directory; do not silently change client security settings.
 
+## Open a fresh tab when no suitable page exists
+
+After the same profile-only doctor and task preflight, an updated native host/extension
+advertising `createTab: 1` supports:
+
+```bash
+node "$LATCH_SKILL_DIR/scripts/latch.mjs" open --profile work --transport native --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE" --focus-emulation on --url "https://staging.example.com"
+```
+
+Use the URL requested by the user and a fresh session name. This creates a background
+tab in a regular window of the paired profile, attaches it, then navigates; no tab ID
+or discovery is needed. Require successful JSON with `connected: true` and `created:
+true`. Use `--inline` to inspect these fields if recording evidence. Continue with
+normal `pw` and the same disconnect cleanup. For focus/visibility assertions choose
+`--focus-emulation off` instead. Follow the profile's native selection; `open` does
+not change its preference or fall back to another transport.
+
+`open` is a new-root-session workflow. An active name is rejected without creating
+another tab; `tab-new` and `context.newPage()` remain unsupported in the native
+adapter. Do not use page scripts as a workaround for unsupported lifecycle commands.
+Older runtimes report `OPEN_UNSUPPORTED`; do not reinstall automatically during a QA
+task. A navigation failure includes its created tab/session in diagnostics and may
+have an unknown application outcome. Inspect or disconnect that exact session rather
+than repeating `open`. Closing/disconnecting preserves its Chrome tab and login.
+
 ## Select and connect
 
 Choose a tab from current Latch metadata using the requested URL/app, title and window. A tab ID from an earlier browser session is not durable. If the intended app is absent or genuinely ambiguous, report the candidates or ask for the missing target; do not substitute an unrelated signed-in site.

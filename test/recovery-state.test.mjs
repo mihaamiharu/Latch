@@ -72,3 +72,34 @@ for(const action of ['verify','release'])test(`operation-owner loss during ${act
  f.sessions.handle=async(op,p)=>{assert.equal(p.leaseId,record.leaseId);if(op===(action==='verify'?'native-verify':'native-release-tab')){reach();await barrier;return {targets:[],sessionClosed:true}}if(op==='native-disconnect'){released=true;f.sessions.sessions.delete(f.key);return {disconnected:true}}throw new Error('Unexpected operation '+op)};
  const owner={},g=await f.broker.begin(f.meta,owner);if(action==='verify')g.acquired=true;const completing=f.broker.step(g,owner,{nonce:g.nonce,action,tabId:1,expectedUrl:'https://fixture/'});await reached;f.broker.fence(g);await assert.rejects(f.broker.begin(f.meta,{}),{code:'SESSION_BUSY'});resume();await assert.rejects(completing,{code:'OPERATION_FENCED'});await f.broker.finish(g,{interrupted:true});assert.equal(released,true);assert.ok(stopCount>0);assert.equal((await f.store.read(f.key)).outcome,'unknown');assert.equal((await f.store.read(f.key)).status,'interrupted');
 });
+
+test('fresh-tab creation is journaled before Chrome mutation and interrupted creation is never replayed', async t => {
+ const f=await fixture(t);f.identity.capabilities={createTab:1};let created=0,disconnected=0;
+ f.broker.browser=async op=>{assert.equal(op,'native-create-tab');assert.equal((await f.store.read(f.key)).stage,'creating-tab');created++;throw Object.assign(new Error('Response lost'),{code:'BRIDGE_TIMEOUT'})};
+ f.sessions.handle=async op=>{assert.equal(op,'native-disconnect');disconnected++;return {disconnected:true}};
+ const owner={},g=await f.broker.begin(f.meta,owner),p={action:'open',nonce:g.nonce};
+ await assert.rejects(f.broker.step(g,owner,p),{code:'BRIDGE_TIMEOUT'});
+ await assert.rejects(f.broker.step(g,owner,p),{code:'SESSION_COLLISION'});
+ assert.equal(created,1);await f.broker.finish(g,{interrupted:true});assert.equal(disconnected,1);
+ const record=await f.store.read(f.key);assert.equal(record.status,'interrupted');assert.equal(record.outcome,'unknown');
+});
+
+test('rejected fresh-tab bootstrap releases its early reservation before retiring the journal', async t => {
+ const f=await fixture(t);f.identity.capabilities={createTab:1};let disconnected=0;
+ f.broker.browser=async op=>{assert.equal(op,'native-create-tab');return {tabId:77}};
+ f.sessions.handle=async op=>{
+  if(op==='native-connect')throw Object.assign(new Error('Tab navigated'),{code:'TAB_CHANGED',nativeCleanupConfirmed:true});
+  assert.equal(op,'native-disconnect');disconnected++;return {disconnected:true};
+ };
+ const owner={},g=await f.broker.begin(f.meta,owner);
+ await assert.rejects(f.broker.step(g,owner,{action:'open',nonce:g.nonce}),{code:'TAB_CHANGED'});
+ assert.equal(disconnected,1);const record=await f.store.read(f.key);
+ assert.equal(record.status,'retired');assert.equal(record.createdTabId,77);assert.equal(record.cleanup,'confirmed');
+ await f.broker.finish(g);
+});
+
+test('an older extension cannot start fresh-tab creation', async t=>{
+ const f=await fixture(t),owner={},g=await f.broker.begin(f.meta,owner);
+ await assert.rejects(f.broker.step(g,owner,{action:'open',nonce:g.nonce}),{code:'OPEN_UNSUPPORTED'});
+ assert.equal(await f.store.read(f.key),null);await f.broker.finish(g);
+});

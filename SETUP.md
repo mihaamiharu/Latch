@@ -20,6 +20,12 @@ whose profile/default selection must be verified explicitly. See the current
 release-readiness review in the source repository. The frozen installed RC3 kit
 is not rewritten when this source document is updated.
 
+The `0.2.0` fresh-tab build adds `createTab: 1` to verified host/extension
+capabilities. Use the descriptor hash and this capability to distinguish it from
+earlier `0.2.0` packages. Updating only the CLI does not enable `open`; update the
+complete kit through the same drained/switch-off/activate/switch-on/reload workflow.
+Keep the prior complete release for rollback. See [fresh-tab usage](README.md#open-a-url-in-a-fresh-tab).
+
 ## Inspect and stage
 
 Unzip the complete kit into a permanent local directory. Use the selected Node

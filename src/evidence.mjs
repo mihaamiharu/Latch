@@ -10,7 +10,7 @@ import {renderEvidence} from './evidence-report.mjs';
 import {ACTION_META} from './evidence-action.mjs';
 import {ROOT} from './release.mjs';
 
-const supported = new Set(['preflight','diagnose','doctor','tabs','connect','pw','release','disconnect']);
+const supported = new Set(['preflight','diagnose','doctor','tabs','connect','open','pw','release','disconnect']);
 const blocked = /^(?:BRIDGE_|PROFILE_|CLI_UNAVAILABLE|UNSUPPORTED_VERSION|NATIVE_TRANSPORT_UNAVAILABLE|SESSION_|DAEMON_|TAB_UNAVAILABLE|INVALID_|EVIDENCE_)/;
 const uncertain = /(?:CLI_TIMEOUT|CLI_OUTPUT_LARGE|CLI_RESPONSE_INVALID|CONNECTION|DISCONNECTED|TIMEOUT)/;
 const uncertainError = error => uncertain.test(error?.code||'') || /TimeoutError|Target.*closed|Session.*closed|Connection closed|interrupted|Execution context was destroyed|frame was detached/i.test(error?.message||'');
@@ -68,7 +68,7 @@ function observation(command, result, error, expected) {
   if(expected?.error)return {status:error?.code===expected.error?'pass':failureStatus,observed:{error:error?.code||null}};
   if(expected&&Object.hasOwn(expected,'result'))return {status:error?failureStatus:isDeepStrictEqual(resultValue(result),expected.result)?'pass':'fail',observed:error?{error:error.code}:scrub(resultValue(result))};
   if(error)return {status:failureStatus,observed:{error:error.code||'BROWSER_ERROR'}};
-  if(command==='connect')return {status:result.connected===true?'pass':'unknown',observed:{connected:result.connected,transport:result.transport,focusEmulation:result.focusEmulation??null}};
+  if(['connect','open'].includes(command))return {status:result.connected===true?'pass':'unknown',observed:{connected:result.connected,transport:result.transport,focusEmulation:result.focusEmulation??null}};
   if(command==='disconnect')return {status:result.disconnected===true?'pass':'unknown',observed:{disconnected:result.disconnected,preservedUserTabs:result.preservedUserTabs}};
   if(command==='preflight')return {status:result.ready?'pass':'blocked',observed:{ready:result.ready}};
   if(command==='diagnose'||command==='doctor')return {status:result.healthy===false?'blocked':'pass',observed:{healthy:result.healthy??null}};
@@ -96,7 +96,7 @@ export async function recordEvidence(invocation, releaseVersion, execute) {
     const history=await ledger(dir), starts=history.events.filter(e=>e.event==='started');
     if(starts.some(e=>e.step===step))throw fault('EVIDENCE_STEP_EXISTS','Step IDs cannot be replayed or overwritten. Inspect the original outcome.');
     if(starts.length>=LIMITS.commands-(command==='disconnect'?0:1))throw fault('EVIDENCE_LIMIT','This run reached its command limit. Disconnect and preserve the evidence.');
-    if(command==='connect'&&history.events.some(e=>e.cleanup?.confirmed))throw fault('EVIDENCE_RUN_CLOSED','Use a fresh session/evidence directory for a new connected run.');
+    if(['connect','open'].includes(command)&&history.events.some(e=>e.cleanup?.confirmed))throw fault('EVIDENCE_RUN_CLOSED','Use a fresh session/evidence directory for a new connected run.');
     const used=history.events.flatMap(e=>e.artifacts||[]).reduce((n,a)=>n+a.bytes,0);
     if(used>LIMITS.totalBytes-LIMITS.artifactBytes-LIMITS.textBytes&&command!=='disconnect')throw fault('EVIDENCE_LIMIT','Evidence budget is exhausted; no browser action was attempted.');
     if(command==='pw'&&['snapshot','screenshot'].includes(playwrightArgs[0])) {
@@ -145,7 +145,7 @@ export async function recordEvidence(invocation, releaseVersion, execute) {
       upstreamExitCode:result?.[CLI_META]?.exitCode??error?.diagnostics?.exitCode??null,
       upstreamSignal:result?.[CLI_META]?.signal??error?.diagnostics?.signal??null};
     await append(dir,{schema:1,event:'finished',runId:run.runId,step,at:new Date().toISOString(),operation,check:{...assertion,observed:bounded(assertion.observed)},artifacts,
-      ...(command==='connect'&&!error?{connection:bounded({connected:result.connected,transport:result.transport,transportSource:result.transportSource,focusEmulation:result.focusEmulation??null,cliVersion:result.cliVersion??null,extensionVersion:result.extensionVersion??null,extensionRelease:result.extensionRelease??null,tabId:result.tabId,page:result.page||null})}:{}),
+      ...(['connect','open'].includes(command)&&!error?{connection:bounded({connected:result.connected,transport:result.transport,transportSource:result.transportSource,focusEmulation:result.focusEmulation??null,cliVersion:result.cliVersion??null,extensionVersion:result.extensionVersion??null,extensionRelease:result.extensionRelease??null,tabId:result.tabId,page:result.page||null})}:{}),
       ...(command==='disconnect'?{cleanup:{confirmed:!error&&result.disconnected===true,preservedUserTabs:result?.preservedUserTabs??null}}:{})});
     summary=await renderEvidence(dir,{verifyArtifacts:command==='disconnect'});
     if(error){error.evidence={...summary,step,checkStatus:assertion.status};throw error;}

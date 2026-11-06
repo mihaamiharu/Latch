@@ -7,6 +7,10 @@ distribution. See [setup](../SETUP.md), [support matrix](SUPPORT.md) and
 
 ## What's included
 
+- `qa-browser open --url ... --session ...` creates and connects a fresh tab in the
+  paired profile. It requires the updated host/extension (`createTab: 1`), a regular
+  Chrome window and a fresh session name. Navigation failures preserve the session
+  for inspection; normal disconnect preserves its tab.
 - Native attachment to a selected existing tab and its verified popups, with no official
   Playwright extension and no Chrome remote-debugging port.
 - Separate sessions for separate tasks, with popup **Stop session** that keeps your tabs open.

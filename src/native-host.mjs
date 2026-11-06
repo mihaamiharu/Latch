@@ -68,7 +68,7 @@ async function start(hello) {
   controlNonce=hello.nonce;
   identity = {releaseVersion,instanceId: hello.instanceId, epoch: hello.epoch, hostGeneration, extensionVersion: hello.extensionVersion,
     ...(nativeAvailable ? {extensionId: hello.extensionId} : {}), capabilities: {nativeTransport: nativeAvailable,
-      ...(nativeAvailable ? {nativeSessionSchema: hello.capabilities.nativeSessionSchema || 2} : {}), ...(hello.capabilities?.recoveryContract === 1 ? {recoveryContract: 1} : {}), ...(hello.capabilities?.uiControl===1 ? {uiControl:1} : {})}};
+      ...(nativeAvailable ? {nativeSessionSchema: hello.capabilities.nativeSessionSchema || 2} : {}), ...(hello.capabilities?.recoveryContract === 1 ? {recoveryContract: 1} : {}), ...(hello.capabilities?.uiControl===1 ? {uiControl:1} : {}), ...(nativeAvailable && hello.capabilities?.createTab===1 ? {createTab:1} : {})}};
   nativeSessions = new NativeSessions(identity, browser);
   if (nativeAvailable && identity.capabilities.nativeSessionSchema === 4) recovery = new NativeRecovery(identity, nativeSessions, browser);
   ui=new NativeUI(identity,nativeSessions,recovery,browser);

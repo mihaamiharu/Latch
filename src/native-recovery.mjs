@@ -72,29 +72,42 @@ export class NativeRecovery {
     const old = g.record, base = {...g.base, leaseId: old?.leaseId};
     if (p.action === 'inspect') return this.inspect(g.key);
     if (['connect','verify','release'].includes(p.action) && (!Number.isSafeInteger(p.tabId) || p.tabId < 0)) throw fault('INVALID_TAB','A numeric tab ID is required.');
-    if (['connect','verify'].includes(p.action) && (typeof p.expectedUrl !== 'string' || p.expectedUrl.length > 16384 || !webUrl(p.expectedUrl))) throw fault('INVALID_ARGUMENT','An ordinary discovered HTTP(S) URL is required.');
-    if (p.action === 'connect') {
+    if (['connect','verify'].includes(p.action) && (typeof p.expectedUrl !== 'string' || p.expectedUrl.length > 16384 || !(webUrl(p.expectedUrl) || p.action === 'verify' && p.expectedUrl === 'about:blank' && old?.createdTabId === p.tabId))) throw fault('INVALID_ARGUMENT','An ordinary discovered HTTP(S) URL is required.');
+    if (p.action === 'connect' || p.action === 'open') {
       if (p.focusEmulation !== undefined && typeof p.focusEmulation !== 'boolean') throw fault('INVALID_ARGUMENT','Focus emulation must be a boolean.');
       if ((await partialJournals(this.identity.instanceId,g.key)).length) throw fault('PARTIAL_JOURNAL_PRESENT','An incomplete journal is preserved. Inspect it before reconnecting.'); check();
+      if (p.action === 'open' && old && old.status !== 'retired') throw fault('SESSION_COLLISION', 'Use a fresh session name to open a new tab.');
+      if (p.action === 'open' && this.identity.capabilities?.createTab !== 1) throw fault('OPEN_UNSUPPORTED', 'Update the Latch host and extension to use open.');
       if (old && old.status !== 'retired') {
         if (!sameAuthority(old, {...this.identity, leaseId: old.leaseId}) || old.status !== 'attached') throw fault('SESSION_STALE', 'Native session was interrupted. Inspect and reconcile before a fresh connect.');
         const connected = await this.sessions.handle('native-connect', {...base, tabId: p.tabId, expectedUrl: p.expectedUrl, focusEmulation: p.focusEmulation});
         check(); return {...connected, authority: authorityOf(old)};
       }
       const leaseId = crypto.randomUUID();
-      await this.save(g, {v: 4, key: g.key, ...g.meta, ...g.base, leaseId, tabId: p.tabId, focusEmulation: !!p.focusEmulation, status: 'connecting', stage: 'reserve', outcome: 'unknown', cleanup: null, appliedToken: null, daemonFingerprint: null, daemonSocketFingerprint: null}, check);
+      await this.save(g, {v: 4, key: g.key, ...g.meta, ...g.base, leaseId, tabId: p.tabId ?? null, createdTabId: null, focusEmulation: !!p.focusEmulation, status: 'connecting', stage: p.action === 'open' ? 'creating-tab' : 'reserve', outcome: 'unknown', cleanup: null, appliedToken: null, daemonFingerprint: null, daemonSocketFingerprint: null}, check);
       g.acquired = true;
+      let created;
+      if (p.action === 'open') {
+        if (this.sessions.sessions.size >= 16) throw fault('SESSION_LIMIT', 'Too many native sessions.');
+        created = await this.browser('native-create-tab', {...g.base, leaseId});
+        check();
+        await this.save(g, {tabId: created.tabId, createdTabId: created.tabId, stage: 'reserve'}, check);
+        p = {...p, tabId: created.tabId, expectedUrl: 'about:blank'};
+      }
       let connected;
       try { connected = await this.sessions.handle('native-connect', {...g.base, leaseId, tabId: p.tabId, expectedUrl: p.expectedUrl, focusEmulation: p.focusEmulation}); }
       catch (error) {
         if (error.nativeCleanupConfirmed) {
+          // open reserved a blank tab before bootstrap; even a rejected reserve
+          // must release that lease before the journal can be retired.
+          if (created) await this.sessions.handle('native-disconnect', {...g.base, leaseId});
           await this.save(g, {status: 'retired', stage: 'bootstrap-rejected', outcome: null, cleanup: 'confirmed'}, check);
           g.acquired = false; await this.store.trim();
         }
         throw error;
       }
       await this.save(g, {stage: 'cli-attach'}, check);
-      return {...connected, authority: authorityOf(g.record)};
+      return {...connected, ...(created ? {created: true, expectedUrl: 'about:blank'} : {}), authority: authorityOf(g.record)};
     }
     if (!old || old.status === 'retired') {
       if (p.action === 'disconnect') return {disconnected: true, alreadyDisconnected: true};
@@ -198,7 +211,7 @@ export class NativeRecovery {
       if (g.record && g.record.status !== 'retired' && (interrupted || g.acquired || g.cleanupRequested)) {
         if (g.acquired || g.cleanupRequested) {
           const live = this.sessions.sessions.get(g.key);
-          if (live?.leaseId === g.record.leaseId) await this.sessions.handle('native-disconnect', {...g.base, leaseId: g.record.leaseId});
+          if (!live || live.leaseId === g.record.leaseId) await this.sessions.handle('native-disconnect', {...g.base, leaseId: g.record.leaseId});
         }
         // Preserve healthy persistent automation on a normal short CLI exit.
         if (g.record.status !== 'attached' || g.acquired || g.cleanupRequested) g.record = await this.store.write(g.key, {...g.record, status: 'interrupted', outcome: 'unknown', stage: 'operation-ended', updatedAt: Date.now()});

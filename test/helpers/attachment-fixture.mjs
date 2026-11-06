@@ -167,7 +167,8 @@ export async function attachmentFixture(t, app, transport) {
   const latch=async(index,args,{fail=false}={})=>{
     if(args[0]==='disconnect')await captureTrace(index);
     await progress('latch',index,args[0],'start');
-    const result=app.installed?await command(path.join(app.installedRoot,'bin/qa-browser'),[...args,'--workspace',workspaces[index]],{cwd:workspaces[index],env}):await command(process.execPath,[path.join(root,'skills/latch/scripts/latch.mjs'),...args,'--workspace',workspaces[index]],{cwd:workspaces[index],env});
+    const latchArgs=[...args];latchArgs.splice(args.includes('--')?args.indexOf('--'):args.length,0,'--workspace',workspaces[index]);
+    const result=app.installed?await command(path.join(app.installedRoot,'bin/qa-browser'),latchArgs,{cwd:workspaces[index],env}):await command(process.execPath,[path.join(root,'skills/latch/scripts/latch.mjs'),...latchArgs],{cwd:workspaces[index],env});
     await progress('latch',index,args[0],'done');
     const parsed=JSON.parse(result.out||result.err);
     if(result.code!==(fail?1:0))throw new Error(`Latch ${args[0]} failed: ${redact(JSON.stringify(parsed))}`);

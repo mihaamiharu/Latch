@@ -59,12 +59,30 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
       groupId: s.groupId, windowId: s.windowId, tabId: s.tabId}))};
     if (op === 'tabs') return (await api.tabs.query({})).filter(t => !t.incognito && webUrl(t.url)).map(plainTab);
     if (typeof p.sessionKey !== 'string' || !/^[a-f0-9]{64}$/.test(p.sessionKey)) throw fault('INVALID_SESSION', 'Invalid workspace/session key.');
-    if (['native-reserve', 'native-open', 'native-check', 'native-release', 'native-drop', 'native-inventory', 'native-health'].includes(op)) {
+    if (['native-create-tab', 'native-reserve', 'native-open', 'native-check', 'native-release', 'native-drop', 'native-inventory', 'native-health'].includes(op)) {
       if (!nativeTransport?.available) throw fault('DEBUGGER_PERMISSION_REQUIRED', 'This extension build has no debugger permission.');
       const old = sessions.get(p.sessionKey);
       if ((nativeRecovery || nativeGeneration) && (!nativeGeneration || p.hostGeneration !== nativeGeneration || typeof p.leaseId !== 'string')) throw fault('AUTHORITY_STALE', 'Native authority is unavailable or changed.');
       if (old?.transport === 'native' && (old.leaseId !== p.leaseId || old.hostGeneration !== p.hostGeneration)) throw fault('AUTHORITY_STALE', 'Native lease changed.');
       if (old && old.transport !== 'native') throw fault('TRANSPORT_MISMATCH', 'A different transport owns this session.');
+      if (op === 'native-create-tab') {
+        if (old) throw fault('SESSION_COLLISION', 'Use a fresh session name to open a new tab.');
+        if (sessions.size >= 32) throw fault('SESSION_LIMIT', 'Too many browser sessions.');
+        // about:blank cannot redirect before attachment/identity verification.
+        // Only this exact leased tab may bypass the normal HTTP(S) admission.
+        const windows = (await api.windows.getAll({windowTypes: ['normal']})).filter(w => !w.incognito);
+        const window = windows.find(w => w.focused) || windows[0];
+        if (!window) throw fault('WINDOW_UNAVAILABLE', 'Open a regular Chrome window in the paired profile first.');
+        const tab = await api.tabs.create({windowId: window.id, url: 'about:blank', active: false});
+        if (!tab.url && tab.pendingUrl === 'about:blank') tab.url = 'about:blank';
+        if (tab.incognito || !Number.isSafeInteger(tab.id) || tab.url !== 'about:blank')
+          throw fault('TAB_CHANGED', 'The newly created tab changed before reservation; it was preserved.');
+        sessions.set(p.sessionKey, {transport: 'native', leaseId: p.leaseId, hostGeneration: p.hostGeneration,
+          tabId: tab.id, rootTabId: tab.id, createdTabId: tab.id, windowId: tab.windowId,
+          targets: new Map([[tab.id, {depth: 0}]]), known: new Set([tab.id]), warnings: []});
+        owners.set(tab.id, p.sessionKey);
+        return {...plainTab(tab), created: true};
+      }
       if (op === 'native-health') return {healthy: !!old && (nativeTransport.inspect ? await nativeTransport.inspect(p.sessionKey) : true)};
       if (op === 'native-release') {
         if (old && p.tabId !== undefined && !old.known.has(p.tabId)) throw fault('TAB_NOT_OWNED', 'This session does not own that tab.');
@@ -82,7 +100,8 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
         return {released: true, ...await inventory(old), sessionClosed: !old.targets.size};
       }
       const tab = await tabById(p.tabId);
-      if (tab.incognito || !webUrl(tab.url)) throw fault('TAB_UNSUPPORTED', 'Only ordinary HTTP(S) tabs are supported.');
+      if (old?.createdTabId === tab.id && !tab.url && tab.pendingUrl === 'about:blank') tab.url = 'about:blank';
+      if (tab.incognito || !(webUrl(tab.url) || tab.url === 'about:blank' && old?.createdTabId === tab.id)) throw fault('TAB_UNSUPPORTED', 'Only ordinary HTTP(S) tabs and this session’s newly created blank tab are supported.');
       if (tab.url !== p.expectedUrl) throw fault('TAB_CHANGED', 'The tab URL changed after discovery.');
       if (owners.has(tab.id) && owners.get(tab.id) !== p.sessionKey) throw fault('TAB_OWNED', 'Another session owns this tab.');
       const openerOwner = owners.get(tab.openerTabId);

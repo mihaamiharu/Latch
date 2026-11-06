@@ -14,7 +14,7 @@ const initialized = (async () => {
   identity = {instanceId, epoch: crypto.randomUUID(), extensionVersion: chrome.runtime.getManifest().version};
   controller = createController(chrome, identity, {nativeTransport, nativeRecovery: true});
   connection = createBridgeConnection(chrome, {host: HOST,
-    hello: {v: 1, type: 'hello', ...identity, extensionId: chrome.runtime.id, capabilities: {nativeTransport: nativeTransport.available, nativeSessionSchema: 4, uiControl: 1}},
+    hello: {v: 1, type: 'hello', ...identity, extensionId: chrome.runtime.id, capabilities: {nativeTransport: nativeTransport.available, nativeSessionSchema: 4, uiControl: 1, createTab: 1}},
     invalidate: async () => { await controller.invalidateNative(); await nativeTransport.recoverOwned(); },
     activate: generation => controller.activateNative(generation),
     dispatch: (request, generation) => {

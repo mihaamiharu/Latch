@@ -2,7 +2,7 @@
 
 A macOS Chrome companion extension and local CLI for connecting existing Work-profile tabs to Playwright CLI. Run `npm ci` after cloning/updating this source branch: the native host now depends on the pinned `ws` transport library.
 
-**Status (November 5, 2026):** the source is **0.2.0**, awaiting final package
+**Status (November 6, 2026):** the source is **0.2.0**, awaiting final package
 qualification and owner sign-off. See the [release notes](docs/RELEASE-NOTES-0.2.0.md). RC8
 added an in-extension backup of the instance ID and a confirmed `pair --replace`, and Work
 runs RC8 after an approved pairing repair on RC7. Watched
@@ -105,6 +105,33 @@ If one coding agent cannot reach Latch while another can, run `./install/qa-brow
 Pairing stores configuration in `~/Library/Application Support/Work Browser Bridge/config.json`. Successful session registration verifies that the CLI connection page appears inside the paired extension instance, so a wrong profile directory fails before any target tab is claimed. The prototype deliberately does not infer the work profile from last-used state or read Chrome's protected profile files.
 
 The bridge is intended for regular, already open Chrome windows. Native setup uses Latch alone. The legacy official adapter separately needs the official extension's authorization. Chrome enable/permission prompts remain operator steps.
+
+## Open a URL in a fresh tab
+
+With the updated native host and extension, no prepared website tab is needed:
+
+```sh
+qa-browser open --profile work --transport native --session checkout-qa \
+  --workspace /absolute/project --focus-emulation on --url https://staging.example.com
+qa-browser pw --profile work --session checkout-qa --workspace /absolute/project -- snapshot
+qa-browser disconnect --profile work --session checkout-qa --workspace /absolute/project
+```
+
+`open` creates a background tab in a regular window of the paired Chrome profile,
+attaches it by exact identity, then navigates. It shares that profile's login state.
+Use a fresh session name: opening with an active name fails without creating a tab.
+A regular Chrome window must already exist. Existing tabs/windows/groups are preserved;
+normal redirects are allowed. HTTP(S) URLs without embedded credentials are supported.
+The older RC8 host/extension needs updating; `createTab: 1` in doctor capabilities
+identifies support, independently of the retained `0.2.0` version number.
+
+If navigation fails, the error names the created tab/session, which stays available
+for inspection or disconnect. Do not repeat `open` after an uncertain outcome.
+Disconnect preserves the new tab and login state. This command creates a new root
+session; adding arbitrary new tabs to an already attached session via `tab-new` or
+`context.newPage()` remains unsupported. Verified page-opened popups still work.
+
+See [the release decision and upstream comparison](docs/LATCH-OR-UPSTREAM.md).
 
 ## Terminal workflow
 
