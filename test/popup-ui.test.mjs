@@ -1,9 +1,10 @@
+import {CANDIDATE_KIT} from './helpers/candidate.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import path from 'node:path';
 import {attachmentFixture,valueOf} from './helpers/attachment-fixture.mjs';import {evidenceApp} from './fixtures/evidence-app.mjs';import {eventually,command} from './helpers/native-browser.mjs';
 const enabled=process.env.LATCH_POPUP_UI==='1'&&process.platform==='darwin';
 const wait=`async function poll(fn){const end=Date.now()+8000;while(Date.now()<end){if(fn())return;await new Promise(r=>setTimeout(r,50))}throw new Error('Popup condition timed out')}`;
 test('real popup page shows paired sessions and revokes only the selected pending agent through the host',{skip:!enabled,timeout:120000},async t=>{
- const app=await evidenceApp();app.recovery=true;app.popup=true;app.artifactExtension=path.resolve('dist/latch');let f;t.after(async()=>{await f?.close();await app.close()});f=await attachmentFixture(t,app,'native');
+ const app=await evidenceApp();app.recovery=true;app.popup=true;app.artifactExtension=path.join(CANDIDATE_KIT,'extension');let f;t.after(async()=>{await f?.close();await app.close()});f=await attachmentFixture(t,app,'native');
  const view=async(expression,screenshot)=>f.fault('popup',{expression,screenshot});
  const empty=await view(`(async()=>{${wait};await poll(()=>document.querySelector('#empty').textContent.includes('No active'));return document.body.innerText})()`,true);assert.match(empty.value,/Paired profile: work/);await fs.writeFile(path.join(f.evidence,'popup-empty.png'),Buffer.from(empty.screenshot,'base64'));
  const focus=await view(`document.querySelector('#refresh').focus();document.activeElement.id`);assert.equal(focus.value,'refresh');const tabbed=await f.fault('popup',{expression:'document.activeElement.tagName',key:'Tab'});assert.equal(tabbed.value,'SUMMARY');
@@ -26,13 +27,13 @@ test('real popup page shows paired sessions and revokes only the selected pendin
 });
 
 for(const kind of ['unsupported','cleanup-unconfirmed'])test(`popup ${kind} state is truthful`,{skip:!enabled,timeout:90000},async t=>{
- const app=await evidenceApp();app.recovery=true;app.popup=true;app.artifactExtension=path.resolve('dist/latch');app.uiUnsupported=kind==='unsupported';app.popupCleanupFault=kind==='cleanup-unconfirmed';let f;t.after(async()=>{await f?.close();await app.close()});f=await attachmentFixture(t,app,'native');
+ const app=await evidenceApp();app.recovery=true;app.popup=true;app.artifactExtension=path.join(CANDIDATE_KIT,'extension');app.uiUnsupported=kind==='unsupported';app.popupCleanupFault=kind==='cleanup-unconfirmed';let f;t.after(async()=>{await f?.close();await app.close()});f=await attachmentFixture(t,app,'native');
  if(kind==='cleanup-unconfirmed')await f.connect(0,f.tabs[0]);const result=await f.fault('popup',{screenshot:true,expression:`(async()=>{${wait};${kind==='unsupported'?"await poll(()=>document.querySelector('#empty').textContent.includes('Update the matching'))":"await poll(()=>document.querySelector('button.stop'));document.querySelector('button.stop').click();await poll(()=>document.querySelector('#notice').textContent.includes('cleanup is unconfirmed'))"};return document.body.innerText})()`});
  await fs.writeFile(path.join(f.evidence,'popup-'+kind+'.png'),Buffer.from(result.screenshot,'base64'));if(kind==='cleanup-unconfirmed')assert.ok((await f.latch(0,['tabs'])).tabs.every(t=>t.owner===null));await fs.writeFile(path.join(f.evidence,'popup-state.json'),JSON.stringify({headless:true,state:kind,controlledHostFault:app.popupCleanupFault,capabilityFixture:app.uiUnsupported},null,2));console.log('Popup state: '+f.evidence);
 });
 
 test('closing the popup after host acceptance does not cancel cleanup or revoke a successor',{skip:!enabled,timeout:90000},async t=>{
- const app=await evidenceApp();app.recovery=true;app.popup=true;app.popupPauseCleanup=true;app.artifactExtension=path.resolve('dist/latch');let f;t.after(async()=>{if(f)await fs.unlink(f.popupPause).catch(()=>{});await f?.close();await app.close()});f=await attachmentFixture(t,app,'native');
+ const app=await evidenceApp();app.recovery=true;app.popup=true;app.popupPauseCleanup=true;app.artifactExtension=path.join(CANDIDATE_KIT,'extension');let f;t.after(async()=>{if(f)await fs.unlink(f.popupPause).catch(()=>{});await f?.close();await app.close()});f=await attachmentFixture(t,app,'native');
  await f.connect(0,f.tabs[0]);await f.connect(1,f.tabs[1],{background:true});const {sessionKey}=await import('../src/playwright.mjs'),key=sessionKey(f.workspaces[0],'agent'),view=expression=>f.fault('popup',{expression});
  const old=(await view(`(async()=>{${wait};await poll(()=>document.querySelectorAll('.task').length===2);const r=await chrome.runtime.sendMessage({type:'ui',op:'status'});return r.result.sessions.find(s=>s.key==='${key}')})()`)).value;
  await fs.writeFile(f.popupPause,'private test pause');const held=f.pw(0,['run-code','async(page)=>page.evaluate(async()=>{await fetch("/event?op=closed-popup-commit&n=1");return new Promise(()=>{})})'],{fail:true});await eventually(()=>app.receipts.some(r=>r.operation==='closed-popup-commit'));
