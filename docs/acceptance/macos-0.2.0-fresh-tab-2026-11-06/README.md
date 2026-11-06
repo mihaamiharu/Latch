@@ -82,20 +82,37 @@ state can be lost under SIGTERM. The legacy test now uses the same 8-second comm
 window as the native update test. This is a test-only change; see
 [the earlier diagnosis](../macos-rc7-qualification-2026-11-05/README.md#fixed-login-state-test-on-chrome-157).
 
-## Installed Work status and remaining gate
+## Installed Work activation and acceptance — passed
 
-The actual Work installation remains on its prior RC8 runtime. Staging did not
-change the active pointer, receipt or loaded extension. The complete prior release
-is retained as `0.2.0-rc.8-c153486c0d3b`.
+The operator switched Latch off and confirmed it was loaded from
+`~/Library/Application Support/Work Browser Bridge/runtime/extension`.
+There were no non-retired session records. Fresh installer inspection matched the
+reviewed descriptor, retained RC8 target and empty permission delta. Activation
+verified configured bridges were unreachable, selected `0.2.0-40dedb02cb59` and
+retained `0.2.0-rc.8-c153486c0d3b` for rollback. The operator then switched on and
+reloaded the extension; no re-pairing was performed.
 
-Activation requires all tasks drained and the operator switching Latch off,
-followed by activation, switch-on and the reload icon. Then verify exact
-host/extension identity, `createTab: 1`, preflight, the prepared fresh local fixture,
-snapshot/screenshot and confirmed disconnect. Do not attest extension unload from
-a lost socket alone. The ready handoff is
-`work/release-0.2.0-fresh-tab/ACTIVATION.md`; its local fixture needs no account data.
+Installed `verify --profile work` passed with host and extension **0.2.0**, native
+schema 4, `createTab: 1`, and the same paired instance ID as before activation.
+The installed skill link resolves through `runtime/current/skills/latch`.
 
-Earlier update-instance changes remain unexplained. Prior signed-in real-app
-acceptance was skipped by the owner and remains unverified. Claude Code, Cursor,
-Intel, other operating systems, a second Mac/account and unrestricted background
-focus are not newly qualified. Public/hosted release remains outside scope.
+Real Work Chrome acceptance session `release020-work-20261106` passed all six
+recorded checks: prerequisites, a newly created tab opening the local fixture,
+snapshot, form interaction asserting `Saved fresh-tab`, screenshot, and disconnect.
+The recorder confirms cleanup and verifies all eight indexed artifacts. The
+local fixture server was stopped. Tabs/login state were preserved on disconnect.
+
+Evidence:
+
+- `work/release-0.2.0-fresh-tab/activation-inspect.json`, `activation.json`,
+  `work-verify.json`, `work-doctor.json`.
+- `work/latch/release020-work-20261106/report.md`, `result.json`,
+  `screenshots/result-image.png`.
+
+This was the operator's real Work Chrome profile and a synthetic local page, not
+a headless fixture. The actual Chrome build was not freshly read during this run;
+headless qualification versions remain separately recorded. Focus emulation was
+on; no claim about actual background focus is made. Real signed-in application
+reuse remains unverified. Earlier update-instance changes remain unexplained;
+this particular update preserved pairing. Other clients/platforms, a second Mac
+and public/hosted distribution remain outside the qualified release scope.

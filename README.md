@@ -3,8 +3,8 @@
 A macOS Chrome companion extension and local CLI for connecting existing Work-profile tabs to Playwright CLI. Run `npm ci` after cloning/updating this source branch: the native host now depends on the pinned `ws` transport library.
 
 **Status (November 6, 2026):** the source is **0.2.0**. The fresh-tab package passed
-automated qualification and is staged for operator Work activation and owner
-sign-off; see the [qualification record](docs/acceptance/macos-0.2.0-fresh-tab-2026-11-06/README.md). See the [release notes](docs/RELEASE-NOTES-0.2.0.md). RC8
+automated qualification, was activated in Work Chrome, and passed the real Work
+local-fixture acceptance; see the [qualification record](docs/acceptance/macos-0.2.0-fresh-tab-2026-11-06/README.md). See the [release notes](docs/RELEASE-NOTES-0.2.0.md). RC8
 added an in-extension backup of the instance ID and a confirmed `pair --replace`, and Work
 runs RC8 after an approved pairing repair on RC7. Watched
 switch-and-reload updates kept the instance ID, but earlier ID

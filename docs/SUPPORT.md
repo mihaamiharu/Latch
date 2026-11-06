@@ -1,5 +1,12 @@
 # macOS candidate support matrix
 
+November 6 update: the exact 0.2.0 fresh-tab package passed both headless Chrome
+lanes, RC8 update/rollback, and operator-assisted real Work activation plus a local
+fixture smoke. Pairing was preserved on this update. See the [final acceptance
+record](acceptance/macos-0.2.0-fresh-tab-2026-11-06/README.md) for artifact hashes and
+limits. Earlier RC observations below are historical; real signed-in app reuse
+and wider client/platform claims remain unverified.
+
 This is the RC4 compatibility baseline used through 0.2.0. An update can change the
 extension's instance ID: Latch then refuses to proceed until a confirmed
 `pair --replace`, and this release does not claim that the ID always survives. Work's RC6 pilot needed
