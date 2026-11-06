@@ -24,7 +24,18 @@ The `0.2.0` fresh-tab build adds `createTab: 1` to verified host/extension
 capabilities. Use the descriptor hash and this capability to distinguish it from
 earlier `0.2.0` packages. Updating only the CLI does not enable `open`; update the
 complete kit through the same drained/switch-off/activate/switch-on/reload workflow.
-Keep the prior complete release for rollback. See [fresh-tab usage](README.md#open-a-url-in-a-fresh-tab).
+Keep the prior complete release for rollback. Once verified, open a fresh tab with:
+
+```sh
+qa-browser open --profile work --transport native --session fresh-qa \
+  --workspace /absolute/project --focus-emulation on --url https://staging.example.com
+qa-browser pw --profile work --session fresh-qa --workspace /absolute/project -- snapshot
+qa-browser disconnect --profile work --session fresh-qa --workspace /absolute/project
+```
+
+Use a new session name and an existing regular Chrome window. Disconnect leaves the
+tab and login state open. If navigation fails, inspect or disconnect the returned
+session; do not repeat `open` after an uncertain outcome.
 
 ## Inspect and stage
 
