@@ -83,6 +83,7 @@ export async function recordEvidence(invocation, releaseVersion, execute) {
   const options=evidenceOptions(invocation);
   if(!options)return execute(invocation);
   const {command,flags,playwrightArgs}=invocation,{dir,step,expected,kind}=options;
+  const finalization=command==='disconnect'||invocation.captureFinalization===true;
   const sensitive=command==='pw'&&/^(cookie-|state-|localstorage-|sessionstorage-)/.test(playwrightArgs[0]);
   const workspace=await fs.realpath(flags.workspace||process.cwd());
   const lock=path.join(dir,'active-command');
@@ -95,10 +96,10 @@ export async function recordEvidence(invocation, releaseVersion, execute) {
     if(command!=='disconnect'){try{await fs.mkdir(lock,{mode:0o700});acquired=true}catch(e){if(e.code==='EEXIST')throw fault('EVIDENCE_BUSY','Another recorded command is active or unfinished. Preserve its gate; report offline and disconnect separately.');throw e}}
     const history=await ledger(dir), starts=history.events.filter(e=>e.event==='started');
     if(starts.some(e=>e.step===step))throw fault('EVIDENCE_STEP_EXISTS','Step IDs cannot be replayed or overwritten. Inspect the original outcome.');
-    if(starts.length>=LIMITS.commands-(command==='disconnect'?0:1))throw fault('EVIDENCE_LIMIT','This run reached its command limit. Disconnect and preserve the evidence.');
+    if(starts.length>=LIMITS.commands-(finalization?0:1))throw fault('EVIDENCE_LIMIT','This run reached its command limit. Disconnect and preserve the evidence.');
     if(['connect','open'].includes(command)&&history.events.some(e=>e.cleanup?.confirmed))throw fault('EVIDENCE_RUN_CLOSED','Use a fresh session/evidence directory for a new connected run.');
     const used=history.events.flatMap(e=>e.artifacts||[]).reduce((n,a)=>n+a.bytes,0);
-    if(used>LIMITS.totalBytes-LIMITS.artifactBytes-LIMITS.textBytes&&command!=='disconnect')throw fault('EVIDENCE_LIMIT','Evidence budget is exhausted; no browser action was attempted.');
+    if(used>LIMITS.totalBytes-LIMITS.artifactBytes-LIMITS.textBytes&&!finalization)throw fault('EVIDENCE_LIMIT','Evidence budget is exhausted; no browser action was attempted.');
     if(command==='pw'&&['snapshot','screenshot'].includes(playwrightArgs[0])) {
       const screenshot=playwrightArgs[0]==='screenshot';capture={path:`${screenshot?'screenshots':'raw'}/${step}.${screenshot?'png':'yaml'}`,type:screenshot?'screenshot':'snapshot'};
       await fs.lstat(path.join(dir,capture.path)).then(()=>{throw fault('EVIDENCE_FILE_EXISTS','A capture already exists at this step path.');},e=>{if(e.code!=='ENOENT')throw e});

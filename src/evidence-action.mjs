@@ -13,7 +13,8 @@ export function executeEvidenceAction(invocation) {
     let response, bytes=0, output='', ended=false, failure;
     const terminate=error=>{failure ||= error;child.kill('SIGTERM');kill ||= setTimeout(()=>child.kill('SIGKILL'),1000);};
     let kill;
-    const timer=setTimeout(()=>terminate(fault('CLI_TIMEOUT','The action helper timed out; its browser outcome may be unknown.')),120000);
+    const deadline=Number.isSafeInteger(invocation.captureTimeoutMs)?Math.max(1000,Math.min(120000,invocation.captureTimeoutMs)):120000;
+    const timer=setTimeout(()=>terminate(fault('CLI_TIMEOUT','The action helper timed out; its browser outcome may be unknown.')),deadline);
     const finish=(error,value)=>{if(ended)return;ended=true;clearTimeout(timer);clearTimeout(kill);error?reject(error):resolve(value)};
     for(const stream of [child.stdout,child.stderr])stream.on('data',chunk=>{bytes+=chunk.length;if(bytes>16384)terminate(fault('CLI_OUTPUT_LARGE','Unexpected helper output exceeded its limit.'));else output+=chunk.toString('utf8')});
     child.once('error',()=>finish(fault('CLI_UNAVAILABLE','Cannot start the recorded action helper.')));

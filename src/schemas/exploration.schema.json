@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:latch:exploration:1",
+  "title": "Latch observed exploration handoff",
+  "type": "object",
+  "required": ["schema_version", "run_id", "objective", "session", "status", "pages", "states", "transitions", "behaviors", "findings", "coverage", "final_states", "video", "cleanup", "artifacts"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "run_id": {"type": "string", "format": "uuid"},
+    "objective": {"type": "string"},
+    "environment": {"type": ["string", "null"]},
+    "status": {"enum": ["starting", "active", "start_failed", "finished", "partial", "interrupted"]},
+    "session": {"type": "object", "required": ["profile", "workspace", "name"]},
+    "pages": {"type": "array", "items": {"type": "object", "required": ["id", "frames"]}},
+    "states": {"type": "array", "items": {"$ref": "#/$defs/state"}},
+    "transitions": {"type": "array", "items": {"$ref": "#/$defs/transition"}},
+    "behaviors": {"type": "array"},
+    "findings": {"type": "array"},
+    "prerequisites": {"type": "array"},
+    "test_data": {"type": "array"},
+    "final_states": {"type": "array", "items": {"type": "object", "required": ["page", "state", "status"]}},
+    "video": {"type": "object", "required": ["status"]},
+    "cleanup": {"type": "object", "required": ["status"]},
+    "coverage": {"type": "object", "required": ["scope", "gaps", "completeness"]},
+    "artifacts": {"type": "array", "items": {"type": "object", "required": ["path", "sha256", "bytes", "type"]}}
+  },
+  "$defs": {
+    "state": {
+      "type": "object", "required": ["id", "page", "frame", "url", "captured_at", "snapshot", "sha256", "elements", "provenance"],
+      "properties": {"id": {"type": "string"}, "snapshot": {"type": "string", "pattern": "^snapshots/[^/]+\\.yaml$"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "elements": {"type": "array"}, "locator_observations": {"type": "array"}}
+    },
+    "transition": {
+      "type": "object", "required": ["id", "command_id", "from", "to", "action", "outcome"],
+      "properties": {"from": {"type": ["string", "null"]}, "to": {"type": ["string", "null"]}, "outcome": {"enum": ["succeeded", "succeeded_assertion_failed", "failed_or_unknown", "unknown"]}}
+    }
+  },
+  "$comment": "Cross-reference and artifact integrity checks are performed by Latch in addition to structural validation. YAML records observed coverage, not executable Playwright code."
+}

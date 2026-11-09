@@ -11,6 +11,8 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
+    "test:exploration": "LATCH_EXPLORATION=1 node --test test/exploration-browser.test.mjs",
+    "test:video-capture": "LATCH_VIDEO_CAPTURE=1 node --test test/video-capture-browser.test.mjs",
     "test:open-tab": "LATCH_OPEN_TAB=1 node --test test/open-tab-browser.test.mjs",
     "test:official-alternative": "LATCH_OFFICIAL_ALTERNATIVE=1 node --test test/official-alternative-browser.test.mjs",
     "test:native-spike": "LATCH_NATIVE_SPIKE=1 node --test test/native-browser.test.mjs",

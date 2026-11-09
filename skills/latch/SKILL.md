@@ -89,6 +89,27 @@ cd "$LATCH_WORKSPACE"
 playwright-cli -s="$LATCH_SESSION" snapshot
 ```
 
+## Managed exploration handoff (candidate)
+
+When `help` lists `finish`, `checkpoint` and `library`, normal open/connect without
+an explicit evidence directory records into the local exploration library. Add an
+objective/environment at attachment. Keep using this helper for subsequent actions;
+direct external CLI calls can bypass capture. Do not claim unobserved transitions.
+
+Use `checkpoint --note TEXT` to describe observed behavior and unresolved expectations,
+or `checkpoint --annotation-file PATH` for typed JSON behavior/prerequisite/data-reference
+annotations. Link findings to captured evidence. Preserve the distinction between
+observed results, agent interpretation and explicitly checked assertions. Never store
+credentials or authentication state as test-data examples.
+
+Use `finish --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE"`
+at normal completion, including final state captures, video stop and disconnect.
+The same session's ordinary disconnect also attempts finalization. Check the returned
+library status, gaps, cleanup and integrity; do not imply complete background/popup
+video coverage or reusable historical element refs. Explicit `--evidence-dir` runs
+retain the recorder/cleanup workflow described below. The library is local and does
+not upload data. Generated automation code is outside this handoff.
+
 ## Verify the requested behavior
 
 Use fresh snapshots/locators and the user's acceptance criteria to drive ordinary Playwright CLI operations: inspect, click, fill, evaluate, screenshots and relevant console/network checks. Run each command in the same workspace and with the explicit session name. Read `references/operations.md` when you need evidence command examples, uploads, large-output limits, download limitations or error recovery.

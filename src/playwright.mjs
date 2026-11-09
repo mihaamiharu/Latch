@@ -17,7 +17,8 @@ export function cliError(error) {
   return {...safeError(error), message: redact(safeError(error).message),
     ...(error.diagnostics ? {diagnostics: error.diagnostics} : {}),
     ...(error.evidence ? {evidence: error.evidence} : {}),
-    ...(error.reporting ? {reporting: error.reporting} : {})};
+    ...(error.reporting ? {reporting: error.reporting} : {}),
+    ...(error.library ? {library: error.library} : {})};
 }
 export async function workspaceAt(start = process.cwd()) {
   return await fs.realpath(start);

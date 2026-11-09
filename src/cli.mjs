@@ -19,6 +19,8 @@ import {preflight} from './preflight.mjs';
 import {recordEvidence} from './evidence.mjs';
 import {renderEvidence} from './evidence-report.mjs';
 import {exportEvidence} from './evidence-export.mjs';
+import {libraryCommand} from './exploration-library.mjs';
+import {runExploration} from './exploration.mjs';
 import {executeEvidenceAction} from './evidence-action.mjs';
 const releaseVersion=JSON.parse(await fs.readFile(path.join(ROOT,'package.json'),'utf8')).version;
 
@@ -36,10 +38,15 @@ const usage = `Latch ${releaseVersion}
   qa-browser release --profile work --session <name> --tab <id> [--workspace <path>]
   qa-browser disconnect --profile work --session <name> [--workspace <path>]
   qa-browser pw --profile work --session <name> [--workspace <path>] -- <playwright-command> [args...]
+  qa-browser finish --profile work --session <name> [--workspace <path>]
+  qa-browser checkpoint --profile work --session <name> [--note TEXT] [--workspace <path>]
+  qa-browser library <list|show|serve|review|export|repair> [--run ID]
   qa-browser view --profile work --session <name> [--workspace <path>] [--renderer chafa|kitty]
   qa-browser report --evidence-dir <path>
   qa-browser export --evidence-dir <path> --export-dir <new-path> --include <artifact-path,...>
-Recording: add --evidence-dir PATH to task commands; pw supports --step ID,
+Managed open/connect captures a central run; use --objective TEXT, --environment TEXT,
+--video on|foreground|off, then finish. Add --data-ref REF to input commands.
+Legacy recording: add --evidence-dir PATH to task commands; pw supports --step ID,
 --expect-result JSON or --expect-error CODE, and --inline for requested full output.
 Recorded snapshot/screenshot commands supply their own fresh --filename.
 All results are JSON. Work-profile extension installation/authorization is a one-time prerequisite.
@@ -48,8 +55,9 @@ pw normalizes Playwright isError responses to exit 1; it never attaches or retri
 function parse(argv) {
   const command = argv.shift() || 'help';
   const flags = {};
+  if(command==='library'){flags.libraryAction=argv.shift()||'list';}
   let playwrightArgs;
-  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'url', 'workspace', 'json', 'transport', 'focus-emulation', 'apply', 'expect', 'set','evidence-dir','step','expect-result','expect-error','check-kind','context-file','inline','export-dir','include','renderer','replace','expect-old']);
+  const allowed = new Set(['profile', 'instance', 'chrome-profile-dir', 'session', 'tab', 'url', 'workspace', 'json', 'transport', 'focus-emulation', 'apply', 'expect', 'set','evidence-dir','step','expect-result','expect-error','check-kind','context-file','inline','export-dir','include','renderer','replace','expect-old','objective','environment','data-ref','note','run','decision','destination','port','annotation-file','video']);
   while (argv.length) {
     const flag = argv.shift();
     if (flag === '--' && command === 'pw') { playwrightArgs = argv.splice(0); break; }
@@ -246,7 +254,7 @@ if(process.argv[1]&&pathToFileURL(path.resolve(process.argv[1])).href===import.m
   if(invocation.command==='report'&&Object.keys(invocation.flags).some(k=>!['evidence-dir','json'].includes(k)))throw fault('INVALID_ARGUMENT','Report is offline; use only --evidence-dir.');
   if(invocation.command==='export'&&(!invocation.flags['evidence-dir']||!invocation.flags['export-dir']||!invocation.flags.include||Object.keys(invocation.flags).some(k=>!['evidence-dir','export-dir','include','json'].includes(k))))throw fault('INVALID_ARGUMENT','Export needs --evidence-dir, --export-dir and explicit --include artifact paths.');
   if(!['report','export'].includes(invocation.command)&&(invocation.flags['export-dir']||invocation.flags.include))throw fault('INVALID_ARGUMENT','Use export options only with export.');
-  const result = invocation.command==='report'?await renderEvidence(invocation.flags['evidence-dir']):invocation.command==='export'?await exportEvidence({directory:invocation.flags['evidence-dir'],destination:invocation.flags['export-dir'],include:invocation.flags.include.split(',')}):await recordEvidence(invocation,releaseVersion,invocation.flags['evidence-dir']?executeEvidenceAction:executeCLI);
+  const result = invocation.command==='library'?await libraryCommand(invocation.flags.libraryAction,invocation.flags):invocation.command==='report'?await renderEvidence(invocation.flags['evidence-dir']):invocation.command==='export'?await exportEvidence({directory:invocation.flags['evidence-dir'],destination:invocation.flags['export-dir'],include:invocation.flags.include.split(',')}):await runExploration(invocation,releaseVersion,invocation.flags['evidence-dir']||['open','connect','pw','disconnect','finish','checkpoint'].includes(invocation.command)?executeEvidenceAction:executeCLI);
   if (result !== undefined) console.log(JSON.stringify({ok: true, ...result}, null, 2));
   if(invocation.command==='report'&&result?.integrity===false)process.exitCode=1;
 } catch (error) {

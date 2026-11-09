@@ -315,3 +315,10 @@ New native journals are beside the selected configuration under
 `native-v4/<instance>/`; task evidence stays in its existing task directory.
 `npm run test:recovery` and `npm run test:recovery-chaos` use headless disposable
 profiles. Updating these sources or the skill does not upgrade installed Work.
+
+## Exploration-library candidate
+
+The `feat/exploration-library` candidate adds a local review library and structured YAML
+handoff. See [usage and known capture limits](docs/EXPLORATION-LIBRARY.md) and
+[the implementation plan](docs/EXPLORATION-ARTIFACTS-PLAN.md). The installed runtime
+is unchanged until a complete candidate is qualified and activated.

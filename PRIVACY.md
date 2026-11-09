@@ -41,7 +41,7 @@ Default locations retain the historical directory name for upgrade compatibility
 | Owned runtime, receipts and retained releases | `~/Library/Application Support/Work Browser Bridge/runtime/` |
 | Native recovery journals | `native-v4/` beside the selected configuration; bounded lease/cleanup metadata |
 | Per-user socket directory | `/tmp/qa-browser-<uid>/` |
-| Task evidence | Chosen explicitly, normally `<workspace>/work/latch/<session>/` |
+| Task evidence | Explicit recorder directories, or candidate central runs under `artifacts/` beside config |
 | Playwright daemon state | External CLI cache, normally `~/Library/Caches/ms-playwright/daemon/` |
 
 Receipts contain local configuration/runtime paths and the selected Node/CLI
@@ -82,3 +82,10 @@ Repository setup, public distribution and public support/contact URLs are deferr
 until separately chosen and authorized. No remote publishing or account
 provisioning is performed by installing this local candidate. See `SUPPORT.md` in
 the kit for the tested matrix and current acceptance limitations.
+
+The exploration-library candidate additionally stores observed locator attributes,
+page/frame transitions, agent annotations, videos and separate QA review notes in a
+local library. Video pixels are not automatically redacted. Input values are omitted
+from transition metadata; page captures or agent-supplied text can still expose them.
+The review server is loopback-only, with same-origin review writes. Export is an
+explicit local copy. Library files and owner audit records persist until removed.

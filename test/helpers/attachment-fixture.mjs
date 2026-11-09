@@ -41,7 +41,7 @@ export async function attachmentFixture(t, app, transport) {
     .map(b=>String.fromCharCode(97+(b>>4),97+(b&15))).join('');
   const hostName=app.installed?'com.qa_browser.bridge':`com.latch.compat_${crypto.randomBytes(5).toString('hex')}`;
   await fs.writeFile(path.join(extension,'protocol.js'),(await fs.readFile(path.join(extension,'protocol.js'),'utf8')).replace("'com.qa_browser.bridge'",JSON.stringify(hostName)));
-  const env={...process.env,DEBUG:app.protocolEvidence?'pw:protocol':'',QA_BROWSER_RUNTIME_DIR:runtime,QA_BROWSER_CONFIG:path.join(temp,'config.json'),
+  const env={...process.env,LATCH_CAPTURE:'off',DEBUG:app.protocolEvidence?'pw:protocol':'',QA_BROWSER_RUNTIME_DIR:runtime,QA_BROWSER_CONFIG:path.join(temp,'config.json'),
     PWTEST_DAEMON_SESSION_DIR:path.join(temp,'daemon'),NO_UPDATE_NOTIFIER:'1',
     PLAYWRIGHT_MCP_EXECUTABLE_PATH:cliBrowser,PWTEST_EXTENSION_USER_DATA_DIR:profile};
   const workspaces=[];for(const name of ['a','b','outsider']){const p=path.join(temp,name);await fs.mkdir(p);workspaces.push(p)}
