@@ -6,7 +6,7 @@ import path from 'node:path';
 import {spawn} from 'node:child_process';
 import {recordEvidence} from '../src/evidence.mjs';
 import {inspectEvidence,renderEvidence} from '../src/evidence-report.mjs';
-import {CLI_META} from '../src/playwright.mjs';
+import {CLI_META} from '../src/redact.mjs';
 import {exportEvidence} from '../src/evidence-export.mjs';
 import {LIMITS,scrub} from '../src/evidence-storage.mjs';
 import {executeEvidenceAction} from '../src/evidence-action.mjs';

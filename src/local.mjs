@@ -104,14 +104,14 @@ export function request(instanceId, op, payload = {}, timeout = 12000) {
     socket.on('connect', () => socket.write(JSON.stringify({v: 1, id, op, payload}) + '\n'));
     socket.on('data', chunk => {
       body += chunk.toString();
-      if (Buffer.byteLength(body) > 1024 * 1024) {
+      if (Buffer.byteLength(body) > 16 * 1024 * 1024) {
         return finish(fault('MESSAGE_TOO_LARGE', 'Bridge response exceeded the size limit.'));
       }
       if (!body.includes('\n')) return;
       try {
         const response = JSON.parse(body.slice(0, body.indexOf('\n')));
         if (response.v !== 1 || response.id !== id) throw fault('INVALID_RESPONSE', 'Invalid bridge response.');
-        if (!response.ok) throw fault(response.error?.code || 'BRIDGE_ERROR', response.error?.message || 'Bridge request failed.');
+        if (!response.ok) throw fault(response.error?.code || 'BRIDGE_ERROR', response.error?.message || 'Bridge request failed.', response.error?.hint);
         finish(null, response.result);
       } catch (error) {
         finish(error);

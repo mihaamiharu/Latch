@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import path from 'node:path';
-import {frameWorkerApp} from './fixtures/frame-worker-app.mjs';import {attachmentFixture,valueOf} from './helpers/attachment-fixture.mjs';import {sessionKey} from '../src/playwright.mjs';import {eventually} from './helpers/native-browser.mjs';
+import {frameWorkerApp} from './fixtures/frame-worker-app.mjs';import {attachmentFixture,valueOf} from './helpers/attachment-fixture.mjs';import {sessionKey} from '../src/redact.mjs';import {eventually} from './helpers/native-browser.mjs';
 const enabled=process.env.LATCH_FRAME_ISOLATION==='1'&&process.platform==='darwin';
 test('headless native frame/worker lifetimes, cancellation and agent isolation',{skip:!enabled,timeout:240000},async t=>{
  const app=await frameWorkerApp();let f;t.after(async()=>{await f?.close();await app.close()});f=await attachmentFixture(t,app,'native');

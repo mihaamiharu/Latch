@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import {NativeSessions} from '../src/native-sessions.mjs';
 import {BrowserModel} from '../src/native-browser-model.mjs';
 import {createController} from '../extension/controller.js';
@@ -8,8 +11,9 @@ import {createController} from '../extension/controller.js';
 const identity = () => ({
   instanceId: crypto.randomUUID(),
   epoch: crypto.randomUUID(),
+  hostGeneration: crypto.randomUUID(),
   extensionId: 'a'.repeat(32),
-  capabilities: {nativeTransport: true},
+  capabilities: {nativeTransport: true, nativeSessionSchema: 4, createTab: 1},
 });
 const key = () => crypto.randomBytes(32).toString('hex');
 
@@ -88,16 +92,26 @@ test('failed native bootstrap releases only its reservation; stale identities ar
     cdpEndpoint: 'private',
     ready: Promise.resolve(),
     stop: async () => {},
+    targets: () => [{tabId: 1, targetId: 'target'}],
     status: () => ({stopped: false, targetId: 'target'}),
+  });
+  const engineFactory = async () => ({
+    activePage: {},
+    pageSummary: async () => ({targetId: 'target', url: 'https://fixture', title: 'Fixture'}),
+    action: async () => ({}),
+    captureState: async () => ({}),
+    selectTarget: async () => ({}),
+    close: async () => {},
   });
   const manager = new NativeSessions(
     id,
     async (op, payload) => {
       calls.push([op, payload.sessionKey]);
       if (op === 'native-open' && payload.sessionKey === b) throw Object.assign(new Error('fixture failure'), {code: 'FIXTURE'});
+      if (op === 'native-inventory') return {rootTabId: 1, targets: [{tabId: 1}], warnings: []};
       return {};
     },
-    {relayFactory},
+    {relayFactory, engineFactory},
   );
   const p = {...id, sessionKey: a, tabId: 1, expectedUrl: 'https://fixture'};
   assert.equal((await manager.handle('native-connect', p)).alreadyConnected, false);
@@ -110,4 +124,82 @@ test('failed native bootstrap releases only its reservation; stale identities ar
   await assert.rejects(manager.handle('native-disconnect', {...p, epoch: crypto.randomUUID()}), {code: 'PROFILE_MISMATCH'});
   assert.equal(calls.length, before);
   await manager.stop();
+});
+
+test('session-open/connect default focusEmulation to true and route session-action and session-capture-state', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-ns-'));
+  const oldCfg = process.env.LATCH_CONFIG;
+  process.env.LATCH_CONFIG = path.join(dir, 'config.json');
+  t.after(async () => {
+    oldCfg === undefined ? delete process.env.LATCH_CONFIG : (process.env.LATCH_CONFIG = oldCfg);
+    await fs.rm(dir, {recursive: true, force: true});
+  });
+
+  const id = identity();
+  const browserCalls = [];
+  const engineActions = [];
+  const relayFactory = async (_ext, {expectedTabId}) => ({
+    extensionEndpoint: 'ws://127.0.0.1:1/extension/' + 'a'.repeat(64),
+    cdpEndpoint: 'ws://127.0.0.1:1/cdp/' + 'b'.repeat(64),
+    ready: Promise.resolve(),
+    stop: async () => {},
+    targets: () => [{tabId: expectedTabId, targetId: `target-${expectedTabId}`}],
+    status: () => ({stopped: false, targetId: `target-${expectedTabId}`}),
+  });
+  const engineFactory = async opts => ({
+    activePage: {},
+    pageSummary: async () => ({targetId: opts.targetId, url: 'https://example.test/', title: 'Example'}),
+    action: async (action, args) => {
+      engineActions.push({action, args});
+      if (action === 'goto') return {url: args.url, title: 'Example', targetId: opts.targetId};
+      return {ok: true, action};
+    },
+    captureState: async () => ({currentTargetId: opts.targetId, pages: [], screenshot: 'AQID'}),
+    selectTarget: async () => ({}),
+    close: async () => {},
+  });
+
+  const manager = new NativeSessions(
+    id,
+    async (op, payload) => {
+      browserCalls.push({op, payload});
+      if (op === 'native-create-tab') return {tabId: 101};
+      if (op === 'native-inventory') return {rootTabId: 101, targets: [{tabId: 101}], warnings: []};
+      return {};
+    },
+    {relayFactory, engineFactory},
+  );
+
+  const opened = await manager.handle('session-open', {
+    ...id,
+    workspace: dir,
+    session: 'main',
+    url: 'https://example.test/',
+  });
+  assert.equal(opened.created, true);
+  assert.equal(opened.focusEmulation, true);
+  assert.equal(opened.cdpEndpoint, undefined);
+  assert.equal(browserCalls.find(c => c.op === 'native-open').payload.focusEmulation, true);
+  assert.deepEqual(engineActions[0], {action: 'goto', args: {url: 'https://example.test/'}});
+
+  const listed = await manager.handle('session-list', {...id});
+  assert.equal(listed.sessions.length, 1);
+  assert.equal(listed.sessions[0].session, 'main');
+  assert.equal(listed.sessions[0].cdpEndpoint, undefined);
+
+  await manager.handle('session-action', {...id, sessionKey: opened.sessionKey, action: 'snapshot', args: {}});
+  assert.equal(engineActions.at(-1).action, 'snapshot');
+
+  const captured = await manager.handle('session-capture-state', {...id, sessionKey: opened.sessionKey});
+  assert.equal(captured.screenshot, 'AQID');
+
+  const disconnected = await manager.handle('session-disconnect', {
+    ...id,
+    sessionKey: opened.sessionKey,
+    workspace: dir,
+    session: 'main',
+  });
+  assert.equal(disconnected.disconnected, true);
+  assert.equal(disconnected.preservedUserTabs, true);
+  assert.equal((await manager.handle('session-list', {...id})).sessions.length, 0);
 });

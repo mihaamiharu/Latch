@@ -1,11 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import net from 'node:net';
 import crypto from 'node:crypto';
 import {diagnose} from './diagnostics.mjs';
-import {assertVersion, cliError} from './playwright.mjs';
-import {daemonFile} from './daemon-identity.mjs';
+import {cliError} from './redact.mjs';
 import {rootDir} from './local.mjs';
+import {sessionsDir} from './platform.mjs';
 import {assertNodeVersion, assertSetupPlatform} from './compatibility.mjs';
 
 async function writable(directory) {
@@ -24,30 +23,6 @@ async function writable(directory) {
   }
 }
 
-async function loopback() {
-  // Check this caller's local networking, without touching the browser or
-  // pretending it proves access to the eventual authenticated CDP endpoint.
-  await new Promise((resolve, reject) => {
-    const server = net.createServer(socket => socket.end());
-    let client;
-    let settled = false;
-    const finish = error => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      client?.destroy();
-      server.close(() => (error ? reject(error) : resolve()));
-    };
-    const timer = setTimeout(() => finish(new Error('Local loopback probe timed out.')), 2000);
-    server.once('error', finish);
-    server.listen(0, '127.0.0.1', () => {
-      client = net.createConnection(server.address().port, '127.0.0.1');
-      client.once('error', finish);
-      client.once('connect', () => finish());
-    });
-  });
-}
-
 export async function preflight({alias = 'work', workspace, session}) {
   const checks = [];
   const check = async (id, operation) => {
@@ -62,7 +37,6 @@ export async function preflight({alias = 'work', workspace, session}) {
   };
   await check('platform', assertSetupPlatform);
   await check('node', async () => assertNodeVersion(process.version));
-  await check('playwright-cli', () => assertVersion({workspace, timeout: 10000}));
   const health = await diagnose(alias);
   checks.push({
     id: 'bridge-controller',
@@ -77,12 +51,13 @@ export async function preflight({alias = 'work', workspace, session}) {
     cap?.nativeTransport === true &&
     cap.nativeSessionSchema === 4 &&
     cap.recoveryContract === 1;
-  checks.push({id: 'native-capability', status: native ? 'pass' : health.connection?.ok ? 'blocked' : 'unknown'});
+  checks.push({
+    id: 'native-capability',
+    status: native ? 'pass' : health.connection?.ok ? 'blocked' : 'unknown',
+  });
   const paths = {
-    workspaceRegistry: path.join(workspace, '.playwright'),
-    playwrightArtifacts: path.join(workspace, '.playwright-cli'),
-    daemonCache: path.dirname(daemonFile(workspace, session)),
-    recovery: rootDir(),
+    sessions: sessionsDir(),
+    runtime: rootDir(),
   };
   if (checks.every(item => item.status === 'pass')) {
     for (const [id, directory] of Object.entries(paths)) {
@@ -91,15 +66,11 @@ export async function preflight({alias = 'work', workspace, session}) {
         return {directory, probeRemoved: true};
       });
     }
-    await check('local-loopback', async () => {
-      await loopback();
-      return 'caller-listen-and-connect';
-    });
   } else {
     checks.push({
-      id: 'writes-and-loopback',
+      id: 'writes',
       status: 'unknown',
-      reason: 'Prerequisites failed; no task writes or networking probes were attempted.',
+      reason: 'Prerequisites failed; no state directory writes were attempted.',
     });
   }
   return {
@@ -117,6 +88,6 @@ export async function preflight({alias = 'work', workspace, session}) {
     guidance:
       'For access denial, inspect the actual client tool inventory. Request approval for the exact blocked command only if that facility is available; otherwise stop and use a permitted local execution context. Do not change global policies or retry browser actions.',
     sideEffects:
-      'Creates missing task/cache directories and removes its own probe files; never attaches or changes profile defaults.',
+      'Creates missing app-data session/runtime directories and removes its own probe files; never writes workspace dotfiles, attaches, or changes profile defaults.',
   };
 }

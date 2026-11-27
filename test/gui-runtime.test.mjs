@@ -2,7 +2,7 @@ import {CANDIDATE_VERSION,CANDIDATE_KIT} from './helpers/candidate.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import path from 'node:path';
 import {attachmentFixture,valueOf} from './helpers/attachment-fixture.mjs';import {evidenceApp} from './fixtures/evidence-app.mjs';
 import {eventually,command} from './helpers/native-browser.mjs';import {nativeHostPID} from './helpers/evidence-resources.mjs';
-import {installCommand, doctorCommand} from '../src/setup.mjs';import {ROOT} from '../src/release.mjs';import {sessionKey} from '../src/playwright.mjs';
+import {installCommand, doctorCommand} from '../src/setup.mjs';import {ROOT} from '../src/release.mjs';import {sessionKey} from '../src/redact.mjs';
 const enabled=process.env.LATCH_GUI_RUNTIME==='1'&&process.platform==='darwin';
 async function envOf(env,fn){const names=['LATCH_CONFIG','LATCH_RUNTIME_DIR','PWTEST_DAEMON_SESSION_DIR'],before=Object.fromEntries(names.map(n=>[n,process.env[n]]));for(const n of names)process.env[n]=env[n];try{return await fn()}finally{for(const n of names)before[n]===undefined?delete process.env[n]:process.env[n]=before[n]}}
 test('installed native host with minimal PATH performs disconnect, popup Stop and exact recovery without ambient CLI or action replay',{skip:!enabled,timeout:180000},async t=>{

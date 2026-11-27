@@ -1,5 +1,5 @@
 import {executeCLI} from './cli.mjs';
-import {cliError,CLI_META} from './playwright.mjs';
+import {cliError, CLI_META} from './redact.mjs';
 process.once('disconnect',()=>process.exit(1));
 process.once('message',async invocation=>{
   let response;

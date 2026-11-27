@@ -69,7 +69,7 @@ export async function verifyKit(dir) {
     descriptor.nativeSchema !== 4 ||
     descriptor.uiControl !== 1 ||
     descriptor.nodeVersion !== SUPPORT.node ||
-    descriptor.cliVersion !== SUPPORT.playwrightCLI
+    typeof descriptor.playwrightCoreVersion !== 'string'
   ) {
     throw fault('RELEASE_INVALID', 'Invalid release descriptor.');
   }
@@ -95,7 +95,11 @@ export async function verifyKit(dir) {
     throw fault('RELEASE_MANIFEST_INVALID', 'Native manifest differs from the release contract.');
   }
   const pkg = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf8'));
-  if (pkg.version !== descriptor.version || pkg.dependencies?.ws !== '8.22.0') {
+  if (
+    pkg.version !== descriptor.version ||
+    pkg.dependencies?.ws !== '8.22.0' ||
+    pkg.dependencies?.['playwright-core'] !== descriptor.playwrightCoreVersion
+  ) {
     throw fault('RELEASE_VERSION_INVALID', 'Package and release contract differ.');
   }
   if (manifest.minimum_chrome_version !== SUPPORT.minimumChrome || pkg.engines?.node !== SUPPORT.node) {
@@ -123,7 +127,17 @@ export async function verifyKit(dir) {
   }
   const ws = JSON.parse(await fs.readFile(path.join(dir, 'node_modules/ws/package.json'), 'utf8'));
   if (ws.version !== '8.22.0') throw fault('RELEASE_DEPENDENCY_INVALID', 'Pinned ws dependency missing.');
-  for (const name of ['node_modules/ws/LICENSE', 'third_party/playwright/LICENSE', 'third_party/playwright/SOURCES.md', 'skills/latch/SKILL.md']) {
+  const pw = JSON.parse(await fs.readFile(path.join(dir, 'node_modules/playwright-core/package.json'), 'utf8'));
+  if (pw.version !== pkg.dependencies?.['playwright-core']) {
+    throw fault('RELEASE_DEPENDENCY_INVALID', 'Bundled playwright-core dependency mismatch.');
+  }
+  for (const name of [
+    'node_modules/ws/LICENSE',
+    'node_modules/playwright-core/LICENSE',
+    'node_modules/playwright-core/NOTICE',
+    'node_modules/playwright-core/ThirdPartyNotices.txt',
+    'skills/latch/SKILL.md',
+  ]) {
     await fs.access(path.join(dir, name));
   }
   for (const name of names.filter(n => /\.(?:mjs|js)$/.test(n) && !n.startsWith('node_modules/'))) {

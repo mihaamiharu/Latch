@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import {execFile} from 'node:child_process';
 import {promisify, isDeepStrictEqual} from 'node:util';
 import {fault} from '../extension/protocol.js';
-import {cliError, resultValue, CLI_META} from './playwright.mjs';
+import {cliError, resultValue, CLI_META} from './redact.mjs';
 import {LIMITS, idPattern, digest, scrub, directory, regularFile, exclusive, atomic, append, readRun, ledger, artifact} from './evidence-storage.mjs';
 import {renderEvidence} from './evidence-report.mjs';
 import {ACTION_META} from './evidence-action.mjs';

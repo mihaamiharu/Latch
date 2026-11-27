@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fileApp,inputCorpus,inboxReceipts} from './fixtures/file-app.mjs';
 import {attachmentFixture,valueOf} from './helpers/attachment-fixture.mjs';
-import {sessionKey} from '../src/playwright.mjs';
+import {sessionKey} from '../src/redact.mjs';
 import {meta,upload,downloadProbe,received} from './helpers/file-workflow.mjs';
 
 const enabled=process.env.LATCH_FILE_ISOLATION==='1'&&process.platform==='darwin';

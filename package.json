@@ -38,6 +38,7 @@
     "test:identity": "LATCH_IDENTITY=1 node --test test/identity-browser.test.mjs"
   },
   "dependencies": {
+    "playwright-core": "1.65.1",
     "ws": "8.22.0"
   }
 }

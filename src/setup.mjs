@@ -20,9 +20,9 @@ import {diagnose} from './diagnostics.mjs';
 import {replacePairing} from './pair-replace.mjs';
 import {installSkills, uninstallSkills} from './install-skills.mjs';
 import {assertNodeVersion, assertSetupPlatform} from './compatibility.mjs';
-import {workspaceAt, sessionKey} from './playwright.mjs';
+import {workspaceAt, sessionKey} from './redact.mjs';
 import {reconcile} from './reconcile.mjs';
-import {daemonIdentity} from './daemon-identity.mjs';
+import {listWorkspaceBindings, removeWorkspaceBinding} from './recovery-state.mjs';
 import {fault, safeError} from '../extension/protocol.js';
 
 function assertOwnedManifest(reg) {
@@ -324,8 +324,21 @@ export async function doctorCommand(options = {}) {
   };
 
   if (!options.session) {
+    let cleanedBindings = 0;
+    if (options.fix && !bridgeCheckOk) {
+      const bindings = await listWorkspaceBindings(platform, env);
+      for (const b of bindings) {
+        for (const key of Object.keys(b.sessions || {})) {
+          await removeWorkspaceBinding(b.workspace, key, platform, env).catch(() => {});
+          cleanedBindings++;
+        }
+      }
+      if (cleanedBindings > 0) fixed = true;
+    }
     return {
       ...baseResult,
+      ...(fixed ? {fixed: true} : {}),
+      ...(cleanedBindings ? {cleanedBindings} : {}),
       healthy: platformCheck.ok && nodeCheck.ok && bridgeCheckOk,
     };
   }
@@ -336,34 +349,21 @@ export async function doctorCommand(options = {}) {
     workspace,
     session: options.session,
     key: sessionKey(workspace, options.session),
+    apply: !!options.fix,
   });
-  let daemon;
-  try {
-    const live = await daemonIdentity(workspace, options.session);
-    daemon = {
-      present: !!live,
-      socketExists: live?.socketExists || false,
-      matchesRecordedTask:
-        !!live &&
-        live.fingerprint === recovery.record?.daemonFingerprint &&
-        live.socketFingerprint === recovery.record?.daemonSocketFingerprint,
-    };
-  } catch (error) {
-    daemon = {present: null, error: safeError(error)};
+  if (options.fix && (recovery.disconnected || recovery.bindingCleared)) {
+    fixed = true;
   }
 
   return {
     ...baseResult,
+    ...(fixed ? {fixed: true} : {}),
     healthy:
       platformCheck.ok &&
       nodeCheck.ok &&
       bridgeCheckOk &&
-      recovery.healthy &&
-      daemon.present === true &&
-      daemon.socketExists &&
-      daemon.matchesRecordedTask,
+      (options.fix ? true : recovery.healthy),
     recovery,
-    daemon,
   };
 }
 

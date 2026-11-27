@@ -1,38 +1,70 @@
 export const VERSION = 1;
 export const HOST = 'com.latch.bridge';
+
 export const OPERATIONS = new Set([
   'status',
   'tabs',
-  'native-connect',
-  'native-verify',
-  'native-disconnect',
-  'native-status',
-  'native-targets',
-  'native-release-tab',
-  'native-trace',
+  'session-open',
+  'session-connect',
+  'session-list',
+  'session-release',
+  'session-disconnect',
+  'session-action',
+  'session-capture-state',
+]);
+
+export const INTERNAL_OPERATIONS = new Set([
+  'status',
+  'tabs',
   'native-create-tab',
-  'native-health',
-  'native-operation',
-  'native-reconcile',
   'native-reserve',
   'native-open',
   'native-check',
   'native-release',
   'native-drop',
   'native-inventory',
+  'native-health',
 ]);
 
-export function fault(code, message) {
-  return Object.assign(new Error(message), {code});
+export const ACTIONS = new Set([
+  'snapshot',
+  'click',
+  'dblclick',
+  'fill',
+  'type',
+  'press',
+  'hover',
+  'select',
+  'check',
+  'uncheck',
+  'upload',
+  'screenshot',
+  'goto',
+  'back',
+  'forward',
+  'reload',
+  'eval',
+  'run-code',
+  'console',
+  'network',
+  'dialog',
+]);
+
+export function fault(code, message, hint) {
+  return Object.assign(new Error(message), {
+    code,
+    ...(hint ? {hint} : {}),
+  });
 }
 
-export function checkRequest(request) {
+export function checkRequest(request, {internal = false} = {}) {
+  const allowed = internal ? INTERNAL_OPERATIONS : OPERATIONS;
   if (
     !request ||
     request.v !== VERSION ||
     typeof request.id !== 'string' ||
     request.id.length > 120 ||
-    !OPERATIONS.has(request.op) ||
+    !allowed.has(request.op) ||
     !request.payload ||
     typeof request.payload !== 'object' ||
     Array.isArray(request.payload)
@@ -44,8 +76,9 @@ export function checkRequest(request) {
 
 export function safeError(error) {
   return {
-    code: error.code || 'BROWSER_ERROR',
-    message: String(error.message || error).slice(0, 500),
+    code: error?.code || 'BROWSER_ERROR',
+    message: String(error?.message || error).slice(0, 500),
+    ...(error?.hint ? {hint: String(error.hint).slice(0, 300)} : {}),
   };
 }
 

@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import path from 'node:path';
-import {evidenceApp,MiB} from './fixtures/evidence-app.mjs';import {attachmentFixture,valueOf} from './helpers/attachment-fixture.mjs';import {eventually} from './helpers/native-browser.mjs';import {sessionKey} from '../src/playwright.mjs';import {captureCLI,responseBody,screenshot} from './helpers/evidence-capture.mjs';
+import {evidenceApp,MiB} from './fixtures/evidence-app.mjs';import {attachmentFixture,valueOf} from './helpers/attachment-fixture.mjs';import {eventually} from './helpers/native-browser.mjs';import {sessionKey} from '../src/redact.mjs';import {captureCLI,responseBody,screenshot} from './helpers/evidence-capture.mjs';
 import {nativeHostPID,tcpResources} from './helpers/evidence-resources.mjs';
 const enabled=process.env.LATCH_EVIDENCE_ISOLATION==='1'&&process.platform==='darwin';
 test('headless native evidence failures preserve peer ownership and settle resources',{skip:!enabled,timeout:300000},async t=>{
