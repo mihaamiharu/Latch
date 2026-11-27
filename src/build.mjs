@@ -6,6 +6,7 @@ import {spawnSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 import {ROOT, EXTENSION_ID, HOST_NAME, hash, filesIn, releaseManifest, verifyKit} from './release.mjs';
 import {SUPPORT} from './compatibility.mjs';
+import {isMainModule} from './platform.mjs';
 
 // Fixed DOS timestamp for 2000-01-01T00:00:00Z so archives are byte-reproducible across OSes.
 const FIXED_DOS_TIME = 0;
@@ -148,7 +149,7 @@ export async function build({root = ROOT, out = path.join(root, 'dist')} = {}) {
   return {version: pkg.version, extensionId: EXTENSION_ID, kit, unpackedDirectory: extension, archives};
 }
 
-if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+if (isMainModule(import.meta.url)) {
   try {
     console.log(JSON.stringify(await build(), null, 2));
   } catch (e) {

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {execFile} from 'node:child_process';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 import {promisify} from 'node:util';
 import {fault} from '../extension/protocol.js';
 
@@ -364,4 +365,18 @@ export async function spawnCommandSpec(executable, args, {nodeExecutable, env = 
     return {command: env.ComSpec || 'cmd.exe', args: ['/d', '/c', resolved, ...args], options: {shell: false}};
   }
   return {command: resolved, args, options: {shell: false}};
+}
+
+/** Return true when entryArg resolves to the same real file as metaUrl (handles symlinks/junctions and win32 casing). */
+export function isMainModule(metaUrl, entryArg = process.argv[1], platform = process.platform) {
+  if (!entryArg) return false;
+  try {
+    const entryReal = fsSync.realpathSync(entryArg);
+    const moduleReal = fsSync.realpathSync(fileURLToPath(metaUrl));
+    return platform === 'win32'
+      ? entryReal.toLowerCase() === moduleReal.toLowerCase()
+      : entryReal === moduleReal;
+  } catch {
+    return pathToFileURL(path.resolve(entryArg)).href === metaUrl;
+  }
 }

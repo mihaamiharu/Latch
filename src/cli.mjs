@@ -6,7 +6,7 @@ import {pathToFileURL} from 'node:url';
 import {ACTIONS, fault, webUrl} from '../extension/protocol.js';
 import {diagnose} from './diagnostics.mjs';
 import {discoverDetailed, readConfig, request} from './local.mjs';
-import {privateDirectory, sessionsDir} from './platform.mjs';
+import {isMainModule, privateDirectory, sessionsDir} from './platform.mjs';
 import {readWorkspaceBinding, removeWorkspaceBinding, writeWorkspaceBinding} from './recovery-state.mjs';
 import {cliError, sessionKey, workspaceAt} from './redact.mjs';
 import {ROOT} from './release.mjs';
@@ -1163,7 +1163,7 @@ export function formatError(error, {json = false} = {}) {
   return lines.join('\n');
 }
 
-if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+if (isMainModule(import.meta.url)) {
   const rawArgv = process.argv.slice(2);
   const wantsJson = rawArgv.includes('--json');
   try {

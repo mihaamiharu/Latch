@@ -9,6 +9,7 @@ import {
   targetsFor,
   sourceSkill,
 } from './agents.mjs';
+import {isMainModule} from './platform.mjs';
 
 export {
   installAgents as installSkills,
@@ -18,7 +19,7 @@ export {
   sourceSkill,
 };
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   try {
     const command = process.argv[2] || 'install';
     const result = await agentsCommand(command);

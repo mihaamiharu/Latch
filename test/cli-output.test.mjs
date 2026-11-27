@@ -8,6 +8,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
 import {redact, cliError, resultValue, workspaceAt, sessionKey} from '../src/redact.mjs';
+import {linkDirectory} from '../src/platform.mjs';
 import {
   parseArgs,
   resolveProfile,
@@ -380,4 +381,16 @@ test('screenshot --out, release without tabId, connect --focus-emulation off, an
   assert.match(formatResult('network', {entries: [{kind: 'response', method: 'GET', status: 200, url: 'https://a.test'}], total: 1}), /GET 200/);
   assert.match(formatResult('dialog', {action: 'accept', type: 'confirm', message: 'Sure?'}), /Dialog accept \(confirm\): Sure\?/);
   assert.match(formatResult('help', {usage: 'Latch usage'}), /Latch usage/);
+});
+
+test('CLI executes when invoked through a symlink or junction (npm link)', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-link-'));
+  t.after(() => fs.rm(dir, {recursive: true, force: true}));
+  const linkedRoot = path.join(dir, 'linked-latch');
+  const repoRoot = path.resolve(path.dirname(cliEntry), '..');
+  await linkDirectory(repoRoot, linkedRoot);
+  const {stdout} = await exec(process.execPath, [path.join(linkedRoot, 'src', 'cli.mjs'), 'version', '--json']);
+  const parsed = JSON.parse(stdout);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.nativeSessionSchema, 4);
 });

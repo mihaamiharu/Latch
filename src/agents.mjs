@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import {fileURLToPath} from 'node:url';
-import {linkDirectory} from './platform.mjs';
+import {isMainModule, linkDirectory} from './platform.mjs';
 import {fault} from '../extension/protocol.js';
 
 export const sourceSkill = fileURLToPath(new URL('../skills/latch/', import.meta.url));
@@ -207,7 +207,7 @@ export async function agentsCommand(action, flags = {}) {
   };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   try {
     const args = process.argv.slice(2);
     const action = args.shift() || 'status';
