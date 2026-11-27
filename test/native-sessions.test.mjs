@@ -279,3 +279,53 @@ test('session-open retains attached session on goto failure when relay stays liv
     },
   );
 });
+
+test('hung captureState hits captureTimeoutMs, releases busy lock, and allows immediate disconnect', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-busy-timeout-'));
+  const oldCfg = process.env.LATCH_CONFIG;
+  process.env.LATCH_CONFIG = path.join(dir, 'config.json');
+  t.after(async () => {
+    oldCfg === undefined ? delete process.env.LATCH_CONFIG : (process.env.LATCH_CONFIG = oldCfg);
+    await fs.rm(dir, {recursive: true, force: true});
+  });
+
+  const id = identity();
+  const relayFactory = async (_ext, {expectedTabId}) => ({
+    extensionEndpoint: 'ws://127.0.0.1:1/extension/' + 'c'.repeat(64),
+    cdpEndpoint: 'ws://127.0.0.1:1/cdp/' + 'd'.repeat(64),
+    ready: Promise.resolve(),
+    stop: async () => {},
+    targets: () => [{tabId: expectedTabId, targetId: `target-${expectedTabId}`}],
+    status: () => ({stopped: false, targetId: `target-${expectedTabId}`}),
+  });
+  const engineFactory = async opts => ({
+    activePage: {},
+    pageSummary: async () => ({targetId: opts.targetId, url: 'https://calendar.example/', title: 'Calendar'}),
+    action: async () => ({ok: true}),
+    captureState: () => new Promise(() => {}),
+    selectTarget: async () => ({}),
+    close: async () => {},
+  });
+
+  const manager = new NativeSessions(
+    id,
+    async op => {
+      if (op === 'native-create-tab') return {tabId: 301};
+      if (op === 'native-inventory') return {rootTabId: 301, targets: [{tabId: 301}], warnings: []};
+      return {};
+    },
+    {relayFactory, engineFactory, captureTimeoutMs: 60},
+  );
+
+  const opened = await manager.handle('session-open', {...id, workspace: dir, session: 'hung-qa', url: 'https://calendar.example/'});
+  assert.equal(opened.connected, true);
+
+  await assert.rejects(
+    manager.handle('session-capture-state', {...id, sessionKey: opened.sessionKey}),
+    {code: 'CAPTURE_TIMEOUT'},
+  );
+  // Busy lock must be cleared immediately after timeout so disconnect succeeds (never wedged in SESSION_BUSY)
+  assert.equal(manager.busy.has(opened.sessionKey), false);
+  const disc = await manager.handle('session-disconnect', {...id, sessionKey: opened.sessionKey, workspace: dir, session: 'hung-qa'});
+  assert.equal(disc.disconnected, true);
+});

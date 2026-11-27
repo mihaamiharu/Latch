@@ -5,8 +5,20 @@ import {redact} from './redact.mjs';
 
 const MAX_CONSOLE_ENTRIES = 500;
 const MAX_NETWORK_ENTRIES = 500;
+const MAX_CAPTURED_FRAMES = 8;
 const REF_PATTERN = /^(?:f\d+)?e\d+$/;
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+
+function withTimeout(promise, ms, onTimeout) {
+  let timer;
+  const timeout = new Promise((resolve, reject) => {
+    timer = setTimeout(() => {
+      if (typeof onTimeout === 'function') resolve(onTimeout());
+      else reject(fault('ACTION_TIMEOUT', `Operation timed out after ${ms}ms.`));
+    }, ms);
+  });
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+}
 
 const DOM_OBSERVATION_FN = els => ({
   total: els.length,
@@ -651,36 +663,59 @@ export class BrowserEngine {
         const opener = typeof p.opener === 'function' ? await p.opener().catch(() => null) : null;
         const openerTargetId = opener ? await this.identifyPage(opener).catch(() => null) : null;
         const frames = [];
-        for (const [i, frame] of (p.frames?.() || []).entries()) {
-          if (frame === p.mainFrame?.()) continue;
+        const childFrames = (p.frames?.() || []).filter(frame => frame !== p.mainFrame?.());
+        for (const [i, frame] of childFrames.slice(0, MAX_CAPTURED_FRAMES).entries()) {
+          const frameUrl = frame.url?.() || '';
+          if (!frameUrl || frameUrl === 'about:blank') continue;
           try {
-            const frameSnapshot = await frame.locator('body').ariaSnapshot({mode: 'ai', timeout: 3000});
-            const frameDom = await frame.locator(DOM_SELECTOR).evaluateAll(DOM_OBSERVATION_FN);
+            const frameSnapshot = await withTimeout(
+              frame.locator('body').ariaSnapshot({mode: 'ai', timeout: 2500}),
+              3000,
+            );
+            const frameDom = await withTimeout(
+              frame.locator(DOM_SELECTOR).evaluateAll(DOM_OBSERVATION_FN, undefined, {timeout: 2500}),
+              3000,
+              () => ({total: 0, nodes: []}),
+            );
             frames.push({
               id: `frame-${i}`,
               name: frame.name(),
-              url: frame.url(),
+              url: frameUrl,
               snapshot: redact(frameSnapshot),
               dom: frameDom,
             });
           } catch {
-            frames.push({id: `frame-${i}`, url: frame.url(), error: 'Frame snapshot unavailable'});
+            frames.push({id: `frame-${i}`, url: frameUrl, error: 'Frame snapshot unavailable'});
           }
         }
-        const snapshot = await p.ariaSnapshot({mode: 'ai', timeout: 5000});
+        const snapshot = await withTimeout(p.ariaSnapshot({mode: 'ai', timeout: 5000}), 6000);
         this.pageRefs.set(p, parseSnapshotRefs(snapshot));
-        const dom = await p.locator(DOM_SELECTOR).evaluateAll(DOM_OBSERVATION_FN);
-        const viewport = await p.evaluate(() => ({
-          width: window.innerWidth,
-          height: window.innerHeight,
-          device_scale: window.devicePixelRatio,
-        }));
+        const dom = await withTimeout(
+          p.locator(DOM_SELECTOR).evaluateAll(DOM_OBSERVATION_FN, undefined, {timeout: 4000}),
+          5000,
+          () => ({total: 0, nodes: []}),
+        );
+        const viewport = await withTimeout(
+          p.evaluate(() => ({
+            width: window.innerWidth,
+            height: window.innerHeight,
+            device_scale: window.devicePixelRatio,
+          })),
+          3000,
+          () => ({width: 0, height: 0, device_scale: 1}),
+        );
         let screenshot = null;
         if (includeScreenshot) {
           try {
-            const buf = await p.screenshot({type: 'png', timeout: 5000});
-            screenshot = buf.toString('base64');
-            if (p === active) activeScreenshot = screenshot;
+            const buf = await withTimeout(
+              p.screenshot({type: 'png', timeout: 10000, animations: 'disabled'}),
+              11000,
+              () => null,
+            );
+            if (buf) {
+              screenshot = buf.toString('base64');
+              if (p === active) activeScreenshot = screenshot;
+            }
           } catch {}
         }
         pages.push({
@@ -688,7 +723,7 @@ export class BrowserEngine {
           openerTargetId,
           viewport,
           url: p.url(),
-          title: await p.title().catch(() => ''),
+          title: await withTimeout(p.title().catch(() => ''), 2000, () => ''),
           snapshot: redact(snapshot),
           dom,
           frames,

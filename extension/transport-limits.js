@@ -10,7 +10,7 @@ export function browserDeadline(method,params){
  if(method==='command'){
   if(['Runtime.evaluate','Runtime.callFunctionOn'].includes(params?.method)&&params?.params?.awaitPromise===true)
    return TRANSPORT_LIMITS.awaitedMs;
-  if(['Page.navigate','Page.reload','Page.navigateToHistoryEntry'].includes(params?.method))
+  if(['Page.navigate','Page.reload','Page.navigateToHistoryEntry','Page.captureScreenshot','Accessibility.getFullAXTree'].includes(params?.method))
    return TRANSPORT_LIMITS.awaitedMs;
  }
  return TRANSPORT_LIMITS.ordinaryMs;

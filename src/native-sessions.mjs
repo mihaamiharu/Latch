@@ -7,6 +7,16 @@ import {writeWorkspaceBinding, removeWorkspaceBinding} from './recovery-state.mj
 
 const SESSION_KEY_PATTERN = /^[a-f0-9]{64}$/;
 const SESSION_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,60}$/;
+const DEFAULT_ACTION_TIMEOUT_MS = 40000;
+const DEFAULT_CAPTURE_TIMEOUT_MS = 25000;
+
+function withDeadline(promise, ms, code, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(fault(code, message)), ms);
+  });
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+}
 
 function defaultEngineFactory(opts) {
   return new BrowserEngine(opts).connect({targetId: opts.targetId});
@@ -17,12 +27,19 @@ export class NativeSessions {
   constructor(
     identity,
     browser,
-    {relayFactory = createRelay, engineFactory = defaultEngineFactory} = {},
+    {
+      relayFactory = createRelay,
+      engineFactory = defaultEngineFactory,
+      actionTimeoutMs = DEFAULT_ACTION_TIMEOUT_MS,
+      captureTimeoutMs = DEFAULT_CAPTURE_TIMEOUT_MS,
+    } = {},
   ) {
     this.identity = identity;
     this.browser = browser;
     this.relayFactory = relayFactory;
     this.engineFactory = engineFactory;
+    this.actionTimeoutMs = actionTimeoutMs;
+    this.captureTimeoutMs = captureTimeoutMs;
     this.sessions = new Map();
     this.busy = new Set();
   }
@@ -158,7 +175,12 @@ export class NativeSessions {
       if (!entry.engine) {
         throw fault('SESSION_STALE', 'In-process browser engine is unavailable for this session.');
       }
-      return await entry.engine.action(p.action, p.args || {});
+      return await withDeadline(
+        entry.engine.action(p.action, p.args || {}),
+        this.actionTimeoutMs,
+        'ACTION_TIMEOUT',
+        `Action ${p.action} timed out after ${this.actionTimeoutMs}ms.`,
+      );
     }
 
     if (op === 'session-capture-state') {
@@ -172,7 +194,12 @@ export class NativeSessions {
       if (!entry.engine) {
         throw fault('SESSION_STALE', 'In-process browser engine is unavailable for this session.');
       }
-      return await entry.engine.captureState({includeScreenshot: p.includeScreenshot !== false});
+      return await withDeadline(
+        entry.engine.captureState({includeScreenshot: p.includeScreenshot !== false}),
+        this.captureTimeoutMs,
+        'CAPTURE_TIMEOUT',
+        `State capture timed out after ${this.captureTimeoutMs}ms.`,
+      );
     }
 
     if (op === 'native-targets') {

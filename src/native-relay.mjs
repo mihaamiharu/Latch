@@ -74,10 +74,18 @@ export async function createRelay(extensionId, {expectedTabId, onStop} = {}) {
       const deadline = browserDeadline(method, params);
       const timer = setTimeout(() => {
         metrics.timeouts++;
-        metrics.lastTimeout = {method: params?.method || method, deadlineMs: deadline};
+        const cdpMethod = params?.method || method;
+        metrics.lastTimeout = {method: cdpMethod, deadlineMs: deadline};
         pending.delete(id);
         record('error', method, 'command-timeout');
-        reject(new Error(`Browser command ${params?.method || method} timed out after ${deadline}ms.`));
+        const nonFatalRead = method === 'command' && cdpMethod === 'Page.captureScreenshot';
+        if (nonFatalRead) {
+          retiredRequests.add(id);
+          if (retiredRequests.size > 256) void stop('retired-response-limit');
+          reject(new Error(`Browser command ${cdpMethod} timed out after ${deadline}ms.`));
+          return;
+        }
+        reject(new Error(`Browser command ${cdpMethod} timed out after ${deadline}ms.`));
         setImmediate(() => void stop('command-timeout'));
       }, deadline);
       pending.set(id, {resolve, reject, timer, method, params});

@@ -4,6 +4,7 @@ import {once} from 'node:events';
 import {WebSocket} from 'ws';
 import {BrowserModel} from '../src/native-browser-model.mjs';
 import {createRelay} from '../src/native-relay.mjs';
+import {browserDeadline, TRANSPORT_LIMITS} from '../extension/transport-limits.js';
 
 test('native target model exposes only its selected tab and rejects global/foreign commands', async () => {
   const calls = [], events = [];
@@ -102,4 +103,10 @@ test('retiring a child cancels only its pending command and consumes only its kn
  assert.match((await waiting).error.message,/retired/);ext.send(JSON.stringify({id:held,result:{late:true}}));
  waiting=next(m=>m.id===3);cdp.send(JSON.stringify({id:3,method:'Browser.getVersion'}));assert.ok((await waiting).result.product);assert.equal(relay.status().stopped,false);assert.equal(relay.status().pending,0);
  const closed=once(ext,'close');ext.send(JSON.stringify({id:999999,result:{}}));await closed;assert.equal(relay.status().stopped,true);
+});
+
+test('Page.captureScreenshot and Accessibility.getFullAXTree use awaitedMs deadline instead of ordinaryMs', () => {
+  assert.equal(browserDeadline('command', {method: 'Page.captureScreenshot'}), TRANSPORT_LIMITS.awaitedMs);
+  assert.equal(browserDeadline('command', {method: 'Accessibility.getFullAXTree'}), TRANSPORT_LIMITS.awaitedMs);
+  assert.equal(browserDeadline('command', {method: 'DOM.getDocument'}), TRANSPORT_LIMITS.ordinaryMs);
 });
