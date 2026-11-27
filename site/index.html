@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Latch · Connect AI coding agents to your signed-in Chrome</title>
+    <title>Latch · Signed-in Chrome QA workbench for CLI coding agents</title>
     <meta
       name="description"
-      content="Cross-platform Chrome companion extension, native bridge, and flat latch CLI for Antigravity, Claude Code, Codex, and Cursor."
+      content="Open-source QA browser workbench for terminal CLI coding agents (Claude Code, Codex, Antigravity, Cursor) with single-tab Chrome control and before/after PNG filmstrips."
     />
     <link rel="icon" type="image/png" href="assets/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -28,7 +28,7 @@
           <a href="#why">Why Latch</a>
           <a href="#install">Install</a>
           <a href="#architecture">How it works</a>
-          <a href="#library">Replay</a>
+          <a href="#library">Library</a>
           <a href="#commands">Commands</a>
           <a href="https://github.com/mihaamiharu/Latch" target="_blank" rel="noreferrer">GitHub</a>
         </nav>
@@ -39,9 +39,9 @@
     <main id="top">
       <section class="hero" id="hero-section">
         <div class="container hero-stack">
-          <h1 class="hero-stagger">Your signed-in Chrome, ready for coding agents.</h1>
+          <h1 class="hero-stagger">Your signed-in Chrome, built for CLI QA.</h1>
           <p class="hero-copy hero-stagger">
-            Built on playwright-core for Claude Code, Codex, Cursor, and Antigravity. Attach an agent to one authenticated tab at a time—no repo dotfiles, no stolen cursor, and optional before/after PNG filmstrips to verify every click.
+            An open-source QA workbench for engineers running Claude Code, Codex, or Antigravity from the terminal. Drive one authenticated Chrome tab at a time on playwright-core—with before/after PNG filmstrips, observed locators, and local triage before anything becomes a test.
           </p>
           <div class="hero-actions hero-stagger">
             <a class="cta-primary" href="#install">Get started</a>
@@ -76,42 +76,42 @@
 
       <section class="band band-white" id="why">
         <div class="container">
-          <h2 data-reveal>Built for coding agents, not bolted on</h2>
+          <h2 data-reveal>Built for daily QA from the terminal</h2>
           <p class="section-intro" data-reveal>
-            Coding agents need safe access to your logged-in staging and internal apps—without exposing your entire browser, cluttering git status, or forcing you to trust "verified" blindly.
+            When you run Claude Code, Codex, or Antigravity from the CLI, you don't have an IDE browser—and isolated headless browsers can't reach your SSO-gated work tabs. Latch gives CLI agents safe, auditable access to your real Chrome.
           </p>
 
           <div class="pillars-grid" data-reveal>
             <article class="pillar-card">
-              <h3>Single-tab safety</h3>
+              <h3>Works across CLI agent subscriptions</h3>
               <p>
-                Explicitly attach one tab with <code>latch connect &lt;tabId&gt;</code> and per-session ownership locks. Your email, Slack, and production tabs stay isolated and untouched on disconnect.
+                One flat <code>latch</code> CLI and a 3 KB skill prompt—no MCP tool bloat. Hop between Claude Code, Codex, Antigravity, and Cursor in the terminal using the exact same browser commands.
               </p>
             </article>
             <article class="pillar-card">
-              <h3>Agent-native ergonomics</h3>
+              <h3>Single-tab safety in your work Chrome</h3>
               <p>
-                Flat CLI commands, a compact 3 KB skill prompt, and background focus emulation so your cursor isn't stolen. Session state and large snapshots live in OS app data—zero dotfiles in your repo.
+                Attach one signed-in tab with <code>latch connect &lt;tabId&gt;</code> and per-session locks (<code>-s</code>). Your email, Slack, and other tabs stay isolated and untouched on disconnect.
               </p>
             </article>
             <article class="pillar-card">
-              <h3>Visual proof of work</h3>
+              <h3>Zero repo clutter &amp; background focus</h3>
               <p>
-                When an agent runs in a background tab, you didn't watch it click. Pass <code>--record</code> to review before/after PNG screenshots, ARIA snapshots, and checkpoints in seconds.
+                Active sessions and large ARIA snapshots spill to OS app data—never dirtying <code>git status</code>. Background focus emulation lets agents explore without stealing your cursor.
               </p>
             </article>
             <article class="pillar-card">
-              <h3>One setup across all your agents</h3>
+              <h3>Exploratory QA filmstrips &amp; triage</h3>
               <p>
-                Run <code>latch agents install</code> once to link Antigravity, Claude Code, Codex, and Cursor without maintaining separate MCP JSON configs in every client.
+                Pass <code>--record</code> to capture before/after PNGs, ARIA/DOM locator candidates with ambiguity warnings, and checkpoints that never fabricate assertions—reviewed locally at <code>127.0.0.1</code>.
               </p>
             </article>
           </div>
 
           <aside class="fit-callout" data-reveal>
-            <h3>Where Latch fits alongside Playwright &amp; DevTools</h3>
+            <h3>Where Latch fits in a QA stack</h3>
             <p>
-              Latch is built on <code>playwright-core</code> to complement Playwright, not replace it. Use Playwright directly for CI test suites and fresh headless sessions, Chrome DevTools MCP for deep performance or heap profiling, and your IDE's built-in browser for public or localhost previews. Reach for Latch when a coding agent needs safe, auditable access to your signed-in Chrome.
+              Latch is built on <code>playwright-core</code> to complement the rest of your tooling, not replace it. Use <strong>Playwright</strong> directly for CI test suites and headless runs, <strong>OpenCode Browse</strong> or <strong>Chrome DevTools MCP</strong> for general MCP browsing and browser profiling, and <strong>Latch</strong> for exploratory QA from terminal CLI coding agents in your real signed-in Chrome.
             </p>
           </aside>
         </div>
@@ -259,9 +259,9 @@ latch doctor</pre>
 
       <section class="band band-dark" id="library">
         <div class="container">
-          <h2 data-reveal>Visual replay for every agent click</h2>
+          <h2 data-reveal>Exploration Library for QA review</h2>
           <p class="section-intro section-intro-dark" data-reveal>
-            When an agent runs in a background tab, don't just trust "verified." Pass --record or --objective on open or connect to capture before/after PNG screenshots, ARIA snapshots, and checkpoints in a local 127.0.0.1 viewer.
+            Pass --record or --objective on open or connect to capture before/after PNG filmstrips, ARIA snapshots, and locator candidates—so you can review observed behavior locally before deciding what becomes a bug report or a Playwright test.
           </p>
 
           <div class="library-stage" data-reveal>
@@ -299,9 +299,9 @@ latch doctor</pre>
                 <p id="film-locators"></p>
               </div>
               <div class="note-col">
-                <h3>Verify runs &amp; manage storage locally</h3>
+                <h3>Local QA triage &amp; cleanup</h3>
                 <p>
-                  Click Open Library in the Chrome popup to open the 127.0.0.1 viewer immediately, inspect what the agent saw, export or annotate runs if you want to turn one into a test later, or clean up finished runs via latch library delete.
+                  Click Open Library in the Chrome popup to open the 127.0.0.1 reviewer immediately, triage runs into automate / investigate / report_bug / closed separately from observed evidence, or clean up finished runs via latch library delete.
                 </p>
               </div>
             </div>
