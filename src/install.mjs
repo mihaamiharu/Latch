@@ -1,30 +1,20 @@
 #!/usr/bin/env node
-import fs from 'node:fs/promises';
 import path from 'node:path';
-import {ROOT, EXTENSION_ID, HOST_NAME, quote} from './release.mjs';
+import {ROOT, EXTENSION_ID, HOST_NAME} from './release.mjs';
+import {installCommand, pairCommand, doctorCommand, uninstallCommand} from './setup.mjs';
 import {
-  inspectSetup,
-  stageSetup,
-  activateSetup,
-  verifySetup,
-  configureNativeSetup,
-  rollbackSetup,
-  setupSkills,
-  uninstallSetup,
-} from './setup.mjs';
+  buildNativeHostManifest,
+  writeLauncher,
+  privateDirectory,
+} from './platform.mjs';
 import {assertSetupPlatform} from './compatibility.mjs';
 
-const help = `Latch local setup (macOS)
-  node src/install.mjs inspect --kit PATH [--root PATH] [--registration-root PATH] [--playwright-cli PATH]
-  node src/install.mjs stage --kit PATH
-  node src/install.mjs activate --kit PATH --expect PLAN_TOKEN --tasks-drained --extension-unloaded
-  node src/install.mjs verify [--profile work]
-  node src/install.mjs configure-native [--profile work]
-  node src/install.mjs skills [--user-root PATH]
-  node src/install.mjs rollback --tasks-drained --extension-unloaded
-  node src/install.mjs uninstall --tasks-drained --extension-unloaded
-Node/CLI are external prerequisites. Activation flags are operator attestations;
-they do not automatically verify Chrome's permission acceptance or unload state.
+const help = `Latch setup (Windows, macOS, Linux)
+  node src/install.mjs install [--root PATH] [--registration-root PATH] [--user-root PATH] [--skip-skills]
+  node src/install.mjs pair [--profile work] [--instance UUID] [--chrome-profile-dir DIR]
+  node src/install.mjs doctor [--profile work] [--fix]
+  node src/install.mjs uninstall [--root PATH] [--registration-root PATH] [--user-root PATH] [--skip-skills]
+  node src/install.mjs prepare
 prepare writes an unregistered development preview beneath dist/setup-preview only.
 `;
 
@@ -37,18 +27,25 @@ try {
     'registration-root': 'registrationRoot',
     kit: 'kit',
     node: 'node',
-    'playwright-cli': 'playwrightCLI',
     'user-root': 'userRoot',
     profile: 'profile',
-    expect: 'expect',
-    'tasks-drained': 'tasksDrained',
-    'extension-unloaded': 'extensionUnloaded',
+    instance: 'instance',
+    'chrome-profile-dir': 'chromeProfileDir',
+    'registry-key': 'registryKey',
+    fix: 'fix',
+    'skip-skills': 'skipSkills',
+    'skip-registry': 'skipRegistry',
+    replace: 'replace',
+    'expect-old': 'expectOld',
   };
+  const booleans = new Set(['fix', 'skipSkills', 'skipRegistry', 'replace']);
   while (args.length) {
-    const key = args.shift().slice(2);
+    const raw = args.shift();
+    if (!raw.startsWith('--')) throw new Error('Unknown setup argument.');
+    const key = raw.slice(2);
     const name = names[key];
     if (!name) throw new Error('Unknown setup argument.');
-    if (['tasksDrained', 'extensionUnloaded'].includes(name)) {
+    if (booleans.has(name)) {
       options[name] = true;
     } else {
       const value = args.shift();
@@ -60,44 +57,34 @@ try {
     console.log(help);
   } else if (command === 'prepare') {
     await assertSetupPlatform();
-    const dir = path.join(ROOT, 'dist/setup-preview');
-    await fs.mkdir(dir, {recursive: true});
-    const nativeHostLauncher = path.join(dir, 'native-host');
-    const cli = path.join(dir, 'latch');
-    for (const [file, source] of [[nativeHostLauncher, 'native-host'], [cli, 'cli']]) {
-      await fs.writeFile(
-        file,
-        `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(path.join(ROOT, 'src', source + '.mjs'))} "$@"\n`,
-        {mode: 0o700},
-      );
-      await fs.chmod(file, 0o700);
-    }
-    const hostManifestSource = path.join(dir, HOST_NAME + '.json');
-    await fs.writeFile(
-      hostManifestSource,
-      JSON.stringify(
-        {
-          name: HOST_NAME,
-          description: 'Latch development preview',
-          path: nativeHostLauncher,
-          type: 'stdio',
-          allowed_origins: [`chrome-extension://${EXTENSION_ID}/`],
-        },
-        null,
-        2,
-      ) + '\n',
-    );
+    const dir = path.join(ROOT, 'dist', 'setup-preview');
+    await privateDirectory(dir);
+    const nativeHostLauncher = await writeLauncher({
+      dir,
+      name: 'native-host',
+      nodeExecutable: process.execPath,
+      targetScript: path.join(ROOT, 'src', 'native-host.mjs'),
+    });
+    const cli = await writeLauncher({
+      dir,
+      name: 'latch',
+      nodeExecutable: process.execPath,
+      targetScript: path.join(ROOT, 'src', 'cli.mjs'),
+    });
+    const hostManifestSource = path.join(dir, `${HOST_NAME}.json`);
+    const manifest = buildNativeHostManifest({
+      launcherPath: nativeHostLauncher,
+      description: 'Latch development preview',
+    });
+    const fs = await import('node:fs/promises');
+    await fs.writeFile(hostManifestSource, JSON.stringify(manifest, null, 2) + '\n');
     console.log(JSON.stringify({extensionId: EXTENSION_ID, nativeHostLauncher, cli, registered: false, hostManifestSource}));
   } else {
     const actions = {
-      inspect: inspectSetup,
-      stage: stageSetup,
-      activate: activateSetup,
-      verify: verifySetup,
-      'configure-native': configureNativeSetup,
-      rollback: rollbackSetup,
-      skills: setupSkills,
-      uninstall: uninstallSetup,
+      install: installCommand,
+      pair: pairCommand,
+      doctor: doctorCommand,
+      uninstall: uninstallCommand,
     };
     if (!actions[command]) throw new Error('Unknown setup command. Use help.');
     const result = await actions[command](options);

@@ -5,7 +5,7 @@ import path from 'node:path';
 import {CANDIDATE_KIT} from './helpers/candidate.mjs';
 import {attachmentFixture} from './helpers/attachment-fixture.mjs';
 import {evidenceApp} from './fixtures/evidence-app.mjs';
-import {inspectSetup,activateSetup,verifySetup} from '../src/setup.mjs';
+import {installCommand, doctorCommand} from '../src/setup.mjs';
 
 async function envOf(env,fn){const keys=['LATCH_CONFIG','LATCH_RUNTIME_DIR','PWTEST_DAEMON_SESSION_DIR'],old=Object.fromEntries(keys.map(k=>[k,process.env[k]]));for(const k of keys)process.env[k]=env[k];try{return await fn()}finally{for(const k of keys)old[k]===undefined?delete process.env[k]:process.env[k]=old[k];}}
 test('exact installed candidate creates a central video/YAML bundle, exports it and preserves the browser on finish',{
@@ -15,7 +15,7 @@ test('exact installed candidate creates a central video/YAML bundle, exports it 
  app.install=async({temp,profile,env})=>{
   app.installedRoot=path.join(temp,'installed runtime');setup={kit:CANDIDATE_KIT,root:app.installedRoot,registrationRoot:path.join(profile,'NativeMessagingHosts'),tasksDrained:true,extensionUnloaded:true};
   await fs.writeFile(env.LATCH_CONFIG,'{"v":1,"profiles":{}}');
-  await envOf(env,async()=>{const plan=await inspectSetup(setup);await activateSetup({...setup,expect:plan.planToken});});
+  await envOf(env,async()=>{await installCommand(setup);});
  };
  t.after(async()=>{await f?.close();await app.close();});f=await attachmentFixture(t,app,'native');f.env.LATCH_CAPTURE='on';f.env.LATCH_ARTIFACT_ROOT=path.join(f.temp,'library');
  const opened=await f.latch(0,['open','--focus-emulation','on','--video','foreground','--session','agent','--url',app.origin+'/root#'+encodeURIComponent(f.run+':installed'),'--objective','Installed exploration handoff']);
@@ -30,7 +30,7 @@ test('exact installed candidate creates a central video/YAML bundle, exports it 
  const exported=await f.latch(0,['library','export','--run',done.library.runId,'--destination',path.join(f.evidence,'handoff')]);assert.equal(exported.exported,true);
  assert.equal((await f.latch(0,['finish','--session','agent'])).alreadyFinished,true);
  assert.ok((await f.latch(0,['tabs'])).tabs.some(p=>p.tabId===opened.tabId&&p.owner===null));
- assert.equal((await envOf(f.env,()=>verifySetup(setup))).verified,true);
+ assert.equal((await envOf(f.env,()=>doctorCommand(setup))).healthy,true);
  const descriptor=JSON.parse(await fs.readFile(path.join(CANDIDATE_KIT,'release.json')));
  await fs.writeFile(path.join(f.evidence,'installed-exploration.json'),JSON.stringify({headless:true,versions:f.versions,launchArgs:f.launchArgs,candidateSource:descriptor.sourceRevision,sourceDirty:descriptor.sourceDirty,library:done.library.directory,exported:exported.directory,exactKitCLI:true,minimalHostPATH:true,videoFinalized:true,finalSnapshots:true,cleanup:true,realWorkChanged:false},null,2));console.log('Installed exploration evidence: '+f.evidence);
 });

@@ -7,7 +7,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {attachmentFixture, valueOf} from './helpers/attachment-fixture.mjs';
 import {evidenceApp} from './fixtures/evidence-app.mjs';
-import {inspectSetup, activateSetup, verifySetup, configureNativeSetup} from '../src/setup.mjs';
+import {installCommand, doctorCommand} from '../src/setup.mjs';
 
 const exec = promisify(execFile);
 const enabled = process.env.LATCH_INSTALLED_KIT === '1' && process.platform === 'darwin';
@@ -41,8 +41,7 @@ test('installed kit clean install operates natively without external extension',
     };
     await fs.writeFile(env.LATCH_CONFIG, '{"v":1,"profiles":{}}\n');
     await envOf(env, async () => {
-      const plan = await inspectSetup(setupOptions);
-      await activateSetup({...setupOptions, expect: plan.planToken});
+      await installCommand(setupOptions);
     });
   };
   t.after(async () => {
@@ -53,9 +52,9 @@ test('installed kit clean install operates natively without external extension',
   assert.equal(f.identity.extensionVersion, CANDIDATE_CHROME_VERSION);
   assert.equal(f.identity.releaseVersion, CANDIDATE_VERSION);
   assert.equal(f.identity.capabilities.uiControl, 1);
-  const selected = await envOf(f.env, () => configureNativeSetup(setupOptions));
-  assert.equal(selected.defaultTransport, 'native');
-  assert.equal(selected.verified, true);
+  const selected = await envOf(f.env, () => doctorCommand(setupOptions));
+  assert.equal(selected.transport, 'native');
+  assert.equal(selected.healthy, true);
   const ready = await f.latch(0, ['preflight', '--session', 'agent']);
   assert.equal(ready.ready, true);
   assert.equal(ready.attachment, 'not-checked');
@@ -65,7 +64,7 @@ test('installed kit clean install operates natively without external extension',
   assert.equal((await f.latch(0, ['connect', '--session', 'agent', '--tab', String(f.tabs[0])])).alreadyConnected, true);
   assert.equal(valueOf(await f.pw(0, ['run-code', 'async(page)=>page.locator("#actor").innerText()'])), f.run + ':a');
   assert.equal(valueOf(await f.pw(1, ['run-code', 'async(page)=>page.locator("#actor").innerText()'])), f.run + ':b');
-  await envOf(f.env, async () => assert.equal((await verifySetup(setupOptions)).verified, true));
+  await envOf(f.env, async () => assert.equal((await doctorCommand(setupOptions)).healthy, true));
 
   const packagedEvidence = path.join(f.workspaces[0], 'work/latch/packaged');
   const runtimeCLI = path.join(app.installedRoot, 'bin/latch');

@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import {fileURLToPath} from 'node:url';
+import {linkDirectory} from './platform.mjs';
 
 export const sourceSkill = fileURLToPath(new URL('../skills/latch/', import.meta.url));
 export function targetsFor(userRoot = os.homedir()) {
@@ -33,7 +34,7 @@ export async function installSkills(options = {}) {
   try {
     for (const target of before.filter(target => target.status === 'missing')) {
       await fs.mkdir(path.dirname(target.path), {recursive: true});
-      await fs.symlink(canonical, target.path, 'dir');
+      await linkDirectory(canonical, target.path);
       created.push(target.path);
     }
   } catch (error) {

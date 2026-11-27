@@ -9,6 +9,6 @@ test('evidence fixture has deterministic independent content and finite body bou
 test('bounded evidence sink reaps over-limit output and leaves it explicitly partial',async t=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'latch-evidence-sink-')),pidFile=path.join(dir,'pid');t.after(()=>fs.rm(dir,{recursive:true,force:true}));
  await fs.writeFile(path.join(dir,'playwright-cli'),`#!${process.execPath}\nrequire('fs').writeFileSync(${JSON.stringify(pidFile)},String(process.pid));process.on('SIGTERM',()=>{});process.stdout.write('x'.repeat(4096));setInterval(()=>{},1000);`,{mode:0o700});
- const f={evidence:dir,workspaces:[dir],env:{...process.env,PATH:dir+':'+process.env.PATH}};
+ const f={evidence:dir,workspaces:[dir],env:{...process.env,PATH:dir+path.delimiter+process.env.PATH}};
  await assert.rejects(captureCLI(f,0,['fake'],{name:'overflow',limit:1024}),/bound/);const pid=Number(await fs.readFile(pidFile,'utf8'));assert.throws(()=>process.kill(pid,0),{code:'ESRCH'});assert.ok(await fs.stat(path.join(dir,'overflow.stdout.partial')));await assert.rejects(fs.stat(path.join(dir,'overflow.stdout.json')),{code:'ENOENT'});
 });

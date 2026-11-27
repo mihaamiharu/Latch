@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import {runExploration,CAPTURE_SCRIPT} from '../src/exploration.mjs';
 import {boundRun,loadMeta,runPath,lockRun} from '../src/exploration-storage.mjs';
 import {LIMITS} from '../src/evidence-storage.mjs';
 import {fault} from '../extension/protocol.js';
 async function fixture(t,{videoError=false}={}){
- const workspace=await fs.realpath(await fs.mkdtemp('/tmp/latch-life-')),old={root:process.env.LATCH_ARTIFACT_ROOT,capture:process.env.LATCH_CAPTURE};process.env.LATCH_ARTIFACT_ROOT=path.join(workspace,'library');delete process.env.LATCH_CAPTURE;
+ const workspace=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'latch-life-'))),old={root:process.env.LATCH_ARTIFACT_ROOT,capture:process.env.LATCH_CAPTURE};process.env.LATCH_ARTIFACT_ROOT=path.join(workspace,'library');delete process.env.LATCH_CAPTURE;
  t.after(async()=>{for(const [k,v]of [['LATCH_ARTIFACT_ROOT',old.root],['LATCH_CAPTURE',old.capture]])v===undefined?delete process.env[k]:process.env[k]=v;await fs.rm(workspace,{recursive:true,force:true});});
  const calls=[];let video;
  const execute=async inv=>{

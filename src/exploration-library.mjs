@@ -3,6 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {fault} from '../extension/protocol.js';
+import {isSameRegularFile} from './platform.mjs';
 import {
   listRuns,
   loadMeta,
@@ -219,7 +220,7 @@ export async function startLibraryServer({port = 0} = {}) {
         try {
           const stat = await handle.stat();
           const link = await fs.lstat(file);
-          if (!stat.isFile() || link.isSymbolicLink() || stat.ino !== link.ino) throw fault('FORBIDDEN', 'Invalid artifact.');
+          if (!(await isSameRegularFile(link, stat, file))) throw fault('FORBIDDEN', 'Invalid artifact.');
           const ext = path.extname(file);
           const types = {
             '.webm': 'video/webm',

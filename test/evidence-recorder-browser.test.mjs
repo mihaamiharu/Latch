@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {attachmentFixture} from './helpers/attachment-fixture.mjs';
 import {evidenceApp} from './fixtures/evidence-app.mjs';
@@ -14,7 +15,7 @@ test('real headless CLI records two native tasks, exact action/error exits, befo
   const directories=[0,1].map(i=>path.join(f.workspaces[i],'work/latch/recorded'));
   const run=async(index,cmd,args=[],{fail=false,step=cmd,more=[]}={})=>{
     const flags=[cmd,'--workspace',f.workspaces[index],'--session','agent','--evidence-dir',directories[index],'--step',step,...more];
-    const result=await command(process.execPath,[new URL('../src/cli.mjs',import.meta.url).pathname,...flags,...(cmd==='pw'?['--',...args]:args)],{cwd:f.workspaces[index],env:f.env});
+    const result=await command(process.execPath,[fileURLToPath(new URL('../src/cli.mjs',import.meta.url)),...flags,...(cmd==='pw'?['--',...args]:args)],{cwd:f.workspaces[index],env:f.env});
     const data=JSON.parse(result.out||result.err);assert.equal(result.code,fail?1:0,JSON.stringify(data));return {result,data};
   };
   for(let i=0;i<2;i++){const {data}=await run(i,'connect',['--focus-emulation','on','--tab',String(f.tabs[i])],{more:['--inline']});assert.equal(data.connected,true);assert.equal(data.transport,'native');}
@@ -34,8 +35,8 @@ test('real headless CLI records two native tasks, exact action/error exits, befo
   assert.equal(b.checks.find(c=>c.id==='wrong-expected').operation.normalizedToolExitCode,0);assert.equal(b.checks.find(c=>c.id==='bounded-timeout').operation.outcome,'unknown');
   assert.equal(a.artifacts.filter(x=>x.type==='screenshot').length,2);assert.deepEqual((await fs.readdir(path.join(directories[0],'screenshots'))).sort(),['after.png','before.png']);
   const offlineEnv={...f.env,LATCH_CONFIG:path.join(f.temp,'intentionally-absent-config')};
-  const offline=await command(process.execPath,[new URL('../src/cli.mjs',import.meta.url).pathname,'report','--evidence-dir',directories[0]],{cwd:f.workspaces[0],env:offlineEnv});assert.equal(offline.code,0);
-  const exported=await command(process.execPath,[new URL('../src/cli.mjs',import.meta.url).pathname,'export','--evidence-dir',directories[0],'--export-dir',path.join(f.evidence,'selected-export'),'--include','screenshots/before.png,screenshots/after.png'],{cwd:f.workspaces[0],env:offlineEnv});assert.equal(exported.code,0,exported.err);
+  const offline=await command(process.execPath,[fileURLToPath(new URL('../src/cli.mjs',import.meta.url)),'report','--evidence-dir',directories[0]],{cwd:f.workspaces[0],env:offlineEnv});assert.equal(offline.code,0);
+  const exported=await command(process.execPath,[fileURLToPath(new URL('../src/cli.mjs',import.meta.url)),'export','--evidence-dir',directories[0],'--export-dir',path.join(f.evidence,'selected-export'),'--include','screenshots/before.png,screenshots/after.png'],{cwd:f.workspaces[0],env:offlineEnv});assert.equal(exported.code,0,exported.err);
   const tabs=(await f.latch(0,['tabs'])).tabs;assert.ok(f.tabs.every(id=>tabs.some(t=>t.tabId===id&&t.owner===null)));
   await fs.writeFile(path.join(f.evidence,'recorder-acceptance.json'),JSON.stringify({headless:true,versions:f.versions,launchArgs:f.launchArgs,twoTaskIsolation:true,beforeAfterImages:true,mutationReceipts:1,actualErrorExit:negative.result.code,upstreamErrorExit:a.checks.find(c=>c.id==='expected-error').operation.upstreamExitCode,expectedErrorAssertion:'pass',normalOutcome:a.outcome,assertionFailureOutcome:b.outcome,offlineReportAndSelectiveExport:true,cleanupConfirmed:true,tabsPreserved:true},null,2));
   console.log('Recorder acceptance: '+f.evidence);
@@ -43,7 +44,7 @@ test('real headless CLI records two native tasks, exact action/error exits, befo
 test('killing a recorded browser action preserves unknown outcome, permits exact cleanup and leaves its peer usable',{skip:!enabled,timeout:120000},async t=>{
   const app=await evidenceApp();app.artifactExtension=path.resolve('dist/latch');let f,child;
   t.after(async()=>{if(child&&child.exitCode===null&&child.signalCode===null)child.kill('SIGKILL');await f?.close();await app.close()});f=await attachmentFixture(t,app,'native');
-  const directory=path.join(f.workspaces[0],'work/latch/interrupted'),cli=new URL('../src/cli.mjs',import.meta.url).pathname;
+  const directory=path.join(f.workspaces[0],'work/latch/interrupted'),cli=fileURLToPath(new URL('../src/cli.mjs',import.meta.url));
   await f.latch(0,['connect','--focus-emulation','on','--session','agent','--tab',String(f.tabs[0]),'--evidence-dir',directory,'--step','attach']);await f.connect(1,f.tabs[1],{background:true});
   child=spawn(process.execPath,[cli,'pw','--workspace',f.workspaces[0],'--session','agent','--evidence-dir',directory,'--step','interrupted','--','run-code','async(page)=>page.evaluate(async()=>{await fetch("/event?op=recorder-interrupt&n=1");return new Promise(()=>{})})'],{cwd:f.workspaces[0],env:f.env,stdio:'ignore'});
   const ended=new Promise(resolve=>child.once('exit',(code,signal)=>resolve({code,signal})));await eventually(()=>app.receipts.some(r=>r.operation==='recorder-interrupt'));

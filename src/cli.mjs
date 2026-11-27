@@ -2,10 +2,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {discoverDetailed, request, readConfig, updateConfig, uuid} from './local.mjs';
+import {discoverDetailed, request, readConfig} from './local.mjs';
 import {diagnose} from './diagnostics.mjs';
-import {replacePairing} from './pair-replace.mjs';
-import {fault, safeError, webUrl} from '../extension/protocol.js';
+import {installCommand, pairCommand, doctorCommand, uninstallCommand} from './setup.mjs';
+import {fault, webUrl} from '../extension/protocol.js';
 import {workspaceAt, sessionKey, cliError} from './playwright.mjs';
 import {runSessionCLI, validatePlaywrightArgs} from './playwright-command.mjs';
 import {nativeWorkflowV4} from './native-workflow-v4.mjs';
@@ -23,9 +23,11 @@ import {executeEvidenceAction} from './evidence-action.mjs';
 const releaseVersion = JSON.parse(await fs.readFile(path.join(ROOT, 'package.json'), 'utf8')).version;
 
 const usage = `Latch ${releaseVersion}
+  latch install [--root PATH] [--registration-root PATH] [--user-root PATH] [--skip-skills]
+  latch pair [--profile work] [--instance <uuid> --chrome-profile-dir <directory>] [--replace --expect-old <uuid>]
+  latch doctor [--profile work] [--fix]
+  latch uninstall [--root PATH] [--registration-root PATH] [--user-root PATH] [--skip-skills]
   latch discover
-  latch pair --profile work --instance <uuid> --chrome-profile-dir <directory> [--replace --expect-old <uuid>]
-  latch doctor --profile work
   latch diagnose --profile work
   latch preflight --profile work --session <name> [--workspace <path>]
   latch reconcile --profile work --session <name> [--workspace <path>] [--apply --expect <plan-token>]
@@ -59,8 +61,10 @@ function parse(argv) {
     'focus-emulation', 'apply', 'expect', 'evidence-dir', 'step', 'expect-result', 'expect-error',
     'check-kind', 'context-file', 'inline', 'export-dir', 'include', 'replace', 'expect-old',
     'objective', 'environment', 'data-ref', 'note', 'run', 'decision', 'destination', 'port',
-    'annotation-file', 'video',
+    'annotation-file', 'video', 'fix', 'root', 'registration-root', 'user-root', 'skip-skills',
+    'registry-key', 'skip-registry',
   ]);
+  const booleanFlags = new Set(['json', 'apply', 'inline', 'replace', 'fix', 'skip-skills', 'skip-registry']);
   while (argv.length) {
     const flag = argv.shift();
     if (flag === '--' && command === 'pw') {
@@ -71,7 +75,7 @@ function parse(argv) {
       throw fault('INVALID_ARGUMENT', 'Unknown argument. Use latch help.');
     }
     const key = flag.slice(2);
-    if (['json', 'apply', 'inline', 'replace'].includes(key)) {
+    if (booleanFlags.has(key)) {
       if (flags[key]) throw fault('INVALID_ARGUMENT', 'Repeated flag.');
       flags[key] = true;
       continue;
@@ -110,6 +114,27 @@ export async function executeCLI({command, flags: f, playwrightArgs}) {
   }
   if (command === 'discover') return await discoverDetailed();
 
+  if (command === 'install') {
+    return await installCommand({
+      root: f.root,
+      registrationRoot: f['registration-root'],
+      userRoot: f['user-root'],
+      skipSkills: !!f['skip-skills'],
+      registryKey: f['registry-key'],
+      skipRegistry: !!f['skip-registry'],
+    });
+  }
+  if (command === 'uninstall') {
+    return await uninstallCommand({
+      root: f.root,
+      registrationRoot: f['registration-root'],
+      userRoot: f['user-root'],
+      skipSkills: !!f['skip-skills'],
+      registryKey: f['registry-key'],
+      skipRegistry: !!f['skip-registry'],
+    });
+  }
+
   const alias = f.profile || 'work';
   if (f['focus-emulation'] && (!['connect', 'open'].includes(command) || !['on', 'off'].includes(f['focus-emulation']))) {
     throw fault('INVALID_ARGUMENT', 'Use --focus-emulation on|off with connect or open.');
@@ -126,34 +151,12 @@ export async function executeCLI({command, flags: f, playwrightArgs}) {
     return preflight({alias, workspace: await workspaceAt(f.workspace || process.cwd()), session: f.session});
   }
   if (command === 'pair') {
-    if (!uuid.test(f.instance || '') || !/^(Default|Profile \d+)$/.test(f['chrome-profile-dir'] || '')) {
-      throw fault('INVALID_PAIRING', 'Specify the extension instance UUID and Chrome profile directory (Default or Profile N).');
-    }
-    if (f.replace) {
-      return replacePairing({
-        alias,
-        instance: f.instance,
-        expectOld: f['expect-old'],
-        chromeProfileDir: f['chrome-profile-dir'],
-      });
-    }
-    const live = await request(f.instance, 'status');
-    return updateConfig(config => {
-      if (config.profiles?.[alias] && config.profiles[alias].instanceId !== f.instance) {
-        throw fault('PROFILE_ALREADY_PAIRED', 'This alias is already paired to another instance. Review it, then use pair --replace --expect-old <uuid> if the instance really changed.');
-      }
-      config.profiles ||= {};
-      config.profiles[alias] = {
-        ...config.profiles[alias],
-        instanceId: live.instanceId,
-        chromeProfileDir: f['chrome-profile-dir'],
-      };
-      return {
-        paired: true,
-        profile: alias,
-        ...config.profiles[alias],
-        note: 'Profile-directory correspondence will be checked by the first connection.',
-      };
+    return await pairCommand({
+      profile: alias,
+      instance: f.instance,
+      chromeProfileDir: f['chrome-profile-dir'],
+      replace: !!f.replace,
+      expectOld: f['expect-old'],
     });
   }
   if (command === 'reconcile') {
@@ -163,53 +166,18 @@ export async function executeCLI({command, flags: f, playwrightArgs}) {
     return reconcile({alias, workspace, session, key: sessionKey(workspace, session), apply: !!f.apply, expect: f.expect});
   }
   if (command === 'doctor') {
-    const workspace = await workspaceAt(f.workspace || process.cwd());
-    if (f.session && !/^[a-zA-Z0-9_-]{1,60}$/.test(f.session)) throw fault('INVALID_SESSION', 'Invalid session name.');
-    const health = await diagnose(alias);
-    if (!f.session) {
-      return {
-        ...health,
-        transport: 'native',
-        bridgeHealthy: health.bridgeHealthy ?? false,
-        healthy: health.healthy && !!health.connection?.capabilities?.nativeTransport,
-        nativeRecoverySupported: health.connection?.ok
-          ? health.connection?.capabilities
-            ? health.connection.capabilities.nativeSessionSchema === 4
-            : null
-          : null,
-      };
-    }
-    const session = f.session;
-    const recovery = await reconcile({alias, workspace, session, key: sessionKey(workspace, session)});
-    const {daemonIdentity} = await import('./daemon-identity.mjs');
-    let daemon;
-    try {
-      const live = await daemonIdentity(workspace, session);
-      daemon = {
-        present: !!live,
-        socketExists: live?.socketExists || false,
-        matchesRecordedTask:
-          !!live &&
-          live.fingerprint === recovery.record?.daemonFingerprint &&
-          live.socketFingerprint === recovery.record?.daemonSocketFingerprint,
-      };
-    } catch (e) {
-      daemon = {present: null, error: safeError(e)};
-    }
-    return {
-      ...health,
-      transport: 'native',
-      bridgeHealthy: health.bridgeHealthy ?? false,
-      healthy:
-        health.healthy &&
-        !!health.connection?.capabilities?.nativeTransport &&
-        recovery.healthy &&
-        daemon.present === true &&
-        daemon.socketExists &&
-        daemon.matchesRecordedTask,
-      recovery,
-      daemon,
-    };
+    return await doctorCommand({
+      profile: alias,
+      session: f.session,
+      workspace: f.workspace,
+      fix: !!f.fix,
+      root: f.root,
+      registrationRoot: f['registration-root'],
+      userRoot: f['user-root'],
+      skipSkills: !!f['skip-skills'],
+      registryKey: f['registry-key'],
+      skipRegistry: !!f['skip-registry'],
+    });
   }
 
   const profile = await paired(alias);

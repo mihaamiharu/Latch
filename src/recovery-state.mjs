@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {configPath, privateDirectory, uuid} from './local.mjs';
+import {isSameRegularFile} from './platform.mjs';
 import {fault} from '../extension/protocol.js';
 
 const keyPattern = /^[a-f0-9]{64}$/;
@@ -50,7 +51,7 @@ export async function readRecovery(instance, key) {
     }
     handle = await fs.open(file, 'r');
     const opened = await handle.stat();
-    if (opened.ino !== stat.ino || opened.dev !== stat.dev) {
+    if (!(await isSameRegularFile(stat, opened, file))) {
       throw fault('RECOVERY_STATE_CHANGED', 'Recovery record changed while reading.');
     }
     const record = JSON.parse(await handle.readFile('utf8'));

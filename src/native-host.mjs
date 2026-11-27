@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {encode, decoder} from './framing.mjs';
 import {rootDir, socketPath, privateDirectory, uuid} from './local.mjs';
+import {isWindowsPipe} from './platform.mjs';
 import {checkRequest, safeError} from '../extension/protocol.js';
 import {NativeSessions} from './native-sessions.mjs';
 import {NativeRecovery} from './native-recovery.mjs';
@@ -62,11 +63,8 @@ async function start(hello) {
     throw new Error('Invalid native handshake.');
   }
   starting = true;
-  await privateDirectory(rootDir());
   address = socketPath(hello.instanceId);
-  try {
-    const stat = await fs.lstat(address);
-    if (!stat.isSocket() || (process.getuid && stat.uid !== process.getuid())) throw new Error('Unsafe socket path.');
+  if (isWindowsPipe(address)) {
     const live = await new Promise(resolve => {
       const probe = net.createConnection(address);
       const finish = result => {
@@ -78,9 +76,26 @@ async function start(hello) {
       probe.setTimeout(1000, () => finish(true));
     });
     if (live) throw new Error('A bridge for this profile is already running.');
-    await fs.unlink(address);
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
+  } else {
+    await privateDirectory(rootDir());
+    try {
+      const stat = await fs.lstat(address);
+      if (!stat.isSocket() || (process.getuid && stat.uid !== process.getuid())) throw new Error('Unsafe socket path.');
+      const live = await new Promise(resolve => {
+        const probe = net.createConnection(address);
+        const finish = result => {
+          probe.destroy();
+          resolve(result);
+        };
+        probe.once('connect', () => finish(true));
+        probe.once('error', error => finish(['ENOENT', 'ECONNREFUSED'].includes(error.code) ? false : true));
+        probe.setTimeout(1000, () => finish(true));
+      });
+      if (live) throw new Error('A bridge for this profile is already running.');
+      await fs.unlink(address);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
   }
 
   const nativeAvailable =
@@ -300,18 +315,25 @@ async function start(hello) {
   });
 
   server.on('error', error => stop(error));
-  // Restrict the socket at creation, before another process can discover it.
-  // This mask is local to the native-host process and restored after binding.
-  const previousMask = process.umask(0o177);
-  try {
+  if (isWindowsPipe(address)) {
     await new Promise(resolve => server.listen(address, () => {
       ownsSocket = true;
       resolve();
     }));
-  } finally {
-    process.umask(previousMask);
+  } else {
+    // Restrict the socket at creation, before another process can discover it.
+    // This mask is local to the native-host process and restored after binding.
+    const previousMask = process.umask(0o177);
+    try {
+      await new Promise(resolve => server.listen(address, () => {
+        ownsSocket = true;
+        resolve();
+      }));
+    } finally {
+      process.umask(previousMask);
+    }
+    await fs.chmod(address, 0o600);
   }
-  await fs.chmod(address, 0o600);
   if (hello.capabilities?.recoveryContract === 1) {
     handshake = {
       nonce: hello.nonce,
@@ -344,7 +366,7 @@ async function stop(error) {
   // Keep the old listening inode occupied until all journal tails settle.
   // Unlink while still listening, then close; there is no later unlink which
   // could erase a successor's newly bound socket.
-  if (address && ownsSocket) await fs.unlink(address).catch(() => {});
+  if (address && ownsSocket && !isWindowsPipe(address)) await fs.unlink(address).catch(() => {});
   server?.close();
   process.exit(error ? 1 : 0);
 }

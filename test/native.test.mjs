@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
 import crypto from 'node:crypto';
@@ -25,8 +26,8 @@ test('native host routes real socket requests, restricts permissions and cleans 
   await fs.mkdir(work, {recursive: true});
   const root = await fs.mkdtemp(path.join(work, 'native-'));
   const instanceId = crypto.randomUUID(), epoch = crypto.randomUUID();
-  // macOS Unix sockets have a small path limit; keep only the socket directory in /tmp.
-  const runtime = `/tmp/latch-test-${crypto.randomBytes(5).toString('hex')}`;
+  // macOS Unix sockets have a small path limit; keep only the socket directory in /tmp on darwin.
+  const runtime = path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), `latch-test-${crypto.randomBytes(5).toString('hex')}`);
   const oldRoot = process.env.LATCH_RUNTIME_DIR;
   process.env.LATCH_RUNTIME_DIR = runtime;
   const child = spawn(process.execPath, [fileURLToPath(new URL('../src/native-host.mjs', import.meta.url))], {
@@ -46,11 +47,13 @@ test('native host routes real socket requests, restricts permissions and cleans 
   });
   const handshake = encode({v: 1, type: 'hello', instanceId, epoch, extensionVersion: '0.1.0'});
   child.stdin.write(handshake.subarray(0, 3)); child.stdin.write(handshake.subarray(3));
-  const address = path.join(runtime, `${instanceId}.sock`);
+  const address = socketPath(instanceId);
   const deadline = Date.now() + 3000;
   while (Date.now() < deadline) { try { await fs.stat(address); break; } catch { await new Promise(r => setTimeout(r, 20)); } }
-  assert.equal((await fs.stat(runtime)).mode & 0o777, 0o700);
-  assert.equal((await fs.stat(address)).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') {
+    assert.equal((await fs.stat(runtime)).mode & 0o777, 0o700);
+    assert.equal((await fs.stat(address)).mode & 0o777, 0o600);
+  }
   assert.equal((await request(instanceId, 'status')).instanceId, instanceId);
   assert.deepEqual(await request(instanceId, 'tabs', {instanceId, epoch, value: 42}), {operation: 'tabs', echo: 42});
   child.stdin.end();

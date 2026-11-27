@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {actionApp} from './fixtures/action-app.mjs';
 import {attachmentFixture, valueOf} from './helpers/attachment-fixture.mjs';
 import {command, eventually} from './helpers/native-browser.mjs';
@@ -16,7 +17,7 @@ test('action failure diagnostics: native', {skip: !enabled, timeout: 180000}, as
     await app.close();
   });
   f = await attachmentFixture(t, app, 'native');
-  const cli = new URL('../src/cli.mjs', import.meta.url).pathname;
+  const cli = fileURLToPath(new URL('../src/cli.mjs', import.meta.url));
   const pw = async (args, fail = false) => {
     const r = await command(
       process.execPath,
