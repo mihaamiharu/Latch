@@ -96,7 +96,14 @@ export async function build({root = ROOT, out = path.join(root, 'dist')} = {}) {
   await fs.mkdir(out, {recursive: true});
   for (const p of [kit, extension]) await fs.rm(p, {recursive: true, force: true});
   await fs.mkdir(kit);
-  for (const folder of ['extension', 'src', 'skills/latch', 'node_modules/playwright-core', 'node_modules/ws']) {
+  for (const folder of [
+    'extension',
+    'src',
+    'skills/latch',
+    'plugins/antigravity',
+    'node_modules/playwright-core',
+    'node_modules/ws',
+  ]) {
     await fs.cp(path.join(root, folder), path.join(kit, folder), {recursive: true});
   }
   for (const file of ['package.json', 'package-lock.json']) {

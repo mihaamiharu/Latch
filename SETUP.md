@@ -26,7 +26,9 @@ latch config set artifacts-dir /path/to/artifacts
 latch config unset artifacts-dir
 ```
 
-Click **Open Library** in the Latch Chrome extension popup at any time to start the local Exploration Library viewer in a browser tab without needing `latch library serve`.
+In the Latch Chrome extension popup:
+- Click **Open Library** to start the local `127.0.0.1` Exploration Library viewer in a browser tab without running `latch library serve` in a terminal.
+- Expand **Library & storage** and click **Choose folder…** to pick a destination using your OS folder dialog (or edit the path and click **Save path** / **Reset default**).
 
 ## 1. Install native host & CLI launcher
 
@@ -106,6 +108,11 @@ latch library serve
 - `--profile`, `--workspace`, and `-s`/`--session` have smart defaults (active sessions are bound per workspace under `<appDataDir>/sessions/` with zero repo dotfiles).
 - Pass `--focus-emulation off` on `open`/`connect` only when testing real window focus or visibility events.
 - Pass `--json` to any command for structured JSON output.
+- Remove old finished runs via the **Delete** button in the Library UI or via CLI:
+  ```sh
+  latch library delete <runId>
+  latch library delete --all   # removes all inactive runs; skips active ones
+  ```
 
 ## 6. Uninstall
 

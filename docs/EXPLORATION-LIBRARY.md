@@ -1,54 +1,29 @@
-# Local exploration library
+# Exploration Library
 
-This feature is a source candidate on `feat/exploration-library`. The installed
-0.2.0 runtime does not gain it until a complete candidate is qualified and activated.
-Version remains 0.2.0; use descriptor hashes to identify a particular build.
+Latch v1.0 unifies opt-in browser recording into the local Exploration Library, capturing before/after PNG screenshot filmstrips, ARIA snapshots, and DOM locator observations alongside a loopback-only review UI.
 
 ## Capture an exploration
 
-Normal managed `open`/`connect` commands allocate a local run and begin video plus
-YAML state capture. Repeated short CLI invocations find the session's bound run;
-you do not need to repeat an evidence directory on each command.
+Pass `--record` or `--objective "<goal>"` (with optional `--environment <name>`) on `latch open` or `latch connect` to start a recorded run. Active workspace bindings live under `<appDataDir>/sessions/` (never in your repo) and repeated `latch` commands automatically bind to the active run:
 
 ```sh
-latch open --profile work --session checkout \
-  --workspace /absolute/project --focus-emulation on \
-  --objective 'Explore checkout validation' --environment staging \
-  --url https://staging.example.test/checkout
-latch pw --profile work --session checkout --workspace /absolute/project -- snapshot
-latch pw --profile work --session checkout --workspace /absolute/project \
-  --data-ref seeded-customer -- fill e5 'synthetic test input'
-latch checkpoint --profile work --session checkout --workspace /absolute/project \
-  --note 'Submitting an empty form exposed required-field messages; expected business behavior needs QA review.'
-latch finish --profile work --session checkout --workspace /absolute/project
+latch open https://staging.example.com/checkout --record --objective "Verify checkout validation" --environment staging
+latch snapshot
+latch fill e5 "synthetic test input"
+latch checkpoint "Submitting an empty form shows required-field errors; expected business behavior needs QA review."
+latch finish
 ```
 
-Use fresh snapshot refs or semantic selectors; refs from a previous page state are
-historical, not durable selectors. Ordinary actions get before/after state links.
-Captured main-page and iframe YAML includes observed accessible roles/names and
-DOM attributes such as IDs, labels and test IDs, with candidate locator strategies.
-Ambiguous accessible names are marked. These observations still require live
-validation when another agent writes tests.
+Use fresh snapshot refs (`e1`, `e2`, ...) or semantic selectors; refs from an earlier state are historical, not durable selectors. Each action links before/after states (`screenshots/state-NNNNN.png`) and captured main-page/iframe YAML includes accessible roles/names plus DOM attributes (IDs, labels, `data-testid`) with ambiguity warnings.
 
-`finish` attempts final captures for owned open pages, stops video, disconnects,
-verifies artifacts and preserves tabs/logins. Normal `disconnect` also finalizes.
-An active command does not block a separate disconnect from revoking its lease;
-the interrupted run can be repaired offline after that command exits.
-
-Pass `--video foreground` to explicitly bring the selected owned page forward
-before recording/actions; this helps Chrome deliver frames and can change window
-focus. The default `--video on` does not force foreground focus.
-
-For a run where recording is undesirable, pass `--video off` at attachment. Video
-then remains explicitly disabled; snapshots and YAML capture continue. Existing
-explicit `--evidence-dir` workflows keep their original recorder behavior. Set
-`LATCH_CAPTURE=off` for a deliberately unmanaged invocation; the output will not
-have a central-library handoff. Direct external Playwright calls can bypass Latch.
+- `latch finish` captures final states for owned open pages, verifies SHA-256 artifact hashes, writes `exploration.yaml`, `exploration.json`, and `exploration.schema.json`, and disconnects while keeping your Chrome tabs and logins intact.
+- Normal `latch disconnect` also finalizes an active recorded run.
+- `--focus-emulation` defaults to `on` so background tabs complete actionability checks cleanly; pass `--focus-emulation off` only when testing real focus/visibility events.
+- Without `--record` / `--objective`, `latch open` and `latch connect` run lightweight unrecorded sessions.
 
 ## Describe behavior without generating code
 
-Simple `--note` checkpoints add agent-supplied findings linked to a fresh capture.
-For structured behavior, write a small JSON annotation outside the run directory:
+Simple positional notes on `latch checkpoint "<note>"` record agent-supplied findings linked to the current state. For structured annotations, pass a JSON file stored outside the run directory:
 
 ```json
 {
@@ -59,78 +34,41 @@ For structured behavior, write a small JSON annotation outside the run directory
 }
 ```
 
-Then use `checkpoint --annotation-file /absolute/behavior.json` with the same
-session/workspace. Supported kinds are behavior, finding, prerequisite, test_data,
-question and coverage_gap. Test data should be a reference to a fixture/seed, not
-passwords, cookies or exported authentication state. An optional `transition` must
-refer to a recorded action, and any explicit evidence paths must be indexed in
-that run. Agent annotations never manufacture an assertion pass.
+Then run `latch checkpoint "Summary" --annotation-file /absolute/behavior.json` (add `--data-ref <ref>` on checkpoints or actions to cite a fixture/seed rather than secrets). Supported kinds are `behavior`, `finding`, `prerequisite`, `test_data`, `question`, and `coverage_gap`. Agent annotations never fabricate passing assertions, and Latch does not emit generated Playwright test scripts.
 
-`exploration.yaml` contains the explored states, pages/frames, transitions,
-locator observations, agent-supplied findings, prerequisites, data references,
-final states and capture gaps. It links original YAML snapshots and video clips.
-A versioned `exploration.schema.json` travels with the handoff. Generated Playwright
-code and automatic test generation are outside this feature.
+## Review and manage locally
 
-## Review locally
+Open the local `127.0.0.1` reviewer directly from Chrome by clicking **Open Library** in the Latch extension popup, or run it from a terminal:
 
 ```sh
 latch library list
 latch library serve
-# Open the printed http://127.0.0.1:PORT URL on this machine.
-latch library show --run RUN_ID
-latch library review --run RUN_ID --decision automate --note 'Cover required fields'
-latch library export --run RUN_ID --destination /absolute/new-handoff-folder
+latch library show <runId>
+latch library review <runId> --decision automate --note "Cover required fields"
+latch library export <runId> --destination /absolute/new-handoff-folder
+latch library delete <runId>
+latch library delete --all
 ```
 
-The local viewer searches runs across projects, plays recorded clips, lists states
-and transitions, links YAML and saves QA decisions separately from source evidence.
-Decisions are unreviewed, automate, investigate, report_bug and closed. The server
-binds only to loopback, accepts review writes only from its own page and supports
-video seeking. It does not register or publish a Site or upload artifacts.
-Export refuses an existing destination and verifies indexed hashes before copying.
-The exported folder includes the YAML, schema, snapshots, recordings, supporting
-command data, manifest and a snapshot of QA review notes.
+(`--run <id>` is also accepted instead of a positional `<runId>`.)
 
-## Location, failures and limits
+- **Before/after filmstrip & QA review:** Search runs across projects, step through before/after PNG screenshots, inspect ARIA/DOM locator candidates, download `exploration.yaml` / `exploration.json`, and save QA decisions (`unreviewed`, `automate`, `investigate`, `report_bug`, `closed`) in `review.json` separately from source evidence.
+- **Loopback security:** The server binds only to `127.0.0.1` and requires a same-origin page token (`X-Latch-Review`) for reviews and deletions.
+- **Export:** Verifies indexed SHA-256 hashes before copying the self-contained handoff bundle (`exploration.yaml`, `exploration.json`, snapshots, screenshots, manifest, and `review.json`) into a new directory.
+- **Delete:** Both the Library UI **Delete** buttons and `latch library delete` refuse to delete active or locked runs (`EXPLORATION_BUSY` / HTTP `409`) until `latch finish` or `latch disconnect` completes. `latch library delete --all` removes all inactive runs and skips active ones.
 
-The default root is `artifacts/` next to the configured Latch config, normally:
+## Storage location, failures, and limits
 
-```text
-~/Library/Application Support/Latch/artifacts/
-```
+Artifacts root resolution order:
+1. `LATCH_ARTIFACT_ROOT` environment variable
+2. `artifactsDir` in `config.json` (set via `latch config set artifacts-dir <path>` or the popup's **Library & storage** → **Choose folder…** / **Save path**)
+3. Platform default:
+   - **Windows:** `%LOCALAPPDATA%\Latch\artifacts`
+   - **macOS:** `~/Library/Application Support/Latch/artifacts`
+   - **Linux:** `$XDG_CONFIG_HOME/latch/artifacts` (or `~/.config/latch/artifacts`)
 
-`LATCH_ARTIFACT_ROOT` selects a different absolute root. Runs use UUIDs, with
-workspace/session/profile bindings stored separately. Runtime upgrades and branch
-changes do not move this library. No automatic deletion or upload is performed.
-
-- Capture gaps and action outcomes are distinct. A failed capture never repeats
-  an application action. A complete bundle is not a claim that every behavior is tested.
-- `run-code`/`eval` are opaque command boundaries: internal actions may not have
-  intermediate captures. Use checkpoints and smaller ordinary commands when the
-  handoff needs detailed transitions. Direct CLI calls outside Latch may be absent.
-- Capture helpers have a finite deadline. Interrupted, closed or unavailable pages
-  retain their last observed states; missing final captures are explicit.
-- Video uses the pinned CLI's recording API and its Playwright-managed encoder.
-  The initial qualification proves decoded foreground frame changes. Chrome can
-  throttle hidden pages, and closed/short-lived popup clips have failed capture in
-  probes. Reported clip paths alone are not proof that a file exists. Missing clips
-  are marked partial, never silently substituted. Continuous background or complete
-  transient-popup video coverage is not currently qualified.
-- Video clips can belong to separate pages. Run elapsed timestamps are provided,
-  but exact page-to-clip/timestamp alignment is not asserted.
-- Indexed video artifacts are limited to 512 MiB each, with 2 GiB indexed artifacts per run.
-  These are indexing/finalization limits; an unattended encoder can write beyond
-  them before finish. There is no background disk-quota enforcement or pruning.
-  Existing recorder bounds still apply to its command/text files. DOM-attribute
-  observations are capped at 2000 per frame, with a gap when exceeded; raw accessible
-  snapshots are preserved subject to capture/output limits.
-- Snapshots/videos can contain page content. Existing credential scrubbing is not
-  universal secret or visual redaction. Review before export.
-
-`library repair --run RUN_ID` rebuilds YAML/manifest state from durable observation
-and command records without browser calls or action replay. A crashed capture gate
-is reclaimed only after checking its recorded process identity, and its nonempty
-owner record is retained in `lock-audit/`. A live, unknown or changed owner remains
-blocked; PID age alone does not authorize removal. Partial tails and unknown action
-outcomes remain visible. QA notes stay separate and are not overwritten by repair.
+Operational bounds & recovery:
+- `32 MiB` per indexed artifact, `512 MiB` total indexed artifacts per run, `256` commands (`8 MiB` command ledger), and `2000` DOM-attribute observations per frame (gaps recorded when exceeded).
+- Capture gaps and action outcomes are distinct; a failed capture never repeats an application action, and background/closed tabs retain their last observed state with explicit gap entries.
+- `latch library repair <runId>` recovers interrupted runs from durable `events.jsonl` and `commands.jsonl` ledgers without calling Chrome or replaying actions, auditing reclaimed dead-PID locks in `lock-audit/`.
+- Snapshots and screenshots can still contain page content; credential scrubbing is automatic on known headers/tokens/fields, not visual pixels — review before exporting or sharing.

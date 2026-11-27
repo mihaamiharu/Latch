@@ -19,9 +19,10 @@ A cross-platform Chrome companion extension, native bridge, and flat `latch` CLI
    ```powershell
    $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"; npm ci
    ```
-2. Install the native host and `latch` launcher, then load `extension/` unpacked in Chrome (`chrome://extensions`, Developer mode, fixed ID `dlkpkeiejlgggeoibejpoajedoelfcli`):
+2. Install the native host and `latch` launcher (and optionally `npm link` from a source checkout so `latch` is on your `PATH`), then load `extension/` unpacked in Chrome (`chrome://extensions`, Developer mode, fixed ID `dlkpkeiejlgggeoibejpoajedoelfcli`):
    ```sh
    node src/cli.mjs install
+   npm link   # optional from repo root to expose `latch` globally
    ```
 3. Pair the running extension and verify health:
    ```sh
@@ -68,7 +69,16 @@ latch library serve
 ```
 
 - `latch checkpoint <note> [--annotation-file <path>]`
-- `latch library <list|show|serve|review|export> [--run <id>]`
+- `latch library <list|show|serve|review|export|delete> [--run <id>] [--all]` (or use the inline **Delete** buttons in the local Exploration Library UI; active runs are protected until finished or disconnected)
+- `latch config <get|set|unset> artifacts-dir [path]` to inspect or customize the Exploration Library storage folder
+
+## Extension popup controls
+
+Click the Latch toolbar icon in Chrome to inspect and control your bridge:
+
+- **Open Library (`N`):** Lazily starts the local `127.0.0.1` Exploration Library viewer and opens it in a Chrome tab.
+- **Agent sessions:** Shows active sessions with attached tab count, **View run** (jumps directly to an active recording in the Library), and **Stop session** (preserves all website tabs and logins).
+- **Library & storage:** Collapsible panel showing the active artifacts path, **Choose folder…** (native OS Explorer/Finder/zenity/kdialog folder picker), **Save path**, and **Reset default**.
 
 ## Agent plugins & skills
 
