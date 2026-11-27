@@ -321,7 +321,7 @@ async function resolveSession(identity) {
   return identity.session;
 }
 
-export async function runWithExploration(invocation, version = '1.1.1', execute) {
+export async function runWithExploration(invocation, version = '1.1.2', execute) {
   const inv = invocation;
   const flags = inv.flags || {};
   const core = cleanInvocation(inv);
@@ -635,7 +635,7 @@ export const runExploration = runWithExploration;
 
 export async function checkpointCommand(
   {profile = 'work', session, workspace = process.cwd(), note, annotationFile, dataRef} = {},
-  version = '1.1.1',
+  version = '1.1.2',
   execute,
 ) {
   return runWithExploration(
@@ -657,7 +657,7 @@ export async function checkpointCommand(
 
 export async function finishCommand(
   {profile = 'work', session, workspace = process.cwd(), closeTabs = false} = {},
-  version = '1.1.1',
+  version = '1.1.2',
   execute,
 ) {
   return runWithExploration(
