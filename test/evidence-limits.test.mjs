@@ -5,7 +5,7 @@ const exact=(value,n,unicode=false)=>{const base=JSON.stringify({...value,paddin
 test('wire guard declares backlog plus one finite message and counts UTF-8 envelopes',()=>{
  assert.equal(prepareWire({x:'雪'},L.backlog).bytes,Buffer.byteLength(JSON.stringify({x:'雪'})));assert.throws(()=>prepareWire({},L.backlog+1),{code:'TRANSPORT_BACKLOG'});
  assert.equal(prepareWire(JSON.parse(exact({id:1},L.message)),0).bytes,L.message);assert.throws(()=>prepareWire(JSON.parse(exact({id:1},L.message+1)),0),{code:'WIRE_MESSAGE_TOO_LARGE'});
- assert.equal(browserDeadline('command',{method:'Runtime.evaluate',params:{awaitPromise:true,timeout:999999}}),30000);assert.equal(browserDeadline('command',{method:'Runtime.evaluate',params:{awaitPromise:false}}),10000);assert.equal(browserDeadline('command',{method:'Network.getResponseBody'}),10000);
+ assert.equal(browserDeadline('command',{method:'Runtime.evaluate',params:{awaitPromise:true,timeout:999999}}),30000);assert.equal(browserDeadline('command',{method:'Runtime.evaluate',params:{awaitPromise:false}}),10000);assert.equal(browserDeadline('command',{method:'Network.getResponseBody'}),10000);assert.equal(browserDeadline('command',{method:'Page.navigate',params:{url:'https://example.test'}}),30000);assert.equal(browserDeadline('command',{method:'Page.reload'}),30000);assert.equal(browserDeadline('command',{method:'Page.navigateToHistoryEntry'}),30000);
 });
 for(const role of ['cdp','extension'])test(`actual native wire boundary and fragments: ${role}`,{skip:!enabled,timeout:45000},async t=>{
  const f=await relayFixture(t);

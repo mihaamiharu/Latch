@@ -5,7 +5,7 @@ import path from 'node:path';
 import {popupApp} from './fixtures/popup-app.mjs';
 import {attachmentFixture,valueOf} from './helpers/attachment-fixture.mjs';
 import {eventually} from './helpers/native-browser.mjs';
-import {sessionKey} from '../src/playwright.mjs';
+import {sessionKey} from '../src/redact.mjs';
 
 const enabled=process.env.LATCH_POPUP_WORKFLOW==='1'&&process.platform==='darwin';
 const identify=`const c=await child.context().newCDPSession(child);let targetId;try{targetId=(await c.send('Target.getTargetInfo')).targetInfo.targetId}finally{await c.detach()}`;
@@ -34,7 +34,7 @@ test('native popup ownership: concurrent parents, standard events, redirects and
   const owned=await f.connect(0,f.tabs[0]);
   const childA=owned.targets.find(tab=>tab.targetId===a.targetId);
   assert.ok(childA);assert.equal(childA.openerTabId,f.tabs[0]);
-  const conflict=await f.latch(2,['connect','--transport','native','--session','agent','--tab',String(childA.tabId)],{fail:true});
+  const conflict=await f.latch(2,['connect','--session','agent','--tab',String(childA.tabId)],{fail:true});
   assert.equal(conflict.error.code,'TAB_OWNED');
   const childConnection=await f.connect(0,childA.tabId);
   assert.equal(childConnection.page.targetId,a.targetId);
@@ -86,7 +86,7 @@ test('native popup ownership: concurrent parents, standard events, redirects and
   assert.ok(after.some(tab=>tab.tabId===f.tabs[2]&&tab.owner===null));
   assert.ok(!after.some(tab=>tab.owner));
   await fs.writeFile(path.join(f.evidence,'report.json'),JSON.stringify({outcome:'passed',transport:'native',headless:f.headless,launchArgs:f.launchArgs,versions:f.versions,realNativeMessaging:true,
-    focusEmulation:true,focusPolicy:'concurrent opening uses focus emulation; sequential popup cases explicitly foreground the parent',officialExtensionInstalled:false,runtimeRemoteDebugging:false,outcomes,
+    focusEmulation:true,focusPolicy:'concurrent opening uses focus emulation; sequential popup cases explicitly foreground the parent',runtimeRemoteDebugging:false,outcomes,
     cleanupPreservedRemainingTabs:true,limits:{ownedTabs:16,popupDepth:4},
     notCovered:['frames and files','large payloads','restart recovery','installed Work rollout']},null,2));
   await f.close();console.log(`Popup workflow passed; evidence: ${f.evidence}`);

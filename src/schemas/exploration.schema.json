@@ -3,7 +3,24 @@
   "$id": "urn:latch:exploration:1",
   "title": "Latch observed exploration handoff",
   "type": "object",
-  "required": ["schema_version", "run_id", "objective", "session", "status", "pages", "states", "transitions", "behaviors", "findings", "coverage", "final_states", "video", "cleanup", "artifacts"],
+  "required": [
+    "schema_version",
+    "run_id",
+    "objective",
+    "session",
+    "status",
+    "pages",
+    "states",
+    "transitions",
+    "filmstrip",
+    "screenshots",
+    "behaviors",
+    "findings",
+    "coverage",
+    "final_states",
+    "cleanup",
+    "artifacts"
+  ],
   "properties": {
     "schema_version": {"const": 1},
     "run_id": {"type": "string", "format": "uuid"},
@@ -14,24 +31,72 @@
     "pages": {"type": "array", "items": {"type": "object", "required": ["id", "frames"]}},
     "states": {"type": "array", "items": {"$ref": "#/$defs/state"}},
     "transitions": {"type": "array", "items": {"$ref": "#/$defs/transition"}},
+    "filmstrip": {"type": "array", "items": {"$ref": "#/$defs/filmstrip_frame"}},
+    "screenshots": {
+      "type": "object",
+      "required": ["status", "count", "items"],
+      "properties": {
+        "status": {"enum": ["complete", "partial", "unavailable"]},
+        "count": {"type": "integer", "minimum": 0},
+        "items": {"type": "array", "items": {"type": "string", "pattern": "^screenshots/[a-zA-Z0-9_-]+\\.png$"}}
+      }
+    },
     "behaviors": {"type": "array"},
     "findings": {"type": "array"},
     "prerequisites": {"type": "array"},
     "test_data": {"type": "array"},
     "final_states": {"type": "array", "items": {"type": "object", "required": ["page", "state", "status"]}},
-    "video": {"type": "object", "required": ["status"]},
     "cleanup": {"type": "object", "required": ["status"]},
     "coverage": {"type": "object", "required": ["scope", "gaps", "completeness"]},
     "artifacts": {"type": "array", "items": {"type": "object", "required": ["path", "sha256", "bytes", "type"]}}
   },
   "$defs": {
     "state": {
-      "type": "object", "required": ["id", "page", "frame", "url", "captured_at", "snapshot", "sha256", "elements", "provenance"],
-      "properties": {"id": {"type": "string"}, "snapshot": {"type": "string", "pattern": "^snapshots/[^/]+\\.yaml$"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "elements": {"type": "array"}, "locator_observations": {"type": "array"}}
+      "type": "object",
+      "required": ["id", "page", "frame", "url", "captured_at", "snapshot", "sha256", "elements", "provenance"],
+      "properties": {
+        "id": {"type": "string"},
+        "snapshot": {"type": "string", "pattern": "^snapshots/[^/]+\\.yaml$"},
+        "screenshot": {"type": ["string", "null"], "pattern": "^screenshots/[a-zA-Z0-9_-]+\\.png$"},
+        "screenshot_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "elements": {"type": "array"},
+        "locator_observations": {"type": "array"}
+      }
     },
     "transition": {
-      "type": "object", "required": ["id", "command_id", "from", "to", "action", "outcome"],
-      "properties": {"from": {"type": ["string", "null"]}, "to": {"type": ["string", "null"]}, "outcome": {"enum": ["succeeded", "succeeded_assertion_failed", "failed_or_unknown", "unknown"]}}
+      "type": "object",
+      "required": ["id", "command_id", "from", "to", "action", "outcome", "screenshots", "filmstrip"],
+      "properties": {
+        "from": {"type": ["string", "null"]},
+        "to": {"type": ["string", "null"]},
+        "outcome": {"enum": ["succeeded", "succeeded_assertion_failed", "failed_or_unknown", "unknown"]},
+        "screenshots": {"$ref": "#/$defs/before_after"},
+        "filmstrip": {"$ref": "#/$defs/before_after"}
+      }
+    },
+    "before_after": {
+      "type": "object",
+      "required": ["before", "after"],
+      "properties": {
+        "before": {"type": ["string", "null"], "pattern": "^screenshots/[a-zA-Z0-9_-]+\\.png$"},
+        "after": {"type": ["string", "null"], "pattern": "^screenshots/[a-zA-Z0-9_-]+\\.png$"},
+        "before_state": {"type": ["string", "null"]},
+        "after_state": {"type": ["string", "null"]}
+      }
+    },
+    "filmstrip_frame": {
+      "type": "object",
+      "required": ["transition_id", "command", "outcome", "before", "after"],
+      "properties": {
+        "transition_id": {"type": "string"},
+        "command": {"type": "string"},
+        "outcome": {"type": "string"},
+        "before": {"type": ["string", "null"], "pattern": "^screenshots/[a-zA-Z0-9_-]+\\.png$"},
+        "after": {"type": ["string", "null"], "pattern": "^screenshots/[a-zA-Z0-9_-]+\\.png$"},
+        "before_state": {"type": ["string", "null"]},
+        "after_state": {"type": ["string", "null"]}
+      }
     }
   },
   "$comment": "Cross-reference and artifact integrity checks are performed by Latch in addition to structural validation. YAML records observed coverage, not executable Playwright code."

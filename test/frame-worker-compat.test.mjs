@@ -7,7 +7,8 @@ import {attachmentFixture,valueOf} from './helpers/attachment-fixture.mjs';
 import {eventually} from './helpers/native-browser.mjs';
 
 const enabled=process.env.LATCH_FRAMES_WORKERS==='1'&&process.platform==='darwin';
-for(const transport of ['official','native'])test(`headless frame/worker comparison: ${transport}`,{skip:!enabled,timeout:240000},async t=>{
+test('headless frame/worker comparison: native',{skip:!enabled,timeout:240000},async t=>{
+  const transport='native';
   const app=await frameWorkerApp();let f;t.after(async()=>{await f?.close();await app.close()});
   f=await attachmentFixture(t,app,transport);await f.connect(0,f.tabs[0]);const outcomes=[];
   const run=async code=>valueOf(await f.pw(0,['run-code',code]));

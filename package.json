@@ -1,23 +1,56 @@
 {
-  "name": "latch-browser-bridge",
-  "version": "0.2.0",
-  "private": true,
+  "name": "@mihaamiharu/latch",
+  "version": "1.0.0",
+  "description": "Cross-platform Chrome companion extension, native bridge, and flat CLI for AI coding agents",
+  "license": "Apache-2.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mihaamiharu/Latch.git"
+  },
+  "homepage": "https://github.com/mihaamiharu/Latch#readme",
+  "bugs": {
+    "url": "https://github.com/mihaamiharu/Latch/issues"
+  },
+  "keywords": [
+    "chrome",
+    "playwright",
+    "ai-agents",
+    "browser-automation",
+    "claude-code",
+    "codex",
+    "antigravity"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
-    "node": "22.21.1"
+    "node": ">=22.0.0"
   },
   "bin": {
-    "qa-browser": "src/cli.mjs"
+    "latch": "src/cli.mjs"
   },
+  "files": [
+    "extension/",
+    "src/",
+    "!src/build.mjs",
+    "skills/latch/",
+    "plugins/antigravity/",
+    ".claude-plugin/",
+    "docs/SUPPORT.md",
+    "docs/EXPLORATION-LIBRARY.md",
+    "docs/DISTRIBUTION.md",
+    "README.md",
+    "SETUP.md",
+    "PRIVACY.md",
+    "THIRD_PARTY_NOTICES.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "test:exploration": "LATCH_EXPLORATION=1 node --test test/exploration-browser.test.mjs",
-    "test:video-capture": "LATCH_VIDEO_CAPTURE=1 node --test test/video-capture-browser.test.mjs",
     "test:open-tab": "LATCH_OPEN_TAB=1 node --test test/open-tab-browser.test.mjs",
-    "test:official-alternative": "LATCH_OFFICIAL_ALTERNATIVE=1 node --test test/official-alternative-browser.test.mjs",
-    "test:native-spike": "LATCH_NATIVE_SPIKE=1 node --test test/native-browser.test.mjs",
     "test:native-workflow": "LATCH_NATIVE_WORKFLOW=1 node --test test/native-workflow-browser.test.mjs",
-    "test:attachment-compat": "LATCH_ATTACHMENT_COMPAT=1 node --test test/attachment-compat.test.mjs",
     "test:popups": "LATCH_POPUP_WORKFLOW=1 node --test test/popup-workflow.test.mjs",
     "prepare-install": "node src/install.mjs prepare",
     "build": "node src/build.mjs",
@@ -32,18 +65,14 @@
     "test:evidence-limits": "LATCH_EVIDENCE_LIMITS=1 node --test test/evidence-limits.test.mjs",
     "test:evidence-isolation": "LATCH_EVIDENCE_ISOLATION=1 node --test test/evidence-isolation.test.mjs",
     "test:evidence-performance": "LATCH_EVIDENCE_PERFORMANCE=1 node --test test/evidence-performance.test.mjs",
-    "test:recovery": "LATCH_RECOVERY=1 node --test test/recovery-browser.test.mjs",
-    "test:recovery-chaos": "LATCH_RECOVERY_CHAOS=1 node --test test/recovery-chaos.test.mjs",
     "test:release": "node --test test/release.test.mjs test/setup.test.mjs",
     "test:popup-ui": "LATCH_POPUP_UI=1 node --test test/popup-ui.test.mjs",
     "test:installed-kit": "LATCH_INSTALLED_KIT=1 node --test test/installed-kit.test.mjs",
-    "test:upgrade-probe": "LATCH_UPGRADE_PROBE=1 node --test test/upgrade-probe.test.mjs",
-    "test:path-migration": "LATCH_PATH_MIGRATION=1 node --test test/path-migration.test.mjs",
-    "test:transport": "node --test test/transport.test.mjs test/diagnostics.test.mjs",
     "test:action-failures": "LATCH_ACTION_FAILURES=1 node --test --test-concurrency=1 test/action-failures-browser.test.mjs",
     "test:identity": "LATCH_IDENTITY=1 node --test test/identity-browser.test.mjs"
   },
   "dependencies": {
+    "playwright-core": "1.65.1",
     "ws": "8.22.0"
   }
 }

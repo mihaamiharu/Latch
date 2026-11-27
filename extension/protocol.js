@@ -1,34 +1,92 @@
 export const VERSION = 1;
-export const HOST = 'com.qa_browser.bridge';
-export const OFFICIAL_ID = 'mmlmfjhmonkocbjadbfplnigmagldckm';
-export const OPERATIONS = new Set(['status', 'tabs', 'register', 'claim', 'verify', 'release', 'forget',
-  'native-connect', 'native-verify', 'native-disconnect', 'native-status', 'native-targets', 'native-release-tab', 'native-trace',
-  'native-create-tab', 'native-health', 'native-operation', 'native-reconcile', 'native-reserve', 'native-open', 'native-check', 'native-release', 'native-drop', 'native-inventory']);
-export function fault(code, message) {
-  return Object.assign(new Error(message), {code});
+export const HOST = 'com.latch.bridge';
+
+export const OPERATIONS = new Set([
+  'status',
+  'tabs',
+  'session-open',
+  'session-connect',
+  'session-list',
+  'session-release',
+  'session-disconnect',
+  'session-action',
+  'session-capture-state',
+]);
+
+export const INTERNAL_OPERATIONS = new Set([
+  'status',
+  'tabs',
+  'native-create-tab',
+  'native-reserve',
+  'native-open',
+  'native-check',
+  'native-release',
+  'native-drop',
+  'native-inventory',
+  'native-health',
+]);
+
+export const ACTIONS = new Set([
+  'snapshot',
+  'click',
+  'dblclick',
+  'fill',
+  'type',
+  'press',
+  'hover',
+  'select',
+  'check',
+  'uncheck',
+  'upload',
+  'screenshot',
+  'goto',
+  'back',
+  'forward',
+  'reload',
+  'eval',
+  'run-code',
+  'console',
+  'network',
+  'dialog',
+]);
+
+export function fault(code, message, hint) {
+  return Object.assign(new Error(message), {
+    code,
+    ...(hint ? {hint} : {}),
+  });
 }
-export function checkRequest(request) {
-  if (!request || request.v !== VERSION || typeof request.id !== 'string' || request.id.length > 120 ||
-      !OPERATIONS.has(request.op) || !request.payload || typeof request.payload !== 'object' || Array.isArray(request.payload))
+
+export function checkRequest(request, {internal = false} = {}) {
+  const allowed = internal ? INTERNAL_OPERATIONS : OPERATIONS;
+  if (
+    !request ||
+    request.v !== VERSION ||
+    typeof request.id !== 'string' ||
+    request.id.length > 120 ||
+    !allowed.has(request.op) ||
+    !request.payload ||
+    typeof request.payload !== 'object' ||
+    Array.isArray(request.payload)
+  ) {
     throw fault('INVALID_REQUEST', 'Unsupported or invalid bridge request.');
+  }
   return request;
 }
+
 export function safeError(error) {
-  return {code: error.code || 'BROWSER_ERROR', message: String(error.message || error).slice(0, 500)};
+  return {
+    code: error?.code || 'BROWSER_ERROR',
+    message: String(error?.message || error).slice(0, 500),
+    ...(error?.hint ? {hint: String(error.hint).slice(0, 300)} : {}),
+  };
 }
-export function bridgeLocator(raw) {
-  let url;
-  try { url = new URL(raw); } catch { return null; }
-  if (url.protocol !== 'chrome-extension:' || url.hostname !== OFFICIAL_ID || url.pathname !== '/connect.html') return null;
-  if (url.searchParams.get('protocolVersion') !== '2') return null;
-  try {
-    const relay = new URL(url.searchParams.get('mcpRelayUrl'));
-    if (relay.protocol !== 'ws:' || !['127.0.0.1', '[::1]', 'localhost'].includes(relay.hostname) ||
-        relay.username || relay.password || relay.search || relay.hash || !/^\/extension\/[a-f0-9-]{36}$/.test(relay.pathname)) return null;
-    return relay.href;
-  } catch { return null; }
-}
+
 export function webUrl(raw) {
-  try { const u = new URL(raw); return ['http:', 'https:'].includes(u.protocol) && !u.username && !u.password; }
-  catch { return false; }
+  try {
+    const u = new URL(raw);
+    return ['http:', 'https:'].includes(u.protocol) && !u.username && !u.password;
+  } catch {
+    return false;
+  }
 }

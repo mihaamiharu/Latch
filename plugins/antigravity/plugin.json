@@ -1,0 +1,11 @@
+{
+  "name": "latch",
+  "displayName": "Latch",
+  "description": "Connect coding agents to signed-in Chrome tabs and record step-by-step browser explorations with the latch CLI.",
+  "logo": "assets/logo.png",
+  "suggestedPrompts": [
+    "List open tabs in my paired Chrome profile and inspect the active page",
+    "Verify a flow in my signed-in Chrome tab and record an exploration",
+    "Run latch doctor and list recent recorded explorations"
+  ]
+}

@@ -1,152 +1,64 @@
 ---
 name: latch
-description: Inspect and verify an existing signed-in Work Chrome tab using Latch and Playwright CLI. Use when the user asks to use Latch, reuse an open work-browser session, reproduce a web bug, or verify behavior in an already open app from a local coding agent.
+description: Connect to the user's signed-in Chrome tabs and record step-by-step browser explorations via the flat latch CLI. Use when reproducing web bugs, verifying UI behavior in an open work browser, or capturing an exploration handoff.
 ---
 
 # Latch
 
-Use the user's existing paired Work browser. Latch discovers tabs and assigns a specific tab to a named session; Playwright CLI operates that session. This workflow needs local shell access on the browser's Mac. A cloud/remote agent cannot reach the laptop's bridge merely by loading this skill.
+Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and bundled `playwright-core` (no external `playwright-cli` or `ffmpeg`).
 
-## Locate the runtime
+## Smart defaults
 
-Resolve the absolute directory containing this `SKILL.md` from the client-provided skill path. Below, `LATCH_SKILL_DIR` means that directory, `LATCH_WORKSPACE` means the current task's canonical project root, and `LATCH_SESSION` is a fresh, unique name for this task. Keep those exact values throughout the workflow, including cleanup. Shell variables may need to be reassigned in each tool call.
+- `--profile` defaults to the sole/default paired profile (`work`); `--workspace` defaults to `cwd`.
+- `-s` / `--session` auto-generates on `open`/`connect` and binds to `<appDataDir>/sessions/` (no repo dotfiles); later commands reuse it.
+- Pass `--json` for structured `{ ok, ... }` output.
 
-The helper locates the matching Latch runtime relative to this skill, preserves your working directory, and forwards to its CLI. In a managed release installation it uses the installed launcher and its selected configuration. If the skill was copied separately from the checkout, the user can configure `LATCH_HOME` to locate the installed runtime. Do not assume `qa-browser` is globally on PATH or change into the Latch source checkout to work on another project.
+## Workflow
 
-```bash
-node "$LATCH_SKILL_DIR/scripts/latch.mjs" doctor --profile work --workspace "$LATCH_WORKSPACE"
-node "$LATCH_SKILL_DIR/scripts/latch.mjs" tabs --profile work --workspace "$LATCH_WORKSPACE"
-```
+1. **Check health & list tabs**
+   ```sh
+   latch doctor
+   latch tabs
+   ```
+   Run `latch doctor --fix` if host registration needs repair, or `latch pair` if unpaired.
 
-Inspect JSON and the process exit code. A failed connection check is a setup/blocking result, not a failed application test. For an unfamiliar command, run the helper with `help` or run `playwright-cli <command> --help`.
+2. **Attach or open a tab**
+   ```sh
+   latch connect <tabId>
+   latch open https://staging.example.com
+   ```
+   `--focus-emulation` defaults to `on` (`off` tests real focus/visibility). Pass `--record` or `--objective "<goal>"` (optional `--environment <env>`) to record an exploration.
 
-Before attachment, keep `doctor` profile-only: omit `--session` and recorder flags.
-Session-aware doctor checks an existing attached task; a fresh absent session is
-not a bridge failure. Record `diagnose`/`preflight` when needed, then use
-session-aware doctor after connection. See `references/evidence.md`.
+3. **Inspect & interact**
+   ```sh
+   latch snapshot
+   latch click e3
+   latch fill e5 "synthetic input"
+   latch press Enter
+   latch screenshot --out result.png
+   ```
+   Actions: `snapshot`, `click <ref|sel>`, `fill <ref|sel> <val>`, `type [ref|sel] <text>`, `press <key>`, `hover <ref|sel>`, `select <ref|sel> <val>`, `check`/`uncheck <ref|sel>`, `upload <ref|sel> <path...>`, `screenshot [--out <path>]`, `goto <url>`, `back`, `forward`, `reload`, `eval <expr>`, `run-code <fn>`, `console`, `network`, `dialog <accept|dismiss> [text]`.
 
-On RC4+ (`help` lists `preflight`), run this before tab discovery/connection in the
-same client context, using the chosen task workspace/session:
+4. **Record, finish & review**
+   ```sh
+   latch checkpoint "Empty submit shows required-field errors"
+   latch finish
+   latch library serve
+   ```
+   Use `latch checkpoint <note> [--annotation-file <path>]`, `latch finish` to capture final states and disconnect, and `latch library <list|show|serve|review|export|delete> [--run <id>]` (or the popup **Open Library** button) for filmstrip review. Change storage folder via `latch config set artifacts-dir <path>`.
 
-```bash
-node "$LATCH_SKILL_DIR/scripts/latch.mjs" preflight --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE"
-```
+5. **Clean up**
+   `latch release [tabId]` detaches one tab; `latch disconnect` ends the session while preserving Chrome tabs and logins.
 
-Require `ready: true`. Save blocked results and stop dependent browser work.
-Preflight checks exact cache/task writes and local networking, and removes its
-own probe files; it does not attach, grant permissions or prove application
-behavior. Read the permission preflight section of `references/operations.md`
-when access is denied. Record actual client/version, cwd/branch (N/A outside Git),
-skill discovery versus explicit loading and permission-policy provenance; do not
-infer the client policy from a launcher executable or assume a permissions tool
-exists because its category appears in a policy description.
+## Safety rules
 
-Run `transport --profile work` to inspect the configured default when supported. Profiles without a preference use official, even when native capability is available. Honor a transport explicitly requested for this task; otherwise use the recorded session/configured default. Set `LATCH_TRANSPORT` to that selected `native` or `official` value and pass it explicitly at connection. A healthy doctor/diagnose verifies the bridge; it does not prove the official extension can attach. If native is selected or explicitly requested, read the native-mode section of `references/operations.md`. Default changes are separate setup actions: do not set a preference or switch adapters to bypass a failure. Older runtimes may lack the transport command; their default remains official.
+- Refresh `latch snapshot` before using refs (`e1`, `e2`); refs are not durable across DOM changes.
+- Never close unrelated Chrome tabs, clear cookies/storage as cleanup, or steal another task's session.
+- Never store passwords, cookies, or auth tokens in checkpoints or reports.
+- After a timeout, inspect `snapshot`, `console`, or `network` before retrying mutations.
 
-If discovery/doctor fails, run `diagnose --profile work` with the same helper **inside the same agent execution context**. Save that JSON with the report. `PROFILE_UNAVAILABLE` means the local socket could not be reached; it does not mean the pairing is missing. Only report an unpaired profile when configuration actually lacks the alias. Preserve the operating-system error, socket path and runtime directory; do not silently change client security settings.
+## Troubleshooting
 
-## Open a fresh tab when no suitable page exists
-
-After the same profile-only doctor and task preflight, an updated native host/extension
-advertising `createTab: 1` supports:
-
-```bash
-node "$LATCH_SKILL_DIR/scripts/latch.mjs" open --profile work --transport native --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE" --focus-emulation on --url "https://staging.example.com"
-```
-
-Use the URL requested by the user and a fresh session name. This creates a background
-tab in a regular window of the paired profile, attaches it, then navigates; no tab ID
-or discovery is needed. Require successful JSON with `connected: true` and `created:
-true`. Use `--inline` to inspect these fields if recording evidence. Continue with
-normal `pw` and the same disconnect cleanup. For focus/visibility assertions choose
-`--focus-emulation off` instead. Follow the profile's native selection; `open` does
-not change its preference or fall back to another transport.
-
-`open` is a new-root-session workflow. An active name is rejected without creating
-another tab; `tab-new` and `context.newPage()` remain unsupported in the native
-adapter. Do not use page scripts as a workaround for unsupported lifecycle commands.
-Older runtimes report `OPEN_UNSUPPORTED`; do not reinstall automatically during a QA
-task. A navigation failure includes its created tab/session in diagnostics and may
-have an unknown application outcome. Inspect or disconnect that exact session rather
-than repeating `open`. Closing/disconnecting preserves its Chrome tab and login.
-
-## Select and connect
-
-Choose a tab from current Latch metadata using the requested URL/app, title and window. A tab ID from an earlier browser session is not durable. If the intended app is absent or genuinely ambiguous, report the candidates or ask for the missing target; do not substitute an unrelated signed-in site.
-
-Use a unique session name of at most 60 letters, digits, hyphens or underscores. Set `LATCH_TAB_ID` to the observed numeric ID. Another agent needs its own session. Do not claim a tab owned by another task.
-
-```bash
-node "$LATCH_SKILL_DIR/scripts/latch.mjs" connect --profile work --transport "$LATCH_TRANSPORT" --session "$LATCH_SESSION" --tab "$LATCH_TAB_ID" --workspace "$LATCH_WORKSPACE"
-```
-
-For ordinary native-mode interactions with a background Work tab, append `--focus-emulation on` to that command. For tests of actual focus, visibility or background behavior, explicitly use `--focus-emulation off` and report the limitation if actions stall. Emulation changes the page's perceived focus; it does not foreground the browser. Inspect the returned `focusEmulation` and `warnings`; changing the policy requires disconnect/reconnect, not replaying a timed-out action.
-
-Require successful JSON with `connected: true`. The wrapper handles profile pinning, exact group registration and page verification. It creates `.playwright/` in the selected workspace to isolate Playwright's session registry. Keep the same workspace for direct Playwright commands:
-
-```bash
-cd "$LATCH_WORKSPACE"
-playwright-cli -s="$LATCH_SESSION" snapshot
-```
-
-## Managed exploration handoff (candidate)
-
-When `help` lists `finish`, `checkpoint` and `library`, normal open/connect without
-an explicit evidence directory records into the local exploration library. Add an
-objective/environment at attachment. Keep using this helper for subsequent actions;
-direct external CLI calls can bypass capture. Do not claim unobserved transitions.
-
-Use `checkpoint --note TEXT` to describe observed behavior and unresolved expectations,
-or `checkpoint --annotation-file PATH` for typed JSON behavior/prerequisite/data-reference
-annotations. Link findings to captured evidence. Preserve the distinction between
-observed results, agent interpretation and explicitly checked assertions. Never store
-credentials or authentication state as test-data examples.
-
-Use `finish --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE"`
-at normal completion, including final state captures, video stop and disconnect.
-The same session's ordinary disconnect also attempts finalization. Check the returned
-library status, gaps, cleanup and integrity; do not imply complete background/popup
-video coverage or reusable historical element refs. Explicit `--evidence-dir` runs
-retain the recorder/cleanup workflow described below. The library is local and does
-not upload data. Generated automation code is outside this handoff.
-
-## Verify the requested behavior
-
-Use fresh snapshots/locators and the user's acceptance criteria to drive ordinary Playwright CLI operations: inspect, click, fill, evaluate, screenshots and relevant console/network checks. Run each command in the same workspace and with the explicit session name. Read `references/operations.md` when you need evidence command examples, uploads, large-output limits, download limitations or error recovery.
-
-If helper `help` lists `pw` (RC3+), prefer its session-bound adapter for ordinary commands:
-
-```bash
-node "$LATCH_SKILL_DIR/scripts/latch.mjs" pw --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE" -- snapshot
-```
-
-It runs the normal pinned Playwright CLI and returns exit 1 on `isError: true`, including when upstream exits zero. It requires an existing attached task and never attaches or retries. On older installed runtimes, use direct `playwright-cli --json` and inspect both its exit status and `isError`; exit zero alone is not success. A located element or accessibility-tree entry does not prove click actionability. After a timeout, inspect the locator, page state and independent mutation outcome before deciding whether a new action is safe.
-
-Attaching successfully or completing clicks is not proof of a pass. Check the observable result, including negative behavior when relevant. Separate application failures from unavailable environments, missing test data and ambiguous observations. Follow the user's requested scope and existing authorization for application changes.
-
-Save useful evidence in the requested artifact location, or a task-local `work/latch/<session>/` directory. Report the tested URL/role or environment, actual checks, pass/fail/blocked outcome, and evidence paths. Do not put authentication tokens, cookie values or official-extension connection URLs in reports. Playwright tab listings can contain such connection URLs; use Latch metadata for initial discovery.
-
-For RC5+ (`help` lists `report`), use the maintained recorder described in
-`references/evidence.md`. Pass the same `--evidence-dir` on connect, each `pw` and
-disconnect; use unique `--step` IDs and explicit result/error expectations. It
-produces compact agent results, `report.md`, `result.json`, a durable command
-ledger and verified artifact links. Keep full snapshots on disk and read only
-what the task needs. Offline reporting never replays browser actions.
-
-## Release the session
-
-Unless the user asked to keep the task's session connected, run cleanup after
-using an attached session or attempting connection, including partial failure.
-If diagnostics/preflight blocked the task before any attachment attempt, stop
-there: do not issue a disconnect merely to retry the same denied socket. Report
-that no attachment was attempted; do not claim a successful disconnect.
-
-```bash
-node "$LATCH_SKILL_DIR/scripts/latch.mjs" disconnect --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE"
-```
-
-Disconnect releases this task's claims and preserves website tabs and their logins. To release one tab while continuing the same session, use `release` with its observed ID. Do not close existing user tabs or run `close-all`, `kill-all`, cookie clearing or data deletion as generic cleanup. If cleanup fails, report the exact session and failure rather than claiming it was released. For schema-4 native sessions, read the recovery section in `references/operations.md`: inspect with `reconcile`, then use its current plan token for scoped cleanup. Bridge reconnection restores readiness; it never resumes a lost automation lease or repeats an uncertain action.
-
-## Connection limits
-
-Use the Latch wrapper for attachment; do not manually drag tabs, automate desktop input, evaluate code in the official extension, or replace Latch with an MCP/browser-launch workflow. Work-profile pairing is already configured; changing it is a separate setup task. For failures, read `references/operations.md` and stop at the specific unsupported condition instead of broadening access or repeatedly retrying mutations.
+- `PROFILE_UNPAIRED` / `PROFILE_UNAVAILABLE`: open Chrome with Latch enabled and run `latch doctor` or `latch pair`.
+- Stale ref: run `latch snapshot` to refresh refs.
+- `TAB_OWNED` / `SESSION_COLLISION`: pick another tab or pass `-s <new-session>`.

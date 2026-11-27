@@ -7,6 +7,11 @@ export function prepareWire(value,bufferedAmount){
  return {text,bytes};
 }
 export function browserDeadline(method,params){
- return method==='command'&&['Runtime.evaluate','Runtime.callFunctionOn'].includes(params?.method)&&params?.params?.awaitPromise===true
-  ?TRANSPORT_LIMITS.awaitedMs:TRANSPORT_LIMITS.ordinaryMs;
+ if(method==='command'){
+  if(['Runtime.evaluate','Runtime.callFunctionOn'].includes(params?.method)&&params?.params?.awaitPromise===true)
+   return TRANSPORT_LIMITS.awaitedMs;
+  if(['Page.navigate','Page.reload','Page.navigateToHistoryEntry'].includes(params?.method))
+   return TRANSPORT_LIMITS.awaitedMs;
+ }
+ return TRANSPORT_LIMITS.ordinaryMs;
 }

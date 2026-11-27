@@ -8,9 +8,20 @@ async function chromePath() {
   const pins = JSON.parse(await fs.readFile(new URL('../browser-versions.json', import.meta.url), 'utf8'));
   const lane = process.env.LATCH_BROWSER_LANE || 'current', pin = pins[lane];
   if (!['floor', 'current'].includes(lane) || !pin) throw new Error('Use LATCH_BROWSER_LANE=floor|current.');
-  const executable = process.env.LATCH_SPIKE_BROWSER || process.env.QA_BROWSER_CHROME ||
-    path.join(os.homedir(), 'Library/Caches/ms-playwright', 'chromium-' + pin.cacheRevision,
-      'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing');
+  const cacheDir =
+    process.platform === 'darwin'
+      ? path.join(os.homedir(), 'Library/Caches/ms-playwright')
+      : process.platform === 'win32'
+        ? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData/Local'), 'ms-playwright')
+        : path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'ms-playwright');
+  const binaryRel =
+    process.platform === 'win32'
+      ? 'chrome-win64/chrome.exe'
+      : process.platform === 'linux'
+        ? 'chrome-linux/chrome'
+        : 'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing';
+  const executable = process.env.LATCH_SPIKE_BROWSER || process.env.LATCH_CHROME ||
+    path.join(cacheDir, 'chromium-' + pin.cacheRevision, binaryRel);
   const actual = await command(executable, ['--version']);
   if (actual.code !== 0 || actual.out.trim() !== 'Google Chrome for Testing ' + pin.version)
     throw new Error(`Browser pin mismatch for ${lane}: expected Chrome for Testing ${pin.version}; found ${actual.out.trim() || actual.err}. No browser fixture was launched.`);
@@ -44,7 +55,8 @@ async function eventually(fn, timeout = 15000) {
 }
 async function command(executable, args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, args, {...options, stdio: ['ignore', 'pipe', 'pipe']});
+    const useShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(executable);
+    const child = spawn(executable, args, {...options, ...(useShell ? {shell: true} : {}), stdio: ['ignore', 'pipe', 'pipe']});
     let out = '', err = '';
     // Allow the adapter's 45s command deadline to return its structured error
     // before the outer fixture process deadline kills that diagnostic.

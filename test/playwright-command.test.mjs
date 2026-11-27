@@ -5,38 +5,185 @@ import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 import crypto from 'node:crypto';
-import {validatePlaywrightArgs} from '../src/playwright-command.mjs';
-import {sessionKey} from '../src/playwright.mjs';
-import {daemonFile} from '../src/daemon-identity.mjs';
+import {fileURLToPath} from 'node:url';
+import {parseArgs} from '../src/cli.mjs';
+import {sessionKey} from '../src/redact.mjs';
+import {ipcEndpoint} from '../src/platform.mjs';
 import {command} from './helpers/native-browser.mjs';
 
-test('pw keeps lifecycle and global session/format overrides out of forwarded commands',()=>{
- for(const args of [[],['attach'],['close-all'],['tab-new'],['click','e1','--session=other'],['snapshot','-sother'],['snapshot','-xsother'],['run-code','async()=>1','--json=false'],['snapshot','--no-json'],['snapshot','--raw']])assert.throws(()=>validatePlaywrightArgs(args),{code:'INVALID_ARGUMENT'});
- for(const args of [['snapshot','--filename=a b.yaml'],['fill','e1','value with spaces'],['run-code','async(page)=>page.title()']])validatePlaywrightArgs(args);
+test('flat CLI rejects unknown flags, invalid session/profile overrides, and legacy pw syntax', () => {
+  for (const argv of [
+    ['pw', 'click', 'e1'],
+    ['attach'],
+    ['close-all'],
+    ['click'],
+    ['click', 'e1', '--unknown-flag'],
+    ['snapshot', '--session', 'bad session!'],
+    ['snapshot', '-s'],
+    ['open', 'javascript:alert(1)'],
+    ['connect', 'not-a-tab'],
+    ['dialog', 'ignore'],
+    ['agents', 'unknown'],
+  ]) {
+    assert.throws(() => parseArgs(argv));
+  }
+
+  const parsed = parseArgs(['click', 'e1', '-s', 'agent']);
+  assert.equal(parsed.command, 'click');
+  assert.equal(parsed.action, 'click');
+  assert.deepEqual(parsed.actionArgs, {target: 'e1'});
+  assert.equal(parsed.flags.session, 'agent');
 });
 
-test('pw propagates zero-exit tool errors and never starts an absent, foreign or stale task',async t=>{
- const dir=await fs.mkdtemp(path.join(os.tmpdir(),'latch-command-')),runtime=`/tmp/latch-command-${crypto.randomBytes(5).toString('hex')}`;
- await fs.mkdir(runtime,{mode:0o700});const workspace=await fs.realpath(dir),session='test',key=sessionKey(workspace,session),instanceId=crypto.randomUUID(),epoch=crypto.randomUUID();
- const config=path.join(dir,'config.json'),script=path.join(dir,'fake-cli'),calls=path.join(dir,'calls.jsonl'),daemonRoot=path.join(dir,'daemon'),taskSocket=path.join(runtime,'task.sock');
- const env={...process.env,QA_BROWSER_RUNTIME_DIR:runtime,QA_BROWSER_CONFIG:config,QA_BROWSER_PLAYWRIGHT_CLI:script,PWTEST_DAEMON_SESSION_DIR:daemonRoot};
- await fs.writeFile(config,JSON.stringify({profiles:{work:{instanceId,chromeProfileDir:'Default'}}}));
- const state={instanceId,epoch,workspace,session,groupId:7};const stateFile=path.join(runtime,key+'.session.json');
- await fs.writeFile(script,`#!${process.execPath}\nrequire('fs').appendFileSync(${JSON.stringify(calls)},JSON.stringify({argv:process.argv.slice(2),cwd:process.cwd()})+'\\n');console.log(JSON.stringify({isError:true,error:'TimeoutError: locator.click: waiting for element to be visible, enabled and stable'}));`,{mode:0o700});
- const host=net.createServer(socket=>{let body='';socket.on('data',b=>{body+=b;if(!body.includes('\n'))return;const m=JSON.parse(body);socket.end(JSON.stringify({v:1,id:m.id,ok:true,result:{instanceId,epoch,sessions:[{key,groupId:7}]}})+'\n')})}),daemon=net.createServer(socket=>socket.end());
- await new Promise(r=>host.listen(path.join(runtime,instanceId+'.sock'),r));await new Promise(r=>daemon.listen(taskSocket,r));
- t.after(async()=>{await Promise.all([host,daemon].map(s=>new Promise(r=>s.close(r))));await fs.rm(dir,{recursive:true,force:true});await fs.rm(runtime,{recursive:true,force:true})});
- const run=async(args,flags=[])=>{const r=await command(process.execPath,[new URL('../src/cli.mjs',import.meta.url).pathname,'pw','--session',session,'--workspace',workspace,...flags,'--',...args],{cwd:workspace,env});return {...r,data:JSON.parse(r.out||r.err)}};
- let r=await run(['click','e1']);assert.equal(r.code,1);assert.equal(r.data.error.code,'SESSION_UNAVAILABLE');await assert.rejects(fs.access(calls),{code:'ENOENT'});
- await fs.writeFile(stateFile,JSON.stringify({...state,workspace:workspace+'-other'}));r=await run(['snapshot']);assert.equal(r.data.error.code,'SESSION_STALE');
- await fs.writeFile(stateFile,JSON.stringify(state));r=await run(['snapshot']);assert.equal(r.data.error.code,'DAEMON_IDENTITY_UNCONFIRMED');await assert.rejects(fs.access(calls),{code:'ENOENT'});
- r=await run(['snapshot'],['--transport','native']);assert.equal(r.data.error.code,'TRANSPORT_MISMATCH');await assert.rejects(fs.access(calls),{code:'ENOENT'});
- // daemonFile depends only on its configured base, so use the same base in this process.
- const prior=process.env.PWTEST_DAEMON_SESSION_DIR;process.env.PWTEST_DAEMON_SESSION_DIR=daemonRoot;const registry=daemonFile(workspace,session);prior===undefined?delete process.env.PWTEST_DAEMON_SESSION_DIR:process.env.PWTEST_DAEMON_SESSION_DIR=prior;
- await fs.mkdir(path.dirname(registry),{recursive:true});await fs.writeFile(registry,JSON.stringify({name:session,workspaceDir:workspace,attached:true,version:'0.1.20',timestamp:Date.now(),socketPath:taskSocket}));
- r=await run(['click','e1']);assert.equal(r.code,1);assert.equal(r.data.error.code,'PLAYWRIGHT_ERROR');assert.equal(r.data.error.diagnostics.exitCode,0);assert.match(r.data.error.diagnostics.upstreamError,/visible, enabled and stable/);
- const invoked=(await fs.readFile(calls,'utf8')).trim().split('\n').map(JSON.parse);assert.equal(invoked.length,1);assert.deepEqual(invoked[0],{argv:['-s=test','--json','click','e1'],cwd:workspace});assert.deepEqual(JSON.parse(await fs.readFile(stateFile)),state);
- const evidence=path.join(workspace,'recorded');const captured=await command(process.execPath,[new URL('../src/cli.mjs',import.meta.url).pathname,'pw','--session',session,'--workspace',workspace,'--evidence-dir',evidence,'--step','zero-exit','--expect-error','PLAYWRIGHT_ERROR','--','click','e1'],{cwd:workspace,env});
- assert.equal(captured.code,1);const normalized=JSON.parse(captured.err);assert.equal(normalized.error.code,'PLAYWRIGHT_ERROR');assert.equal(normalized.error.evidence.checkStatus,'pass');
- const check=JSON.parse(await fs.readFile(path.join(evidence,'result.json'))).checks[0];assert.equal(check.operation.helperExitCode,1);assert.equal(check.operation.upstreamExitCode,0);assert.equal(check.operation.assertionExitCode,0);assert.equal(check.status,'pass');
+test('flat CLI dispatches session-open, session-action, and session-disconnect over IPC with smart defaults', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-command-'));
+  const runtime = path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), `latch-command-${crypto.randomBytes(5).toString('hex')}`);
+  await fs.mkdir(runtime, {mode: 0o700});
+  const workspace = await fs.realpath(dir);
+  const instanceId = crypto.randomUUID();
+  const epoch = crypto.randomUUID();
+  const hostGeneration = crypto.randomUUID();
+  const config = path.join(dir, 'config.json');
+  const env = {
+    ...process.env,
+    LATCH_RUNTIME_DIR: runtime,
+    LATCH_CONFIG: config,
+    LATCH_CAPTURE: 'off',
+  };
+  // Use a non-"work" sole profile name to verify sole-profile auto-detection.
+  await fs.writeFile(config, JSON.stringify({profiles: {personal: {instanceId, chromeProfileDir: 'Default'}}}));
+
+  const received = [];
+  const host = net.createServer(socket => {
+    let body = '';
+    socket.on('data', b => {
+      body += b;
+      if (!body.includes('\n')) return;
+      const m = JSON.parse(body.slice(0, body.indexOf('\n')));
+      received.push(m);
+      if (m.op === 'status') {
+        socket.end(
+          JSON.stringify({
+            v: 1,
+            id: m.id,
+            ok: true,
+            result: {
+              instanceId,
+              epoch,
+              hostGeneration,
+              capabilities: {nativeTransport: true, nativeSessionSchema: 4, recoveryContract: 1, createTab: 1},
+              readiness: {verified: true},
+            },
+          }) + '\n',
+        );
+        return;
+      }
+      if (m.op === 'session-open') {
+        socket.end(
+          JSON.stringify({
+            v: 1,
+            id: m.id,
+            ok: true,
+            result: {
+              created: true,
+              connected: true,
+              tabId: 17,
+              focusEmulation: m.payload.focusEmulation,
+              page: {targetId: 't1', url: m.payload.url, title: 'Fixture'},
+            },
+          }) + '\n',
+        );
+        return;
+      }
+      if (m.op === 'session-action') {
+        if (m.payload.action === 'click' && m.payload.args?.target === 'e-timeout') {
+          socket.end(
+            JSON.stringify({
+              v: 1,
+              id: m.id,
+              ok: false,
+              error: {
+                code: 'ACTION_TIMEOUT',
+                message: 'Action click timed out',
+                hint: 'Take a fresh snapshot.',
+              },
+            }) + '\n',
+          );
+          return;
+        }
+        socket.end(
+          JSON.stringify({
+            v: 1,
+            id: m.id,
+            ok: true,
+            result: {clicked: true, url: 'https://fixture.test/', title: 'Fixture'},
+          }) + '\n',
+        );
+        return;
+      }
+      if (m.op === 'session-disconnect') {
+        socket.end(
+          JSON.stringify({
+            v: 1,
+            id: m.id,
+            ok: true,
+            result: {disconnected: true, preservedUserTabs: true},
+          }) + '\n',
+        );
+      }
+    });
+  });
+
+  await new Promise(r => host.listen(ipcEndpoint(instanceId, process.platform, env), r));
+  t.after(async () => {
+    await new Promise(r => host.close(r));
+    await fs.rm(dir, {recursive: true, force: true});
+    await fs.rm(runtime, {recursive: true, force: true});
+  });
+
+  const cliEntry = fileURLToPath(new URL('../src/cli.mjs', import.meta.url));
+  const run = async args => {
+    const r = await command(process.execPath, [cliEntry, ...args], {cwd: workspace, env});
+    return r;
+  };
+
+  // Open without -s, --profile, or --workspace: auto-generates session and binds cwd.
+  const openRes = await run(['open', 'https://fixture.test/', '--json']);
+  assert.equal(openRes.code, 0, openRes.err);
+  const openData = JSON.parse(openRes.out);
+  assert.equal(openData.ok, true);
+  assert.equal(openData.profile, 'personal');
+  assert.match(openData.session, /^s-[a-f0-9]{6}$/);
+
+  // Zero repo dotfiles created in workspace.
+  const entries = await fs.readdir(workspace);
+  assert.ok(!entries.includes('.latch'));
+  assert.ok(!entries.includes('.playwright'));
+
+  // Action without -s resolves active session automatically; default output is concise text.
+  const clickRes = await run(['click', 'e1']);
+  assert.equal(clickRes.code, 0, clickRes.err);
+  assert.match(clickRes.out, /OK \(click\)/);
+  const actionMsg = received.find(m => m.op === 'session-action');
+  assert.equal(actionMsg.payload.sessionKey, sessionKey(workspace, openData.session));
+  assert.equal(actionMsg.payload.action, 'click');
+  assert.deepEqual(actionMsg.payload.args, {target: 'e1'});
+
+  // Error output in --json and default mode.
+  const failJson = await run(['click', 'e-timeout', '--json']);
+  assert.equal(failJson.code, 1);
+  const errData = JSON.parse(failJson.err);
+  assert.equal(errData.ok, false);
+  assert.equal(errData.error.code, 'ACTION_TIMEOUT');
+  assert.equal(errData.error.hint, 'Take a fresh snapshot.');
+
+  const failText = await run(['click', 'e-timeout']);
+  assert.equal(failText.code, 1);
+  assert.match(failText.err, /ACTION_TIMEOUT/);
+  assert.match(failText.err, /Take a fresh snapshot\./);
+
+  // Disconnect without -s clears workspace binding.
+  const discRes = await run(['disconnect']);
+  assert.equal(discRes.code, 0, discRes.err);
+  assert.match(discRes.out, /Disconnected session/);
 });
