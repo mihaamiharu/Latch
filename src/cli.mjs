@@ -89,7 +89,7 @@ export const usage = `Latch ${releaseVersion} — browser bridge for AI agents
 Lifecycle:
   latch tabs
   latch open <url> [--record] [--objective <text>] [--environment <text>] [--focus-emulation on|off]
-  latch connect <tabId> [--record] [--objective <text>] [--environment <text>] [--focus-emulation on|off]
+  latch connect [tabId] [--record] [--objective <text>] [--environment <text>] [--focus-emulation on|off]
   latch sessions
   latch release [tabId]
   latch disconnect
@@ -442,11 +442,12 @@ export function parseArgs(argv = []) {
     }
     case 'connect': {
       if (args.length > 1) {
-        throw fault('INVALID_ARGUMENT', 'Usage: latch connect <tabId> [--record] [--objective <text>]');
+        throw fault('INVALID_ARGUMENT', 'Usage: latch connect [tabId] [--record] [--objective <text>]');
       }
       const rawTab = args[0] ?? flags.tab;
-      const tabId = parseNonNegativeInt(String(rawTab ?? ''), 'INVALID_TAB', 'tabId');
-      flags.tab = tabId;
+      if (rawTab !== undefined) {
+        flags.tab = parseNonNegativeInt(String(rawTab), 'INVALID_TAB', 'tabId');
+      }
       break;
     }
     case 'release': {
@@ -932,9 +933,36 @@ export async function executeCLI(invocation, depOverrides = {}) {
 
   if (command === 'connect') {
     const rawTab = args[0] ?? f.tab;
-    const tabId = Number(rawTab);
-    if (!Number.isSafeInteger(tabId) || tabId < 0) {
-      throw fault('INVALID_TAB', 'Specify a numeric tabId.');
+    let tabId;
+    if (rawTab === undefined) {
+      const liveTabs = (await call('tabs', {}, 12000)) || [];
+      const candidates = liveTabs.filter(t => t.latchGroup && !t.owner);
+      if (candidates.length === 1) {
+        tabId = candidates[0].tabId;
+      } else if (candidates.length > 1) {
+        const activeCandidate = candidates.find(t => t.active);
+        if (activeCandidate) {
+          tabId = activeCandidate.tabId;
+        } else {
+          const list = candidates.map(t => `[${t.tabId}] ${t.title || t.url}`).join(', ');
+          throw fault(
+            'TAB_AMBIGUOUS',
+            `Multiple unowned tabs found in the Latch tab group: ${list}.`,
+            'Activate the tab you want or pass a numeric tabId: `latch connect <tabId>`.',
+          );
+        }
+      } else {
+        throw fault(
+          'NO_LATCH_GROUP_TAB',
+          'No unowned tab found in the Latch tab group.',
+          'Drag a tab into the Latch tab group in Chrome (or click "Add tab to Latch" in the popup), or pass a numeric tabId from `latch tabs`.',
+        );
+      }
+    } else {
+      tabId = Number(rawTab);
+      if (!Number.isSafeInteger(tabId) || tabId < 0) {
+        throw fault('INVALID_TAB', 'Specify a numeric tabId.');
+      }
     }
     const res = await call('session-connect', {
       sessionKey: key,
@@ -1079,7 +1107,9 @@ export function formatResult(command, result, {json = false, action = null} = {}
     if (!tabs.length) return `No open tabs [profile: ${result.profile}].`;
     const lines = [`Tabs (${tabs.length}) [profile: ${result.profile}]:`];
     for (const t of tabs) {
-      lines.push(`  [${t.tabId}] ${t.title || '(untitled)'} — ${t.url}${t.active ? ' (active)' : ''}${t.owner ? ' [owned]' : ''}`);
+      lines.push(
+        `  [${t.tabId}] ${t.title || '(untitled)'} — ${t.url}${t.active ? ' (active)' : ''}${t.latchGroup ? ' [Latch]' : ''}${t.owner ? ' [owned]' : ''}`,
+      );
     }
     return lines.join('\n');
   }

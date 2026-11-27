@@ -12,6 +12,27 @@ const ui = async (op, payload) => {
 };
 
 let busy = false;
+let currentTabInGroup = false;
+
+async function refreshGroupButton() {
+  const btn = $('toggle-group');
+  if (!btn) return;
+  try {
+    const res = await chrome.runtime.sendMessage({type: 'latch-group', action: 'status'});
+    if (!res?.ok || !res.result?.supported) {
+      btn.hidden = true;
+      currentTabInGroup = false;
+      return;
+    }
+    currentTabInGroup = !!res.result.inGroup;
+    btn.dataset.inGroup = String(currentTabInGroup);
+    btn.textContent = currentTabInGroup ? 'Remove from Latch' : 'Add tab to Latch';
+    btn.disabled = busy;
+    btn.hidden = false;
+  } catch {
+    btn.hidden = true;
+  }
+}
 
 function taskView(task) {
   const card = document.createElement('article');
@@ -165,6 +186,7 @@ async function refresh() {
     $('profile').textContent = 'This Chrome profile';
     $('empty').hidden = false;
     renderLibrary(null);
+    await refreshGroupButton();
 
     if (!status.connected) {
       $('empty').textContent = 'Sessions are unavailable while the bridge is offline.';
@@ -212,6 +234,24 @@ async function refresh() {
   }
 }
 
+$('toggle-group').onclick = async () => {
+  if (busy) return;
+  busy = true;
+  $('toggle-group').disabled = true;
+  try {
+    const action = currentTabInGroup ? 'remove' : 'add';
+    const res = await chrome.runtime.sendMessage({type: 'latch-group', action});
+    if (!res?.ok) throw new Error(res?.error?.message || 'Unable to update Latch tab group.');
+    $('notice').textContent = res.result.inGroup
+      ? 'Tab added to Latch group. Run `latch connect` from your terminal.'
+      : 'Tab removed from Latch group. Any attached session was detached; your tab stays open.';
+  } catch (e) {
+    $('notice').textContent = e.message;
+  } finally {
+    busy = false;
+    await refresh();
+  }
+};
 $('refresh').onclick = () => void refresh();
 $('open-library').onclick = async () => {
   if (busy) return;

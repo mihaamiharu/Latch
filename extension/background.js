@@ -31,12 +31,22 @@ chrome.runtime.onInstalled.addListener(() => { void initialized; });
 chrome.runtime.onStartup.addListener(() => { void initialized.then(() => connection.start({reset: true})); });
 chrome.tabs.onRemoved.addListener(id => { void controller?.removeTab(id)?.catch(() => {}); });
 chrome.tabs.onCreated?.addListener(tab => { void controller?.observeTab(tab)?.catch(() => {}); });
-chrome.tabs.onUpdated?.addListener((id, change, tab) => { void controller?.observeTab(tab)?.catch(() => {}); });
+chrome.tabs.onUpdated?.addListener((id, change, tab) => { void controller?.observeTab(tab, change)?.catch(() => {}); });
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL(''))) return;
   if(message?.type==='ui'){
     if(sender.url!==chrome.runtime.getURL('popup.html'))return;
     initialized.then(()=>connection.ui(message.op,message.payload)).then(result=>reply({ok:true,result}),error=>reply({ok:false,error:safeError(error)}));
+  } else if (message?.type === 'latch-group') {
+    if (sender.url !== chrome.runtime.getURL('popup.html')) return;
+    initialized
+      .then(async () => {
+        const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+        if (message.action === 'add') return controller.addToLatchGroup(tab);
+        if (message.action === 'remove') return controller.removeFromLatchGroup(tab);
+        return controller.latchGroupStatus(tab);
+      })
+      .then(result => reply({ok: true, result}), error => reply({ok: false, error: safeError(error)}));
   } else if (message?.type === 'status') status().then(reply);
   else if (message?.type === 'retry') initialized.then(() => connection.start({reset: true})).then(status).then(reply);
   else if (message?.type === 'request') dispatch(message).then(reply);

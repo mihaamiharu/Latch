@@ -24,10 +24,10 @@ Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and b
 
 2. **Attach or open a tab**
    ```sh
-   latch connect <tabId>
+   latch connect [tabId]
    latch open https://staging.example.com
    ```
-   `--focus-emulation` defaults to `on` (`off` tests real focus/visibility). Pass `--record` or `--objective "<goal>"` (optional `--environment <env>`) to record an exploration.
+   Omitting `tabId` attaches to an unowned tab in the green **Latch** group (`latch open` auto-groups new tabs/popups there). `--focus-emulation` defaults to `on`; pass `--record` or `--objective "<goal>"` (`--environment <env>`) to record.
 
 3. **Inspect & interact**
    ```sh
