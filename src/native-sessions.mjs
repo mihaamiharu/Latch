@@ -250,7 +250,7 @@ export class NativeSessions {
         onStop: () => {
           if (!created?.closing && this.sessions.get(key) === created) {
             void created.engine?.close().catch(() => {});
-            void this.browser('native-release', auth).catch(() => {});
+            void this.releaseBrowser(created, auth).catch(() => {});
             this.sessions.delete(key);
             if (created.workspace) {
               void removeWorkspaceBinding(created.workspace, created.session || key).catch(() => {});
@@ -293,10 +293,6 @@ export class NativeSessions {
         },
       });
 
-      if (p.url) {
-        await created.engine.action('goto', {url: p.url});
-      }
-
       if (p.workspace && p.session) {
         await writeWorkspaceBinding(p.workspace, {
           sessionKey: key,
@@ -307,6 +303,32 @@ export class NativeSessions {
           focusEmulation,
           status: 'attached',
         });
+      }
+
+      if (p.url) {
+        try {
+          await created.engine.action('goto', {url: p.url});
+        } catch (navError) {
+          if (!relay.status().stopped && !created.engine?.closed) {
+            const sessionLabel = p.session || key.slice(0, 8);
+            const err = fault(
+              navError.code || 'NAVIGATION_FAILED',
+              navError.message || `Navigation to ${p.url} failed.`,
+              navError.hint ||
+                `Tab ${tabId} was created and attached (session "${sessionLabel}"); run latch goto <url>, latch snapshot, or latch disconnect.`,
+            );
+            err.diagnostics = {
+              ...(navError.diagnostics || {}),
+              createdTabId: tabId,
+              session: p.session || null,
+              workspace: p.workspace || null,
+              connected: true,
+              navigationOutcome: 'failed',
+            };
+            throw err;
+          }
+          throw navError;
+        }
       }
 
       const page = await created.engine.pageSummary(created.engine.activePage);
@@ -330,12 +352,16 @@ export class NativeSessions {
         page,
       };
     } catch (error) {
+      if (error?.diagnostics?.connected) throw error;
       try {
         await this.close(key, created, auth);
-      } catch {
+      } catch (cleanupError) {
+        const origLabel = `${error?.code || 'ERROR'}: ${error?.message || String(error)}`;
+        const cleanLabel = `${cleanupError?.code || 'ERROR'}: ${cleanupError?.message || String(cleanupError)}`;
         throw fault(
           'NATIVE_CLEANUP_FAILED',
-          'Native session open failed and cleanup could not be confirmed. Run disconnect.',
+          `Native session open failed (${origLabel}) and cleanup could not be confirmed (${cleanLabel}).`,
+          'Run `latch disconnect` (or reload Latch in chrome://extensions if the bridge timed out).',
         );
       }
       error.nativeCleanupConfirmed = true;
@@ -446,7 +472,7 @@ export class NativeSessions {
         onStop: () => {
           if (!created?.closing && this.sessions.get(key) === created) {
             void created.engine?.close().catch(() => {});
-            void this.browser('native-release', auth).catch(() => {});
+            void this.releaseBrowser(created, auth).catch(() => {});
             this.sessions.delete(key);
             if (created.workspace) {
               void removeWorkspaceBinding(created.workspace, created.session || key).catch(() => {});
@@ -530,15 +556,31 @@ export class NativeSessions {
     } catch (error) {
       try {
         await this.close(key, created, auth);
-      } catch {
+      } catch (cleanupError) {
+        const origLabel = `${error?.code || 'ERROR'}: ${error?.message || String(error)}`;
+        const cleanLabel = `${cleanupError?.code || 'ERROR'}: ${cleanupError?.message || String(cleanupError)}`;
         throw fault(
           'NATIVE_CLEANUP_FAILED',
-          'Native connection failed and cleanup could not be confirmed. Retain the session record and run disconnect.',
+          `Native connection failed (${origLabel}) and cleanup could not be confirmed (${cleanLabel}).`,
+          'Run `latch disconnect` (or reload Latch in chrome://extensions if the bridge timed out).',
         );
       }
       error.nativeCleanupConfirmed = true;
       throw error;
     }
+  }
+
+  releaseBrowser(entry, p) {
+    if (entry?.releasePromise) return entry.releasePromise;
+    const promise = Promise.resolve().then(() => this.browser('native-release', p));
+    if (entry) {
+      entry.releasePromise = promise.catch(err => {
+        if (entry.releasePromise === promise) entry.releasePromise = null;
+        throw err;
+      });
+      return entry.releasePromise;
+    }
+    return promise;
   }
 
   async close(key, entry, p) {
@@ -547,7 +589,7 @@ export class NativeSessions {
       await entry.engine?.close().catch(() => {});
       await entry.relay.stop().catch(() => {});
     }
-    await this.browser('native-release', p);
+    await this.releaseBrowser(entry, p);
     if (this.sessions.get(key) === entry) this.sessions.delete(key);
   }
 

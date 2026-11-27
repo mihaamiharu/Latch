@@ -203,3 +203,79 @@ test('session-open/connect default focusEmulation to true and route session-acti
   assert.equal(disconnected.preservedUserTabs, true);
   assert.equal((await manager.handle('session-list', {...id})).sessions.length, 0);
 });
+
+test('session-open retains attached session on goto failure when relay stays live, and NATIVE_CLEANUP_FAILED surfaces both causes', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-ns-err-'));
+  const oldCfg = process.env.LATCH_CONFIG;
+  process.env.LATCH_CONFIG = path.join(dir, 'config.json');
+  t.after(async () => {
+    oldCfg === undefined ? delete process.env.LATCH_CONFIG : (process.env.LATCH_CONFIG = oldCfg);
+    await fs.rm(dir, {recursive: true, force: true});
+  });
+
+  const id = identity();
+  const relayFactory = async (_ext, {expectedTabId}) => ({
+    extensionEndpoint: 'ws://127.0.0.1:1/extension/' + 'a'.repeat(64),
+    cdpEndpoint: 'ws://127.0.0.1:1/cdp/' + 'b'.repeat(64),
+    ready: Promise.resolve(),
+    stop: async () => {},
+    targets: () => [{tabId: expectedTabId, targetId: `target-${expectedTabId}`}],
+    status: () => ({stopped: false, targetId: `target-${expectedTabId}`}),
+  });
+  const engineFactory = async opts => ({
+    closed: false,
+    activePage: {},
+    pageSummary: async () => ({targetId: opts.targetId, url: 'about:blank', title: ''}),
+    action: async action => {
+      if (action === 'goto') {
+        const err = new Error('net::ERR_NAME_NOT_RESOLVED');
+        err.code = 'PLAYWRIGHT_ERROR';
+        throw err;
+      }
+      return {ok: true};
+    },
+    captureState: async () => ({}),
+    selectTarget: async () => ({}),
+    close: async () => {},
+  });
+
+  const liveManager = new NativeSessions(
+    id,
+    async op => (op === 'native-create-tab' ? {tabId: 201} : {}),
+    {relayFactory, engineFactory},
+  );
+  await assert.rejects(
+    liveManager.handle('session-open', {...id, workspace: dir, session: 'navfail', url: 'https://bad.invalid/'}),
+    err => {
+      assert.equal(err.code, 'PLAYWRIGHT_ERROR');
+      assert.match(err.message, /ERR_NAME_NOT_RESOLVED/);
+      assert.equal(err.diagnostics?.connected, true);
+      assert.equal(err.diagnostics?.createdTabId, 201);
+      assert.match(err.hint, /Tab 201 was created and attached/);
+      return true;
+    },
+  );
+  assert.equal((await liveManager.handle('session-list', {...id})).sessions.length, 1);
+  await liveManager.stop();
+
+  const failingManager = new NativeSessions(
+    id,
+    async op => {
+      if (op === 'native-create-tab') return {tabId: 202};
+      if (op === 'native-open') throw Object.assign(new Error('Open boom'), {code: 'OPEN_BOOM'});
+      if (op === 'native-release') throw Object.assign(new Error('Release timed out'), {code: 'BROWSER_TIMEOUT'});
+      return {};
+    },
+    {relayFactory, engineFactory},
+  );
+  await assert.rejects(
+    failingManager.handle('session-open', {...id, workspace: dir, session: 'cleanfail', url: 'https://example.test/'}),
+    err => {
+      assert.equal(err.code, 'NATIVE_CLEANUP_FAILED');
+      assert.match(err.message, /OPEN_BOOM: Open boom/);
+      assert.match(err.message, /BROWSER_TIMEOUT: Release timed out/);
+      assert.match(err.hint, /latch disconnect/);
+      return true;
+    },
+  );
+});
