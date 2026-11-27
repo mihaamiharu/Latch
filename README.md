@@ -1,29 +1,42 @@
 # Latch
 
-A cross-platform Chrome companion extension, native bridge, and flat `latch` CLI that connects AI coding agents to your signed-in Chrome tabs—with bundled `playwright-core` and built-in exploration filmstrips.
+**Your signed-in Chrome, ready for coding agents.**
+
+Attach Claude Code, Codex, Cursor, or Antigravity to one authenticated Chrome tab at a time—no repo dotfiles, no stolen cursor, and optional before/after PNG filmstrips for human QA review before writing Playwright tests.
 
 **Docs & Showcase:** https://mihaamiharu.github.io/Latch/ · **npm:** `@mihaamiharu/latch` · **Releases:** [v1.0.0](https://github.com/mihaamiharu/Latch/releases/tag/v1.0.0)
+
+![Latch Exploration Library showing a before/after PNG filmstrip, observed locators, and local QA review](site/assets/library-filmstrip.png)
+
+## Why Latch instead of Playwright or MCP?
+
+If you just need a headless browser for `localhost` or public pages, use **Playwright** or your IDE's built-in browser—you don't need Latch.
+
+Use **Latch** when your coding agent needs to work inside your **real, SSO/MFA-signed-in Chrome** with guardrails and visual proof:
+
+| Pain point | Stock Playwright / `@playwright/cli` | Playwright / Chrome DevTools MCP | **Latch** |
+| --- | --- | --- | --- |
+| **SSO / MFA without exposing your whole browser** | Isolated profiles by default; extension mode lacks per-tab session locks. | `chrome-devtools-mcp --autoConnect` exposes *every* tab and cookie in Chrome. | **Single-tab ownership.** Attach one tab (`latch connect <tabId>`); other tabs, cookies, and logins stay isolated and untouched. |
+| **Repo cleanliness & background focus** | Writes `.playwright-cli/` artifacts into your git repo. | Heavy MCP tool-schema overhead across every client config. | **Zero repo dotfiles + background focus emulation.** Slim 3 KB skill, flat CLI, and state stored under OS app data—no stolen cursor. |
+| **Reviewing what the agent actually saw before writing tests** | Emits assertions immediately; easy to hallucinate expected behavior. | No structured before/after visual QA triage workflow. | **Built-in Exploration Library.** Opt-in `--record` captures before/after PNG filmstrips, ARIA/DOM locator candidates, and checkpoints in a local `127.0.0.1` reviewer. |
+| **Multiple coding agents** | Per-tool setup or MCP config per client. | Separate MCP JSON config in every IDE/CLI. | **One command (`latch agents install`)** wires Antigravity, Claude Code, Codex, and Cursor together. |
 
 ## Prerequisites
 
 - **OS:** Windows, macOS, or Linux
 - **Node.js:** `>= 22.0.0`
 - **Google Chrome:** `>= 125`
-- No external `playwright-cli` or `ffmpeg` required (`playwright-core` is bundled inside `native-host` over an in-process CDP relay).
+- No external `playwright-cli`, browser downloads, or `ffmpeg` required (`playwright-core` is bundled and drives your existing Chrome).
 
 ## Quick start
 
 ### Option A: Install via npm
 
-1. Install the CLI globally (skipping Playwright browser downloads; your existing Chrome is used):
+1. Install the CLI globally (uses your existing Chrome—no browser binary downloads):
    ```sh
-   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install -g @mihaamiharu/latch
+   npm install -g @mihaamiharu/latch
    ```
-   On Windows PowerShell:
-   ```powershell
-   $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"; npm install -g @mihaamiharu/latch
-   ```
-2. Register the native host and link agent skills/plugins (prints the exact `Extension:` directory to load in Chrome):
+2. Register the local bridge and link agent skills/plugins (prints the exact `Extension:` directory to load in Chrome):
    ```sh
    latch install
    ```
@@ -34,9 +47,11 @@ A cross-platform Chrome companion extension, native bridge, and flat `latch` CLI
    latch doctor
    ```
 
+> **Note:** While a Latch session is attached to a tab, Chrome shows its standard `"Latch" started debugging this browser` banner. It clears automatically on `latch disconnect` or `latch finish`, leaving all tabs and logins intact.
+
 ### Option B: Install from a GitHub Release kit or source checkout
 
-1. Download `latch-1.0.0-kit.zip` from Releases and extract it to a permanent folder (or clone the repo and run `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci`).
+1. Download `latch-1.0.0-kit.zip` from Releases and extract it to a permanent folder (or clone the repo and run `npm ci`).
 2. Run setup and optionally link `latch` globally:
    ```sh
    node src/cli.mjs install

@@ -25,10 +25,10 @@ npm publish --access public
 
 **Automated CI publish:** Add an npm automation token as the repository secret `NPM_TOKEN` in GitHub Settings → Secrets and variables → Actions. Subsequent `v*` tag pushes publish automatically via `npm publish --provenance --access public`.
 
-End users then install globally without downloading Playwright browser binaries:
+End users then install globally (no browser binary downloads—`playwright-core` uses your existing Chrome):
 
 ```sh
-PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install -g @mihaamiharu/latch
+npm install -g @mihaamiharu/latch
 latch install
 ```
 

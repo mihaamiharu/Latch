@@ -1,6 +1,6 @@
 const WORKBENCH_MODES = {
   inspect: {
-    caption: 'Focus-emulated session over Named Pipe / Unix socket',
+    caption: 'Runs in a background tab without stealing your cursor or exposing your other tabs.',
     tabTitle: 'Staging Billing Dashboard',
     tabUrl: 'https://staging.example.com/billing',
     terminal: [
@@ -19,8 +19,8 @@ const WORKBENCH_MODES = {
       '- button "Save settings" [ref=e3]',
     ].join('\n'),
     browserItems: [
-      {label: 'Profile alias', detail: 'work (paired over com.latch.bridge)'},
-      {label: 'Active session', detail: 's-37a21b bound under <appDataDir>/sessions/'},
+      {label: 'Profile alias', detail: 'work (paired local Chrome profile)'},
+      {label: 'Active session', detail: 's-37a21b bound under OS app data (zero repo dotfiles)'},
       {label: 'Ref map', detail: 'e1 heading, e2 textbox, e3 button ("Save settings")'},
     ],
   },
@@ -76,12 +76,12 @@ const WORKBENCH_MODES = {
 const INSTALL_MATRIX = {
   npm: {
     win: {
-      note: 'Install @mihaamiharu/latch globally, register com.latch.bridge, and link agent plugins.',
-      cmd: '$env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"; npm install -g @mihaamiharu/latch\nlatch install',
+      note: 'Install @mihaamiharu/latch globally, register the local Chrome bridge, and link agent integrations.',
+      cmd: 'npm install -g @mihaamiharu/latch\nlatch install',
     },
     unix: {
-      note: 'Install @mihaamiharu/latch globally, register com.latch.bridge, and link agent plugins.',
-      cmd: 'PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install -g @mihaamiharu/latch\nlatch install',
+      note: 'Install @mihaamiharu/latch globally, register the local Chrome bridge, and link agent integrations.',
+      cmd: 'npm install -g @mihaamiharu/latch\nlatch install',
     },
   },
   kit: {
@@ -96,81 +96,48 @@ const INSTALL_MATRIX = {
   },
   git: {
     win: {
-      note: 'Clone the repository, install dependencies without browser downloads, register host, and link latch globally.',
-      cmd: 'git clone https://github.com/mihaamiharu/Latch.git\ncd Latch\n$env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"; npm ci\nnode src/cli.mjs install\nnpm link',
+      note: 'Clone the repository, install dependencies, register the local bridge, and link latch globally.',
+      cmd: 'git clone https://github.com/mihaamiharu/Latch.git\ncd Latch\nnpm ci\nnode src/cli.mjs install\nnpm link',
     },
     unix: {
-      note: 'Clone the repository, install dependencies without browser downloads, register host, and link latch globally.',
-      cmd: 'git clone https://github.com/mihaamiharu/Latch.git\ncd Latch\nPLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci\nnode src/cli.mjs install\nnpm link',
+      note: 'Clone the repository, install dependencies, register the local bridge, and link latch globally.',
+      cmd: 'git clone https://github.com/mihaamiharu/Latch.git\ncd Latch\nnpm ci\nnode src/cli.mjs install\nnpm link',
     },
   },
 };
 
 const FILMSTRIP_STEPS = [
   {
-    meta: 'Step 1 of 3 · goto /checkout · 2 PNG states',
+    meta: 'Step 1 of 2 · fill e2 "qa@acme-corp.internal" · succeeded',
     before: {
-      title: 'New tab (about:blank)',
-      desc: 'Session s-81f04d initialized with focus emulation enabled.',
-      bar: 'about:blank',
-      field: 'Waiting for navigation…',
-      filled: false,
-      btn: 'Pending',
-      ready: false,
+      title: 'Empty checkout form (state-00001.png)',
+      desc: 'Signed-in staging tab attached before running latch fill e2.',
+      img: 'assets/film-state-1.png',
+      alt: 'Staging checkout page before filling the billing email field',
     },
     after: {
-      title: 'Checkout form loaded',
-      desc: 'Captured state-00001.png and initial 42-ref ARIA tree before inputs.',
-      bar: 'https://staging.example.com/checkout',
-      field: 'Email: (empty)',
-      filled: false,
-      btn: 'Pay now',
-      ready: false,
+      title: 'Billing email populated (state-00002.png)',
+      desc: 'Input typed cleanly in a background tab without stealing window focus.',
+      img: 'assets/film-state-2.png',
+      alt: 'Staging checkout page with billing email populated',
     },
-    locators: 'textbox "Email" (id="email"), checkbox "Terms", button "Pay now" (data-testid="submit-order")',
+    locators: 'getByRole("textbox", { name: "Billing email" }) confirmed unique on main frame',
   },
   {
-    meta: 'Step 2 of 3 · fill e2 "qa@example.com" · succeeded',
-    before: {
-      title: 'Empty Email field (state-00001.png)',
-      desc: 'Email input empty before running latch fill e2.',
-      bar: 'https://staging.example.com/checkout',
-      field: 'Email: (empty)',
-      filled: false,
-      btn: 'Pay now',
-      ready: false,
-    },
-    after: {
-      title: 'Email populated (state-00002.png)',
-      desc: 'Synthetic input typed cleanly in background tab without stealing focus.',
-      bar: 'https://staging.example.com/checkout',
-      field: 'Email: qa@example.com',
-      filled: true,
-      btn: 'Pay now (ready)',
-      ready: true,
-    },
-    locators: 'getByRole("textbox", { name: "Email" }) confirmed unique on main frame',
-  },
-  {
-    meta: 'Step 3 of 3 · click e3 + checkpoint · finished',
+    meta: 'Step 2 of 2 · click e5 ("Pay now") + checkpoint · finished',
     before: {
       title: 'Ready to submit (state-00002.png)',
-      desc: 'Form state immediately before triggering click e3.',
-      bar: 'https://staging.example.com/checkout',
-      field: 'Email: qa@example.com',
-      filled: true,
-      btn: 'Pay now (clicked)',
-      ready: true,
+      desc: 'Form state immediately before clicking Pay now with an empty card field.',
+      img: 'assets/film-state-2.png',
+      alt: 'Staging checkout page immediately before clicking Pay now',
     },
     after: {
-      title: 'Validation banner visible (state-00003.png)',
-      desc: 'Checkpoint saved finding; exploration.yaml and exploration.json verified by SHA-256.',
-      bar: 'https://staging.example.com/checkout',
-      alert: 'Card number is required before submitting order',
-      btn: 'Pay now',
-      ready: false,
+      title: 'Validation alert visible (state-00003.png)',
+      desc: 'Checkpoint records observed behavior separately from expected assertions for human QA review.',
+      img: 'assets/film-state-3.png',
+      alt: 'Staging checkout page displaying inline card number required alert',
     },
-    locators: 'role="alert" text="Card number is required", button "Pay now" remains enabled',
+    locators: 'role="alert" ("Card number is required before submitting order #8492."), button "Pay now" (data-testid="submit-order")',
   },
 ];
 
@@ -269,32 +236,13 @@ function buildShotPreview(el, shot) {
   desc.className = 'shot-caption';
   desc.textContent = shot.desc;
 
-  const ui = document.createElement('div');
-  ui.className = 'shot-ui';
+  const img = document.createElement('img');
+  img.className = 'shot-img';
+  img.src = shot.img;
+  img.alt = shot.alt;
+  img.loading = 'lazy';
 
-  const bar = document.createElement('div');
-  bar.className = 'shot-ui-bar';
-  bar.textContent = shot.bar;
-  ui.append(bar);
-
-  if (shot.alert) {
-    const alert = document.createElement('div');
-    alert.className = 'shot-ui-alert';
-    alert.textContent = shot.alert;
-    ui.append(alert);
-  } else {
-    const field = document.createElement('div');
-    field.className = shot.filled ? 'shot-ui-field is-filled' : 'shot-ui-field';
-    field.textContent = shot.field;
-    ui.append(field);
-  }
-
-  const btn = document.createElement('div');
-  btn.className = shot.ready ? 'shot-ui-btn is-ready' : 'shot-ui-btn';
-  btn.textContent = shot.btn;
-  ui.append(btn);
-
-  clone.append(title, desc, ui);
+  clone.append(title, desc, img);
   el.replaceWith(clone);
 }
 

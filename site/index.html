@@ -25,6 +25,7 @@
           <span class="brand-name">Latch</span>
         </a>
         <nav class="site-nav" aria-label="Primary navigation">
+          <a href="#compare">Compare</a>
           <a href="#install">Install</a>
           <a href="#architecture">How it works</a>
           <a href="#library">Library</a>
@@ -40,9 +41,12 @@
         <div class="container hero-stack">
           <h1 class="hero-stagger">Your signed-in Chrome, ready for coding agents.</h1>
           <p class="hero-copy hero-stagger">
-            Drive existing authenticated Chrome tabs with bundled playwright-core, flat CLI commands, and local filmstrip recordings across Windows, macOS, and Linux.
+            Attach Claude Code, Codex, Cursor, or Antigravity to one authenticated tab at a time—no repo dotfiles, no stolen cursor, and optional before/after PNG filmstrips for QA review.
           </p>
-          <a class="cta-primary hero-stagger" href="#install">Get started</a>
+          <div class="hero-actions hero-stagger">
+            <a class="cta-primary" href="#install">Get started</a>
+            <a class="cta-secondary" href="#compare">Why not Playwright?</a>
+          </div>
 
           <div class="workbench hero-stagger" aria-label="Interactive Latch CLI and Chrome bridge preview">
             <div class="workbench-bar">
@@ -51,7 +55,7 @@
                 <button type="button" role="tab" aria-selected="false" data-mode="record">Record filmstrip</button>
                 <button type="button" role="tab" aria-selected="false" data-mode="review">Review &amp; clean up</button>
               </div>
-              <p class="workbench-caption" id="wb-caption">Focus-emulated session over Named Pipe / Unix socket</p>
+              <p class="workbench-caption" id="wb-caption">Runs in a background tab without stealing your cursor or exposing your other tabs.</p>
             </div>
 
             <div class="workbench-grid">
@@ -70,11 +74,59 @@
         </div>
       </section>
 
+      <section class="band band-white" id="compare">
+        <div class="container">
+          <h2 data-reveal>Why Latch instead of Playwright or MCP?</h2>
+          <p class="section-intro" data-reveal>
+            For unauthenticated public pages or fresh localhost previews, stock Playwright or your IDE's built-in browser is already great. Use Latch when your agent needs to work inside your real SSO/MFA Chrome with guardrails and visual QA proof.
+          </p>
+
+          <div class="table-wrap" data-reveal>
+            <table class="data-table compare-table">
+              <thead>
+                <tr>
+                  <th scope="col">Pain point</th>
+                  <th scope="col">Playwright / <code>@playwright/cli</code></th>
+                  <th scope="col">Playwright / Chrome DevTools MCP</th>
+                  <th scope="col">Latch</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>SSO / MFA without exposing your whole browser</strong></td>
+                  <td>Isolated profiles by default; extension mode lacks per-tab session locks.</td>
+                  <td><code>chrome-devtools-mcp --autoConnect</code> exposes every tab and cookie in Chrome.</td>
+                  <td><strong>Single-tab ownership.</strong> Attach one tab (<code>latch connect &lt;tabId&gt;</code>); other tabs and logins stay isolated.</td>
+                </tr>
+                <tr>
+                  <td><strong>Clean repos &amp; background focus</strong></td>
+                  <td>Writes <code>.playwright-cli/</code> artifacts into your git repo.</td>
+                  <td>Heavy MCP tool-schema overhead across every client config.</td>
+                  <td><strong>Zero repo dotfiles + background focus emulation.</strong> Slim 3 KB skill, flat CLI, and state stored under OS app data.</td>
+                </tr>
+                <tr>
+                  <td><strong>Visual proof before writing Playwright tests</strong></td>
+                  <td>Emits assertions immediately; easy to hallucinate expected behavior.</td>
+                  <td>No structured before/after visual QA triage workflow.</td>
+                  <td><strong>Built-in Exploration Library.</strong> Opt-in <code>--record</code> captures before/after PNG filmstrips, locator candidates, and checkpoints locally.</td>
+                </tr>
+                <tr>
+                  <td><strong>Multiple coding agents</strong></td>
+                  <td>Per-tool setup or MCP config per client.</td>
+                  <td>Separate MCP JSON config in every IDE/CLI.</td>
+                  <td><strong>One command (<code>latch agents install</code>)</strong> wires Antigravity, Claude Code, Codex, and Cursor together.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section class="band band-light" id="install">
         <div class="container">
           <h2 data-reveal>Install in four steps</h2>
           <p class="section-intro" data-reveal>
-            Requires Node.js 22 or newer and Google Chrome 125 or newer. External Playwright downloads and ffmpeg are never needed.
+            Requires Node.js 22 or newer and Google Chrome 125 or newer. External Playwright browser downloads and ffmpeg are never needed.
           </p>
 
           <div class="install-controls" data-reveal>
@@ -97,8 +149,8 @@
 
           <div class="steps-list">
             <article class="step-row" data-reveal>
-              <h3>Step 1. Install the bridge and register the native host</h3>
-              <p id="step1-note">Install @mihaamiharu/latch globally and register com.latch.bridge plus agent integrations.</p>
+              <h3>Step 1. Install the CLI and register the local bridge</h3>
+              <p id="step1-note">Install @mihaamiharu/latch globally, register the local Chrome bridge, and link agent integrations.</p>
               <div class="code-box">
                 <pre id="step1-cmd"></pre>
                 <button type="button" class="copy-btn" data-copy-target="step1-cmd">Copy</button>
@@ -136,9 +188,9 @@ latch doctor</pre>
 
       <section class="band band-white" id="architecture">
         <div class="container">
-          <h2 data-reveal>How Latch connects without leaking credentials</h2>
+          <h2 data-reveal>Tab-scoped access, local-first by design</h2>
           <p class="section-intro" data-reveal>
-            Your agent runs short CLI commands against a local socket. Everything sensitive stays inside Chrome and the loopback native host.
+            Your agent runs short CLI commands over a local bridge. Latch attaches Chrome's debugger only to the single tab you explicitly open or connect—never persistent content scripts or full-profile access.
           </p>
 
           <figure class="arch-diagram" data-reveal aria-label="Latch architecture diagram">
@@ -212,17 +264,16 @@ latch doctor</pre>
 
       <section class="band band-dark" id="library">
         <div class="container">
-          <h2 data-reveal>Visual filmstrips and one-click storage control</h2>
+          <h2 data-reveal>Visual filmstrips for human QA review</h2>
           <p class="section-intro section-intro-dark" data-reveal>
-            Pass --record or --objective on open or connect to capture before and after PNG screenshots, ARIA snapshots, and locator candidates for local QA review.
+            Pass --record or --objective on open or connect to capture before/after PNG screenshots, ARIA snapshots, and locator candidates—then review what happened before turning it into a Playwright test.
           </p>
 
           <div class="library-stage" data-reveal>
             <div class="library-top">
               <div class="segmented" role="tablist" aria-label="Filmstrip step scrubber">
-                <button type="button" role="tab" aria-selected="true" data-film="0">1. Open checkout</button>
-                <button type="button" role="tab" aria-selected="false" data-film="1">2. Fill email</button>
-                <button type="button" role="tab" aria-selected="false" data-film="2">3. Checkpoint &amp; finish</button>
+                <button type="button" role="tab" aria-selected="true" data-film="0">1. Fill billing email</button>
+                <button type="button" role="tab" aria-selected="false" data-film="1">2. Click Pay now &amp; checkpoint</button>
               </div>
               <p class="film-meta" id="film-meta"></p>
             </div>
@@ -238,15 +289,24 @@ latch doctor</pre>
               </div>
             </div>
 
+            <figure class="library-real-shot">
+              <figcaption>Actual local Exploration Library UI (<code>http://127.0.0.1</code>) opened from the Chrome popup</figcaption>
+              <img
+                src="assets/library-filmstrip.png"
+                alt="Latch Exploration Library showing a real before and after PNG filmstrip, automation handoff links, and QA review decision form"
+                loading="lazy"
+              />
+            </figure>
+
             <div class="library-notes">
               <div class="note-col">
                 <h3>Observed locator candidates</h3>
                 <p id="film-locators"></p>
               </div>
               <div class="note-col">
-                <h3>Popup controls and run cleanup</h3>
+                <h3>Local review &amp; storage settings</h3>
                 <p>
-                  Click Open Library in the Chrome popup to launch the 127.0.0.1 viewer immediately, use Choose folder… to pick your storage directory in Explorer or Finder, and remove finished runs safely via the UI or latch library delete.
+                  Click Open Library in the Chrome popup to open the 127.0.0.1 reviewer immediately, triage runs into automate / investigate / report_bug, configure a custom artifacts folder if needed, or clean up finished runs via latch library delete.
                 </p>
               </div>
             </div>

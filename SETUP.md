@@ -35,7 +35,7 @@ In the Latch Chrome extension popup:
 ### From npm (recommended)
 
 ```sh
-PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install -g @mihaamiharu/latch
+npm install -g @mihaamiharu/latch
 latch install
 ```
 
@@ -115,6 +115,7 @@ latch library serve
 ```
 
 - `--profile`, `--workspace`, and `-s`/`--session` have smart defaults (active sessions are bound per workspace under `<appDataDir>/sessions/` with zero repo dotfiles).
+- While a session is attached, Chrome displays its standard `"Latch" started debugging this browser` banner; it clears automatically when you run `latch disconnect` or `latch finish`.
 - Pass `--focus-emulation off` on `open`/`connect` only when testing real window focus or visibility events.
 - Pass `--json` to any command for structured JSON output.
 - Remove old finished runs via the **Delete** button in the Library UI or via CLI:
