@@ -224,6 +224,7 @@ export function graphOf(meta) {
     coverage: {
       scope: 'Only observed session-owned pages and commands routed through Latch are represented.',
       gaps: meta.gaps,
+      notices: meta.notices || [],
       questions: annotations.filter(a => a.kind === 'question'),
       agent_reported_gaps: annotations.filter(a => a.kind === 'coverage_gap'),
       locator_lifetime: 'Snapshot refs are historical. Refresh locator candidates against the live app before creating tests.',
@@ -475,7 +476,13 @@ export function actionOf(meta, invocation, {step, before, after, error, startedA
     });
   }
   if (['fill', 'type', 'select', 'upload'].includes(type) && !(flags['data-ref'] ?? flags.dataRef)) {
-    meta.gaps.push({step, reason: 'Input values are omitted. Add a test-data reference before generating automation.'});
+    // Redacted input is a privacy guarantee, not a capture failure: record it as
+    // an informational notice so clean runs can still finish as "finished".
+    (meta.notices ||= []).push({
+      step,
+      code: 'INPUT_REDACTED',
+      reason: 'Input values are omitted. Add a test-data reference before generating automation.',
+    });
   }
   meta.actions.push(action);
   return action;

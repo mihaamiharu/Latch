@@ -173,6 +173,7 @@ export async function loadMeta(id) {
   ) {
     throw fault('EXPLORATION_SCHEMA_INVALID', 'Run metadata is invalid; preserved for inspection.');
   }
+  if (!Array.isArray(meta.notices)) meta.notices = [];
   return meta;
 }
 
@@ -211,6 +212,7 @@ export async function allocateRun(identity, options = {}) {
     actions: [],
     annotations: [],
     gaps: [],
+    notices: [],
     finals: [],
     artifacts: [],
   };
@@ -239,17 +241,33 @@ export async function unbind(meta) {
   }
 }
 
-export async function lockRun(id, fn) {
+export const LOCK_WAIT_MS = 1500;
+const LOCK_POLL_MIN_MS = 50;
+const LOCK_POLL_MAX_MS = 100;
+const defaultSleep = ms => new Promise(r => setTimeout(r, ms));
+
+// The uncontended path is a single immediate mkdir. Only when another CLI
+// process still holds the lock (typically finishing its own cleanup) do we
+// poll briefly before reporting EXPLORATION_BUSY. Stale locks are never
+// reclaimed here; offline repair and disconnect pass waitMs: 0.
+export async function lockRun(id, fn, {waitMs = LOCK_WAIT_MS, sleep = defaultSleep} = {}) {
   await runPath(id);
   const lock = path.join(await libraryDirs(), 'locks', id);
   const nonce = crypto.randomUUID();
-  try {
-    await fs.mkdir(lock, {mode: 0o700});
-  } catch (e) {
-    if (e.code === 'EEXIST') {
-      throw fault('EXPLORATION_BUSY', 'Another exploration command is active or interrupted. Stop/disconnect remains available.');
+  const deadline = Date.now() + Math.max(0, waitMs);
+  for (;;) {
+    try {
+      await fs.mkdir(lock, {mode: 0o700});
+      break;
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        throw fault('EXPLORATION_BUSY', 'Another exploration command is active or interrupted. Stop/disconnect remains available.');
+      }
+      const jitter = LOCK_POLL_MIN_MS + Math.floor(Math.random() * (LOCK_POLL_MAX_MS - LOCK_POLL_MIN_MS + 1));
+      await sleep(Math.min(jitter, remaining));
     }
-    throw e;
   }
   let owner;
   try {

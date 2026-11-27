@@ -253,6 +253,38 @@ $('toggle-group').onclick = async () => {
   }
 };
 $('refresh').onclick = () => void refresh();
+
+const FINISH_KEY = 'finishBehavior';
+const FINISH_HINTS = {
+  collapse: 'Finished sessions keep their tabs open; the group collapses.',
+  keep: 'Finished sessions keep their tabs open and the group expanded.',
+  ungroup: 'Finished sessions keep their tabs open and leave the Latch group.',
+  close: 'Closes only tabs Latch opened; your own tabs are never closed.',
+};
+function renderFinishHint(value) {
+  $('finish-hint').textContent = FINISH_HINTS[value] || FINISH_HINTS.collapse;
+}
+async function loadFinishBehavior() {
+  const select = $('finish-behavior');
+  try {
+    const stored = (await chrome.storage.local.get(FINISH_KEY))?.[FINISH_KEY];
+    select.value = Object.hasOwn(FINISH_HINTS, stored) ? stored : 'collapse';
+  } catch {
+    select.value = 'collapse';
+  }
+  renderFinishHint(select.value);
+}
+$('finish-behavior').onchange = async () => {
+  const value = $('finish-behavior').value;
+  renderFinishHint(value);
+  try {
+    await chrome.storage.local.set({[FINISH_KEY]: value});
+    $('notice').textContent = `On session finish: ${$('finish-behavior').selectedOptions[0]?.textContent || value}.`;
+  } catch (e) {
+    $('notice').textContent = `Unable to save setting: ${e.message}`;
+  }
+};
+void loadFinishBehavior();
 $('open-library').onclick = async () => {
   if (busy) return;
   busy = true;

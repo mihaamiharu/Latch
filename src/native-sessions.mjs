@@ -129,11 +129,24 @@ export class NativeSessions {
     if (op === 'session-disconnect' || op === 'native-disconnect') {
       const workspace = p.workspace || entry?.workspace;
       const session = p.session || entry?.session;
-      await this.close(key, entry, {...this.identity, ...p, sessionKey: key, leaseId: p.leaseId || entry?.leaseId});
+      const released = await this.close(key, entry, {
+        ...this.identity,
+        ...p,
+        closeTabs: p.closeTabs === true,
+        sessionKey: key,
+        leaseId: p.leaseId || entry?.leaseId,
+      });
       if (workspace) {
         await removeWorkspaceBinding(workspace, session || key).catch(() => {});
       }
-      return {disconnected: true, alreadyDisconnected: !entry, preservedUserTabs: true};
+      const tabs = {};
+      if (released && typeof released === 'object') {
+        if (typeof released.finishBehavior === 'string') tabs.finishBehavior = released.finishBehavior;
+        for (const k of ['closedTabIds', 'collapsedGroupIds', 'ungroupedTabIds']) {
+          if (Array.isArray(released[k])) tabs[k] = released[k].filter(Number.isSafeInteger).slice(0, 64);
+        }
+      }
+      return {disconnected: true, alreadyDisconnected: !entry, preservedUserTabs: true, ...tabs};
     }
 
     if (op === 'session-release' || op === 'native-release-tab') {
@@ -619,8 +632,9 @@ export class NativeSessions {
       await entry.engine?.close().catch(() => {});
       await entry.relay.stop().catch(() => {});
     }
-    await this.releaseBrowser(entry, p);
+    const released = await this.releaseBrowser(entry, p);
     if (this.sessions.get(key) === entry) this.sessions.delete(key);
+    return released;
   }
 
   async stop() {

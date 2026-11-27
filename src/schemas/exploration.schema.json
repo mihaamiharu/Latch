@@ -47,7 +47,14 @@
     "test_data": {"type": "array"},
     "final_states": {"type": "array", "items": {"type": "object", "required": ["page", "state", "status"]}},
     "cleanup": {"type": "object", "required": ["status"]},
-    "coverage": {"type": "object", "required": ["scope", "gaps", "completeness"]},
+    "coverage": {
+      "type": "object",
+      "required": ["scope", "gaps", "completeness"],
+      "properties": {
+        "gaps": {"type": "array"},
+        "notices": {"type": "array", "items": {"type": "object", "required": ["reason"]}}
+      }
+    },
     "artifacts": {"type": "array", "items": {"type": "object", "required": ["path", "sha256", "bytes", "type"]}}
   },
   "$defs": {

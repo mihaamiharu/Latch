@@ -108,6 +108,12 @@ test('parseArgs handles full locked flat CLI surface and global flag positions',
   assert.equal(parseArgs(['release', '12']).flags.tab, 12);
   assert.equal(parseArgs(['disconnect']).command, 'disconnect');
   assert.equal(parseArgs(['finish']).command, 'finish');
+  assert.equal(parseArgs(['finish', '--close-tabs']).flags['close-tabs'], true);
+  assert.equal(parseArgs(['disconnect', '--close-tabs']).flags['close-tabs'], true);
+  assert.equal(parseArgs(['finish']).flags['close-tabs'], undefined);
+  assert.throws(() => parseArgs(['open', 'https://example.com', '--close-tabs']));
+  assert.throws(() => parseArgs(['release', '--close-tabs']));
+  assert.throws(() => parseArgs(['finish', '--close-tabs=yes']));
 
   // Actions
   assert.deepEqual(parseArgs(['snapshot', '#main', '--depth', '3']).actionArgs, {selector: '#main', depth: 3});

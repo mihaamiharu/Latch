@@ -358,6 +358,8 @@ async function runHTML(id, token, nonce) {
   const mainStates = meta.states.filter(s => s.frame?.id === 'main');
   const childFrameCount = meta.states.length - mainStates.length;
   const groupedGaps = summarizeGaps(meta.gaps);
+  const notices = Array.isArray(meta.notices) ? meta.notices : [];
+  const groupedNotices = summarizeGaps(notices);
   const handoffPath = path.join(await runPath(id), 'exploration.yaml');
 
   const filmstripThumbsHtml = filmItems
@@ -465,6 +467,13 @@ async function runHTML(id, token, nonce) {
         .map(g => `<div class="gap-row"><span>${escape(g.label)}</span><span class="gap-count">×${g.count}</span></div>`)
         .join('')}</div></details>`
     : `<p class="muted" style="margin-top:10px">No capture gaps reported.</p>`;
+
+  const noticesHtml = groupedNotices.length
+    ? `<details class="row" style="margin-top:10px"><summary><span class="row-left"><span class="dot ok"></span><span class="row-title">Notices (${notices.length})</span></span><span class="row-meta">informational</span></summary>` +
+      `<div class="row-body">${groupedNotices
+        .map(g => `<div class="gap-row"><span>${escape(g.label)}</span><span class="gap-count">×${g.count}</span></div>`)
+        .join('')}</div></details>`
+    : '';
 
   const optionsHtml = [...decisions]
     .map(d => `<option value="${d}" ${d === review.decision ? 'selected' : ''}>${escape(d.replaceAll('_', ' '))}</option>`)
@@ -599,7 +608,7 @@ async function runHTML(id, token, nonce) {
       `<button type="button" class="secondary" id="copy-handoff" style="width:100%">Copy QA handoff prompt</button>` +
       `<p id="copy-status" role="status"></p>` +
       `<small>Contains observed states, before/after filmstrip, transitions, and locator candidates. Generated code is excluded.</small></div>` +
-      `<div class="panel"><div class="panel-head"><h2>Checkpoints &amp; gaps</h2></div>${annotationsHtml}${gapsHtml}` +
+      `<div class="panel"><div class="panel-head"><h2>Checkpoints &amp; gaps</h2></div>${annotationsHtml}${gapsHtml}${noticesHtml}` +
       `<p class="muted" style="margin-top:10px;font-size:12px">Cleanup: <span class="status-text status-${escape(meta.cleanup?.status || 'unknown')}">${escape(meta.cleanup?.status || 'unconfirmed')}</span></p></div>` +
       `${manageRunHtml}</aside></div>` +
       `<div class="lightbox" id="lightbox" hidden><img id="lb-img" alt="Zoomed screenshot"><div class="lightbox-bar"><span id="lb-cap"></span><button type="button" class="secondary compact" id="lb-close">Close (Esc)</button></div></div>`,
@@ -905,7 +914,7 @@ export async function libraryCommand(action = 'list', flags = {}) {
       }
       await writeHandoff(meta);
       return {repaired: true, replayedActions: 0, runId: meta.id, integrity: await verifyArtifacts(meta)};
-    });
+    }, {waitMs: 0});
   }
   throw fault('INVALID_COMMAND', 'Use library list, show, serve, review, export, delete or repair.');
 }

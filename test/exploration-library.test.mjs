@@ -372,3 +372,69 @@ test('local reviewer DELETE /run/:id requires same-origin token, rejects active 
   const afterIndex = await (await fetch(app.url + '/')).text();
   assert.doesNotMatch(afterIndex, new RegExp(f.meta.id));
 });
+
+test('lockRun takes the uncontended path immediately without sleeping', async t => {
+  const f = await fixture(t);
+  let sleeps = 0;
+  const value = await lockRun(f.meta.id, async () => 'ok', {sleep: async () => { sleeps++; }});
+  assert.equal(value, 'ok');
+  assert.equal(sleeps, 0);
+});
+
+test('lockRun rides out transient contention within the retry window and rejects sustained locks', async t => {
+  const f = await fixture(t);
+  let entered;
+  let ready = new Promise(r => (entered = r));
+  const transient = lockRun(f.meta.id, async () => {
+    entered();
+    await new Promise(r => setTimeout(r, 150));
+  });
+  await ready;
+  let sleeps = 0;
+  const realSleep = ms => { sleeps++; return new Promise(r => setTimeout(r, ms)); };
+  assert.equal(await lockRun(f.meta.id, async () => 'second', {sleep: realSleep}), 'second');
+  assert.ok(sleeps >= 1, 'expected at least one poll while the lock was held');
+  await transient;
+
+  let release;
+  ready = new Promise(r => (entered = r));
+  const sustained = lockRun(f.meta.id, () => {
+    entered();
+    return new Promise(r => (release = r));
+  });
+  await ready;
+  const startedAt = Date.now();
+  await assert.rejects(lockRun(f.meta.id, async () => 'never', {waitMs: 300}), {code: 'EXPLORATION_BUSY'});
+  const waited = Date.now() - startedAt;
+  assert.ok(waited >= 250 && waited < 1500, `expected ~300ms wait, got ${waited}ms`);
+  // waitMs: 0 (disconnect / offline repair) stays immediate.
+  const immediateAt = Date.now();
+  await assert.rejects(lockRun(f.meta.id, async () => 'never', {waitMs: 0}), {code: 'EXPLORATION_BUSY'});
+  assert.ok(Date.now() - immediateAt < 250);
+  release();
+  await sustained;
+});
+
+test('handoff keeps redacted-input notices separate from capture gaps and the reviewer shows them', async t => {
+  const f = await fixture(t);
+  actionOf(f.meta, {command: 'fill', action: 'fill', actionArgs: {target: 'e1', value: 'hidden'}, args: ['e1', 'hidden'], flags: {}}, {
+    step: 'step-1',
+    before: null,
+    after: null,
+    error: null,
+    startedAt: new Date().toISOString(),
+  });
+  assert.equal(f.meta.gaps.length, 0);
+  assert.equal(f.meta.notices.length, 1);
+  await saveMeta(f.meta);
+  await writeHandoff(f.meta);
+  const graph = JSON.parse(await fs.readFile(path.join(f.dir, 'exploration.json'), 'utf8'));
+  assert.equal(graph.coverage.notices.length, 1);
+  assert.doesNotMatch(JSON.stringify(graph), /hidden/);
+  const app = await startLibraryServer();
+  t.after(() => app.close());
+  const html = await (await fetch(app.url + '/run/' + f.meta.id)).text();
+  assert.match(html, /Notices \(1\)/);
+  assert.match(html, /Input values are omitted/);
+  assert.match(html, /No capture gaps reported/);
+});

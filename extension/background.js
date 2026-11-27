@@ -1,5 +1,5 @@
 import {HOST, fault, safeError} from './protocol.js';
-import {createController} from './controller.js';
+import {createController, FINISH_BEHAVIOR_KEY} from './controller.js';
 import {createDebuggerTransport} from './debugger-transport.js';
 import {createBridgeConnection} from './bridge-connection.js';
 import {createIdentityBackup, resolveInstanceId} from './identity-store.js';
@@ -12,7 +12,8 @@ const nativeTransport = createDebuggerTransport(chrome, {
 const initialized = (async () => {
   const {instanceId} = await resolveInstanceId({storage: chrome.storage.local, backup: createIdentityBackup(indexedDB), randomUUID: () => crypto.randomUUID()});
   identity = {instanceId, epoch: crypto.randomUUID(), extensionVersion: chrome.runtime.getManifest().version};
-  controller = createController(chrome, identity, {nativeTransport, nativeRecovery: true});
+  controller = createController(chrome, identity, {nativeTransport, nativeRecovery: true,
+    getFinishBehavior: async () => (await chrome.storage.local.get(FINISH_BEHAVIOR_KEY))?.[FINISH_BEHAVIOR_KEY]});
   connection = createBridgeConnection(chrome, {host: HOST,
     hello: {v: 1, type: 'hello', ...identity, extensionId: chrome.runtime.id, capabilities: {nativeTransport: nativeTransport.available, nativeSessionSchema: 4, uiControl: 1, createTab: 1}},
     invalidate: async () => { await controller.invalidateNative(); await nativeTransport.recoverOwned(); },

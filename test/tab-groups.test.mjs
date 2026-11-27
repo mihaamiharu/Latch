@@ -12,7 +12,7 @@ function mockChrome({tabs: initialTabs = [], groups: initialGroups = []} = {}) {
   const groups = new Map(initialGroups.map(g => [g.id, {...g}]));
   let nextTabId = Math.max(100, ...tabs.keys()) + 1;
   let nextGroupId = Math.max(10, ...groups.keys()) + 1;
-  const calls = {group: [], ungroup: [], updateGroup: []};
+  const calls = {group: [], ungroup: [], updateGroup: [], remove: []};
 
   const api = {
     windows: {
@@ -43,6 +43,11 @@ function mockChrome({tabs: initialTabs = [], groups: initialGroups = []} = {}) {
           if (t) t.groupId = gid;
         }
         return gid;
+      },
+      remove: async tabId => {
+        const ids = Array.isArray(tabId) ? tabId : [tabId];
+        calls.remove.push(ids);
+        for (const id of ids) tabs.delete(id);
       },
       ungroup: async tabId => {
         const ids = Array.isArray(tabId) ? tabId : [tabId];
@@ -265,4 +270,148 @@ test('CLI latch connect without tabId auto-selects unowned Latch-grouped tab and
   // 5. formatResult('tabs', ...) renders [Latch] badge
   const formatted = formatResult('tabs', {profile: 'work', tabs: mockTabs});
   assert.match(formatted, /\[88\] Staging A .* \[Latch\]/);
+});
+
+async function finishFixture({mode, closeTabs = false} = {}) {
+  const {api, tabs, groups, calls} = mockChrome({
+    tabs: [
+      {id: 42, windowId: 1, url: 'https://staging.example.com/user', title: 'User tab', groupId: -1},
+      {id: 43, windowId: 1, url: 'https://staging.example.com/active', title: 'Active', groupId: -1, active: true},
+    ],
+  });
+  const identity = {instanceId: crypto.randomUUID(), epoch: crypto.randomUUID()};
+  const generation = crypto.randomUUID();
+  const openKey = 'd'.repeat(64);
+  const connectKey = 'e'.repeat(64);
+  const openLease = crypto.randomUUID();
+  const connectLease = crypto.randomUUID();
+  const native = {available: true, preflight: async () => {}, addTab: async () => true, release: async () => {}, removeTab: async () => {}, isAttached: () => true};
+  const controller = createController(api, identity, {nativeTransport: native, getFinishBehavior: async () => mode});
+  await controller.activateNative(generation);
+  const send = (sessionKey, leaseId, op, p = {}) =>
+    controller.handle({v: 1, id: crypto.randomUUID(), op, payload: {...identity, hostGeneration: generation, leaseId, sessionKey, ...p}});
+
+  // latch open: a Latch-created root tab plus a tracked popup child.
+  const created = await send(openKey, openLease, 'native-create-tab', {session: 'cursor-qa'});
+  const rootId = created.result.tabId;
+  const groupId = created.result.groupId;
+  tabs.get(rootId).url = 'https://staging.example.com/cal';
+  const popup = {id: 600, windowId: 1, url: 'https://staging.example.com/popup', openerTabId: rootId, groupId: -1};
+  tabs.set(600, popup);
+  await controller.observeTab(popup);
+
+  // A pre-existing user tab manually placed in the same group and attached by
+  // a separate latch connect session (released before the open session ends).
+  await api.tabs.group({tabIds: [42], groupId});
+  const reserved = await send(connectKey, connectLease, 'native-reserve', {tabId: 42, expectedUrl: 'https://staging.example.com/user'});
+  assert.equal(reserved.ok, true);
+  await send(connectKey, connectLease, 'native-release', {});
+  calls.updateGroup.length = 0;
+  calls.ungroup.length = 0;
+  calls.remove.length = 0;
+
+  const released = await send(openKey, openLease, 'native-release', closeTabs ? {closeTabs: true} : {});
+  assert.equal(released.ok, true);
+  return {api, tabs, groups, calls, rootId, groupId, released: released.result};
+}
+
+test('finish behavior "collapse" (default) collapses the finished session group and keeps every tab open', async () => {
+  const f = await finishFixture({mode: undefined});
+  assert.equal(f.released.finishBehavior, 'collapse');
+  assert.deepEqual(f.released.collapsedGroupIds, [f.groupId]);
+  assert.equal(f.groups.get(f.groupId).collapsed, true);
+  assert.ok(f.tabs.has(f.rootId) && f.tabs.has(600) && f.tabs.has(42));
+  assert.equal(f.calls.remove.length, 0);
+});
+
+test('finish behavior "keep" leaves the group expanded and makes no tab-group calls', async () => {
+  const f = await finishFixture({mode: 'keep'});
+  assert.equal(f.released.finishBehavior, 'keep');
+  assert.equal(f.calls.updateGroup.length, 0);
+  assert.equal(f.calls.ungroup.length, 0);
+  assert.equal(f.calls.remove.length, 0);
+});
+
+test('finish behavior "ungroup" ungroups only the session tabs and keeps them open', async () => {
+  const f = await finishFixture({mode: 'ungroup'});
+  assert.equal(f.released.finishBehavior, 'ungroup');
+  assert.deepEqual(f.calls.ungroup, [[f.rootId, 600]]);
+  assert.equal(f.tabs.get(f.rootId).groupId, -1);
+  assert.equal(f.tabs.get(600).groupId, -1);
+  // The open session's release touched only its own tabs (tab 42 was handled by its own session).
+  assert.ok(f.calls.ungroup.every(ids => !ids.includes(42)));
+  assert.equal(f.tabs.has(42), true);
+  assert.equal(f.calls.remove.length, 0);
+});
+
+test('finish behavior "close" closes only Latch-opened tabs and tracked popups, never connected or manually grouped user tabs', async () => {
+  const f = await finishFixture({mode: 'close'});
+  assert.equal(f.released.finishBehavior, 'close');
+  assert.deepEqual([...f.released.closedTabIds].sort(), [f.rootId, 600].sort());
+  assert.equal(f.tabs.has(f.rootId), false);
+  assert.equal(f.tabs.has(600), false);
+  assert.equal(f.tabs.has(42), true, 'pre-existing user tab must survive');
+  assert.equal(f.tabs.has(43), true);
+});
+
+test('closeTabs: true overrides "keep"; a latch connect session never closes its tab even when asked', async () => {
+  const f = await finishFixture({mode: 'keep', closeTabs: true});
+  assert.equal(f.released.finishBehavior, 'close');
+  assert.equal(f.tabs.has(f.rootId), false);
+  assert.equal(f.tabs.has(42), true);
+
+  const g = mockChrome({tabs: [{id: 77, windowId: 1, url: 'https://staging.example.com/mine', title: 'Mine', groupId: -1}]});
+  const identity = {instanceId: crypto.randomUUID(), epoch: crypto.randomUUID()};
+  const native = {available: true, preflight: async () => {}, release: async () => {}, removeTab: async () => {}, isAttached: () => true};
+  const controller = createController(g.api, identity, {nativeTransport: native, getFinishBehavior: async () => 'close'});
+  await controller.addToLatchGroup(g.tabs.get(77));
+  const key = 'f'.repeat(64);
+  await controller.handle({v: 1, id: crypto.randomUUID(), op: 'native-reserve', payload: {...identity, sessionKey: key, tabId: 77, expectedUrl: 'https://staging.example.com/mine'}});
+  const res = await controller.handle({v: 1, id: crypto.randomUUID(), op: 'native-release', payload: {...identity, sessionKey: key, closeTabs: true}});
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.result.closedTabIds, []);
+  assert.equal(g.tabs.has(77), true);
+  assert.equal(g.calls.remove.length, 0);
+});
+
+test('collapse skips groups shared with another live session or holding the active tab; bridge loss never closes tabs', async () => {
+  const {api, tabs, groups, calls} = mockChrome();
+  const identity = {instanceId: crypto.randomUUID(), epoch: crypto.randomUUID()};
+  const generation = crypto.randomUUID();
+  const native = {available: true, preflight: async () => {}, addTab: async () => true, release: async () => {}, removeTab: async () => {}, isAttached: () => true};
+  let mode = 'collapse';
+  const controller = createController(api, identity, {nativeTransport: native, getFinishBehavior: async () => mode});
+  await controller.activateNative(generation);
+  const send = (sessionKey, leaseId, op, p = {}) =>
+    controller.handle({v: 1, id: crypto.randomUUID(), op, payload: {...identity, hostGeneration: generation, leaseId, sessionKey, ...p}});
+
+  const keyA = '1'.repeat(64);
+  const keyB = '2'.repeat(64);
+  const leaseA = crypto.randomUUID();
+  const leaseB = crypto.randomUUID();
+  const a = await send(keyA, leaseA, 'native-create-tab', {session: 'shared'});
+  tabs.get(a.result.tabId).url = 'https://staging.example.com/a';
+  tabs.set(700, {id: 700, windowId: 1, url: 'https://staging.example.com/b', groupId: a.result.groupId});
+  const rb = await send(keyB, leaseB, 'native-reserve', {tabId: 700, expectedUrl: 'https://staging.example.com/b'});
+  assert.equal(rb.ok, true);
+  const ra = await send(keyA, leaseA, 'native-release', {});
+  assert.deepEqual(ra.result.collapsedGroupIds, []);
+  assert.notEqual(groups.get(a.result.groupId).collapsed, true);
+
+  const keyC = '3'.repeat(64);
+  const leaseC = crypto.randomUUID();
+  const c = await send(keyC, leaseC, 'native-create-tab', {session: 'active'});
+  tabs.get(c.result.tabId).active = true;
+  const rc = await send(keyC, leaseC, 'native-release', {});
+  assert.deepEqual(rc.result.collapsedGroupIds, []);
+
+  mode = 'close';
+  const keyD = '4'.repeat(64);
+  const leaseD = crypto.randomUUID();
+  const d = await send(keyD, leaseD, 'native-create-tab', {session: 'bridge-loss'});
+  calls.remove.length = 0;
+  await controller.invalidateNative();
+  assert.equal(calls.remove.length, 0);
+  assert.equal(tabs.has(d.result.tabId), true);
+  assert.equal(groups.get(d.result.groupId).collapsed, true);
 });

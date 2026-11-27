@@ -138,18 +138,24 @@ async function invokeCaptureState(meta, execute) {
   });
 }
 
-async function invokeDisconnect(meta, execute) {
+async function invokeDisconnect(meta, execute, {closeTabs = false} = {}) {
   const key = sessionKey(meta.workspace, meta.session);
   if (typeof execute === 'function') {
     return execute({
       command: 'disconnect',
-      flags: {session: meta.session, workspace: meta.workspace, profile: meta.profile},
+      flags: {
+        session: meta.session,
+        workspace: meta.workspace,
+        profile: meta.profile,
+        ...(closeTabs ? {'close-tabs': true} : {}),
+      },
     });
   }
   return callBridge(meta.profile, 'session-disconnect', {
     sessionKey: key,
     workspace: meta.workspace,
     session: meta.session,
+    ...(closeTabs ? {closeTabs: true} : {}),
   });
 }
 
@@ -215,6 +221,7 @@ async function persist(meta) {
       recording: meta.recording,
       annotations: meta.annotations,
       gaps: meta.gaps,
+      notices: meta.notices || [],
       finals: meta.finals,
       cleanup: meta.cleanup,
       finishedAt: meta.finishedAt,
@@ -225,7 +232,7 @@ async function persist(meta) {
   await writeHandoff(meta);
 }
 
-export async function finishRun(meta, _version, execute, {disconnect = true} = {}) {
+export async function finishRun(meta, _version, execute, {disconnect = true, closeTabs = false} = {}) {
   // A forced Stop/closed tab can make final capture fail. None of these paths
   // repeat application actions; disconnect is always attempted.
   try {
@@ -253,7 +260,7 @@ export async function finishRun(meta, _version, execute, {disconnect = true} = {
       });
     } catch {}
     try {
-      result = await invokeDisconnect(meta, execute);
+      result = await invokeDisconnect(meta, execute, {closeTabs});
     } catch (e) {
       error = e;
     }
@@ -402,7 +409,7 @@ export async function runWithExploration(invocation, version = '1.1.0', execute)
   const operation = async () => {
     meta = await loadMeta(binding.id);
     if (['finish', 'disconnect'].includes(inv.command)) {
-      return finishRun(meta, version, execute);
+      return finishRun(meta, version, execute, {closeTabs: flags['close-tabs'] === true});
     }
 
     if (inv.command === 'checkpoint') {
@@ -594,7 +601,9 @@ export async function runWithExploration(invocation, version = '1.1.0', execute)
   // the browser lease immediately while leaving the bundle inspectable offline.
   if (['disconnect', 'finish'].includes(inv.command)) {
     try {
-      return await lockRun(binding.id, operation);
+      // finish may wait briefly for a just-completed command to release the
+      // lock; disconnect is the emergency stop and never waits.
+      return await lockRun(binding.id, operation, inv.command === 'disconnect' ? {waitMs: 0} : {});
     } catch (e) {
       if (e.code !== 'EXPLORATION_BUSY') throw e;
       const dir = await runPath(binding.id);
@@ -603,7 +612,7 @@ export async function runWithExploration(invocation, version = '1.1.0', execute)
         JSON.stringify({requestedAt: new Date().toISOString(), confirmed: false}),
       );
       const loaded = await loadMeta(binding.id);
-      const result = await invokeDisconnect(loaded, execute);
+      const result = await invokeDisconnect(loaded, execute, {closeTabs: flags['close-tabs'] === true});
       await atomic(
         path.join(dir, 'stop-request.json'),
         JSON.stringify({requestedAt: new Date().toISOString(), confirmed: result?.disconnected === true}),
@@ -647,14 +656,14 @@ export async function checkpointCommand(
 }
 
 export async function finishCommand(
-  {profile = 'work', session, workspace = process.cwd()} = {},
+  {profile = 'work', session, workspace = process.cwd(), closeTabs = false} = {},
   version = '1.1.0',
   execute,
 ) {
   return runWithExploration(
     {
       command: 'finish',
-      flags: {profile, session, workspace},
+      flags: {profile, session, workspace, ...(closeTabs ? {'close-tabs': true} : {})},
     },
     version,
     execute,

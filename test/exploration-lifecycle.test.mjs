@@ -518,3 +518,81 @@ test('headless Chrome for Testing unified exploration captures real before/after
   assert.equal(imgResp.status, 200);
   assert.equal(imgResp.headers.get('content-type'), 'image/png');
 });
+
+test('redacted fill/type input is an informational notice: clean runs finish as "finished" without persisting values', async t => {
+  const f = await fixture(t);
+  const start = await f.invoke('open', {flags: {url: 'https://fixture', record: true, objective: 'Notice'}});
+  await f.invoke('fill', {action: 'fill', actionArgs: {target: 'e1', value: 'typed-private-value'}, args: ['e1', 'typed-private-value']});
+  await f.invoke('type', {action: 'type', actionArgs: {target: 'e1', text: 'more-private-text'}, args: ['e1', 'more-private-text']});
+  const result = await finishCommand({profile: 'work', session: 'agent', workspace: f.workspace}, '1.0.0', f.execute);
+  assert.equal(result.library.status, 'finished');
+
+  const meta = await loadMeta(start.library.runId);
+  assert.equal(meta.gaps.length, 0);
+  assert.equal(meta.notices.length, 2);
+  assert.ok(meta.notices.every(n => n.code === 'INPUT_REDACTED' && /Input values are omitted/.test(n.reason)));
+
+  const graph = JSON.parse(await fs.readFile(path.join(result.library.directory, 'exploration.json'), 'utf8'));
+  assert.equal(graph.status, 'finished');
+  assert.equal(graph.coverage.gaps.length, 0);
+  assert.equal(graph.coverage.notices.length, 2);
+  const yamlText = await fs.readFile(path.join(result.library.directory, 'exploration.yaml'), 'utf8');
+  assert.match(yamlText, /Input values are omitted/);
+  for (const rel of ['exploration.json', 'exploration.yaml', 'commands.jsonl', 'events.jsonl']) {
+    const content = await fs.readFile(path.join(result.library.directory, rel), 'utf8');
+    assert.doesNotMatch(content, /typed-private-value|more-private-text/);
+  }
+});
+
+test('real capture gaps still mark a run partial even when redaction notices are present', async t => {
+  const f = await fixture(t, {screenshotError: true});
+  const start = await f.invoke('open', {flags: {url: 'https://fixture', record: true}});
+  await f.invoke('fill', {action: 'fill', actionArgs: {target: 'e1', value: 'x'}, args: ['e1', 'x']});
+  const result = await f.invoke('finish');
+  assert.equal(result.library.status, 'partial');
+  const meta = await loadMeta(start.library.runId);
+  assert.ok(meta.gaps.some(g => /PNG screenshot unavailable/.test(g.reason)));
+  assert.equal(meta.notices.length, 1);
+});
+
+test('runs saved before notices existed still load with an empty notices list', async t => {
+  const f = await fixture(t);
+  const start = await f.invoke('open', {flags: {url: 'https://fixture', record: true}});
+  const metaFile = path.join(process.env.LATCH_ARTIFACT_ROOT, 'meta', start.library.runId + '.json');
+  const legacy = JSON.parse(await fs.readFile(metaFile, 'utf8'));
+  delete legacy.notices;
+  await fs.writeFile(metaFile, JSON.stringify(legacy));
+  const meta = await loadMeta(start.library.runId);
+  assert.deepEqual(meta.notices, []);
+  const result = await f.invoke('finish');
+  assert.equal(result.library.status, 'finished');
+});
+
+test('finish --close-tabs forwards closeTabs to disconnect for recorded runs; plain finish does not', async t => {
+  const f = await fixture(t);
+  await f.invoke('open', {flags: {url: 'https://fixture', record: true}});
+  await finishCommand({profile: 'work', session: 'agent', workspace: f.workspace, closeTabs: true}, '1.0.0', f.execute);
+  const closing = f.calls.filter(c => c.command === 'disconnect');
+  assert.equal(closing.at(-1).flags['close-tabs'], true);
+
+  const g = await fixture(t);
+  await g.invoke('open', {flags: {url: 'https://fixture', record: true}});
+  await finishCommand({profile: 'work', session: 'agent', workspace: g.workspace}, '1.0.0', g.execute);
+  assert.equal(g.calls.filter(c => c.command === 'disconnect').at(-1).flags['close-tabs'], undefined);
+});
+
+test('finish waits briefly for a just-finished command lock instead of reporting interrupted', async t => {
+  const f = await fixture(t);
+  const start = await f.invoke('open', {flags: {url: 'https://fixture', record: true}});
+  let entered;
+  const ready = new Promise(r => (entered = r));
+  const held = lockRun(start.library.runId, async () => {
+    entered();
+    await new Promise(r => setTimeout(r, 200));
+  });
+  await ready;
+  const result = await f.invoke('finish');
+  await held;
+  assert.equal(result.library.status, 'finished');
+  assert.equal(result.library.cleanup, 'confirmed');
+});

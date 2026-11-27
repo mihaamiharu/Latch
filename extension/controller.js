@@ -4,6 +4,13 @@ export const LATCH_GROUP_TITLE = 'Latch';
 export const LATCH_GROUP_COLOR = 'green';
 export const LATCH_GROUP_COLORS = ['green', 'cyan', 'blue', 'purple', 'orange', 'pink', 'yellow'];
 const TAB_GROUP_ID_NONE = -1;
+export const FINISH_BEHAVIORS = ['collapse', 'keep', 'ungroup', 'close'];
+export const DEFAULT_FINISH_BEHAVIOR = 'collapse';
+export const FINISH_BEHAVIOR_KEY = 'finishBehavior';
+
+export function normalizeFinishBehavior(value) {
+  return FINISH_BEHAVIORS.includes(value) ? value : DEFAULT_FINISH_BEHAVIOR;
+}
 
 export function isLatchGroupTitle(title) {
   return title === LATCH_GROUP_TITLE || (typeof title === 'string' && title.startsWith(`${LATCH_GROUP_TITLE} · `));
@@ -22,7 +29,7 @@ export function sessionGroupColor(seed) {
 }
 
 // This controller uses Chrome APIs only. It never evaluates code in another extension.
-export function createController(api, identity, {nativeTransport, nativeRecovery = false} = {}) {
+export function createController(api, identity, {nativeTransport, nativeRecovery = false, getFinishBehavior} = {}) {
   const sessions = new Map();
   const owners = new Map();
   const releasedTabs = new Set();
@@ -72,6 +79,73 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
     } catch {
       return null;
     }
+  }
+
+  async function finishBehavior() {
+    try {
+      return normalizeFinishBehavior(getFinishBehavior ? await getFinishBehavior() : undefined);
+    } catch {
+      return DEFAULT_FINISH_BEHAVIOR;
+    }
+  }
+
+  // Applied after the debugger lease is released. Only tabs that Latch itself
+  // created (latch open and its tracked popups) may ever be closed; connected
+  // user tabs and tabs added through the popup are always preserved.
+  async function applyFinishBehavior(key, session, mode, {allowClose = true} = {}) {
+    const outcome = {finishBehavior: mode, closedTabIds: [], collapsedGroupIds: [], ungroupedTabIds: []};
+    if (!session || mode === 'keep') return outcome;
+    if (mode === 'close' && !allowClose) mode = 'collapse';
+    outcome.finishBehavior = mode;
+    const live = [];
+    for (const [id, meta] of session.targets) {
+      try {
+        const tab = await api.tabs.get(id);
+        if (tab && !tab.incognito) live.push({tab, meta});
+      } catch {}
+    }
+    if (mode === 'close') {
+      const ids = live.filter(({meta}) => meta.createdByLatch === true).map(({tab}) => tab.id);
+      for (const id of ids) {
+        try {
+          await api.tabs.remove(id);
+          outcome.closedTabIds.push(id);
+        } catch {}
+      }
+      return outcome;
+    }
+    const latchGroups = await latchGroupsMap();
+    const grouped = live.filter(({tab, meta}) =>
+      meta.latchGroupId != null && tab.groupId === meta.latchGroupId && latchGroups.has(tab.groupId));
+    if (mode === 'ungroup') {
+      const ids = grouped.map(({tab}) => tab.id);
+      if (ids.length && typeof api.tabs?.ungroup === 'function') {
+        try {
+          await api.tabs.ungroup(ids);
+          outcome.ungroupedTabIds.push(...ids);
+        } catch {}
+      }
+      return outcome;
+    }
+    // collapse
+    if (typeof api.tabGroups?.update !== 'function') return outcome;
+    const groupIds = [...new Set(grouped.map(({tab}) => tab.groupId))];
+    let allTabs = [];
+    try {
+      allTabs = await api.tabs.query({});
+    } catch {}
+    for (const gid of groupIds) {
+      const members = allTabs.filter(t => t.groupId === gid);
+      // Never collapse a group another live session still uses, and never
+      // yank the user's active tab by collapsing the group that holds it.
+      if (members.some(t => owners.has(t.id) && owners.get(t.id) !== key)) continue;
+      if (members.some(t => t.active)) continue;
+      try {
+        await api.tabGroups.update(gid, {collapsed: true});
+        outcome.collapsedGroupIds.push(gid);
+      } catch {}
+    }
+    return outcome;
   }
 
   const plainTab = (tab, latchGroups = null) => {
@@ -160,7 +234,12 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
               });
       }
       owners.set(tab.id, key);
-      session.targets.set(tab.id, {openerTabId: tab.openerTabId, depth: parent.depth + 1, latchGroupId: childLatchGroupId});
+      session.targets.set(tab.id, {
+        openerTabId: tab.openerTabId,
+        depth: parent.depth + 1,
+        latchGroupId: childLatchGroupId,
+        createdByLatch: parent.createdByLatch === true,
+      });
       session.known.add(tab.id);
       let result;
       try {
@@ -251,7 +330,7 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
         groupTitle,
         groupColor,
         windowId: tab.windowId,
-        targets: new Map([[tab.id, {depth: 0, latchGroupId}]]),
+        targets: new Map([[tab.id, {depth: 0, latchGroupId, createdByLatch: true}]]),
         known: new Set([tab.id]),
         warnings: [],
       });
@@ -267,7 +346,9 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
       await nativeTransport.release(p.sessionKey);
       for (const [id, owner] of owners) if (owner === p.sessionKey) owners.delete(id);
       sessions.delete(p.sessionKey);
-      return {released: true, alreadyReleased: !old};
+      const mode = p.closeTabs === true ? 'close' : await finishBehavior();
+      const tabOutcome = old ? await applyFinishBehavior(p.sessionKey, old, mode) : {finishBehavior: mode};
+      return {released: true, alreadyReleased: !old, ...tabOutcome};
     }
     if (op === 'native-inventory') return old ? inventory(old) : {targets: [], warnings: []};
     if (op === 'native-drop') {
@@ -348,10 +429,13 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
     invalidateNative() {
       nativeGeneration = null;
       return enqueue(async () => {
+        const mode = await finishBehavior();
         for (const [key, session] of sessions) {
           await nativeTransport.release(key);
           for (const [id, owner] of owners) if (owner === key) owners.delete(id);
           if (sessions.get(key) === session) sessions.delete(key);
+          // Losing the bridge is not a deliberate finish: never close tabs here.
+          await applyFinishBehavior(key, session, mode, {allowClose: false}).catch(() => {});
         }
       });
     },

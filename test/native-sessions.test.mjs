@@ -165,6 +165,11 @@ test('session-open/connect default focusEmulation to true and route session-acti
       browserCalls.push({op, payload});
       if (op === 'native-create-tab') return {tabId: 101};
       if (op === 'native-inventory') return {rootTabId: 101, targets: [{tabId: 101}], warnings: []};
+      if (op === 'native-release') {
+        return payload.closeTabs
+          ? {released: true, finishBehavior: 'close', closedTabIds: [101], collapsedGroupIds: [], ungroupedTabIds: []}
+          : {released: true, finishBehavior: 'collapse', closedTabIds: [], collapsedGroupIds: [7], ungroupedTabIds: []};
+      }
       return {};
     },
     {relayFactory, engineFactory},
@@ -201,7 +206,23 @@ test('session-open/connect default focusEmulation to true and route session-acti
   });
   assert.equal(disconnected.disconnected, true);
   assert.equal(disconnected.preservedUserTabs, true);
+  assert.equal(disconnected.finishBehavior, 'collapse');
+  assert.deepEqual(disconnected.collapsedGroupIds, [7]);
+  assert.equal(browserCalls.findLast(c => c.op === 'native-release').payload.closeTabs, false);
   assert.equal((await manager.handle('session-list', {...id})).sessions.length, 0);
+
+  const reopened = await manager.handle('session-open', {...id, workspace: dir, session: 'main2', url: 'https://example.test/'});
+  const closing = await manager.handle('session-disconnect', {
+    ...id,
+    sessionKey: reopened.sessionKey,
+    workspace: dir,
+    session: 'main2',
+    closeTabs: true,
+  });
+  assert.equal(browserCalls.findLast(c => c.op === 'native-release').payload.closeTabs, true);
+  assert.equal(closing.finishBehavior, 'close');
+  assert.deepEqual(closing.closedTabIds, [101]);
+  assert.equal(closing.preservedUserTabs, true);
 });
 
 test('session-open retains attached session on goto failure when relay stays live, and NATIVE_CLEANUP_FAILED surfaces both causes', async t => {

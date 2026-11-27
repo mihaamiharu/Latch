@@ -54,6 +54,14 @@ const COMMAND_FLAGS = {
     boolean: new Set(['full-page']),
     value: new Set(['out']),
   },
+  finish: {
+    boolean: new Set(['close-tabs']),
+    value: new Set([]),
+  },
+  disconnect: {
+    boolean: new Set(['close-tabs']),
+    value: new Set([]),
+  },
   checkpoint: {
     boolean: new Set([]),
     value: new Set(['annotation-file', 'data-ref', 'note']),
@@ -92,8 +100,8 @@ Lifecycle:
   latch connect [tabId] [--record] [--objective <text>] [--environment <text>] [--focus-emulation on|off]
   latch sessions
   latch release [tabId]
-  latch disconnect
-  latch finish
+  latch disconnect [--close-tabs]
+  latch finish [--close-tabs]
 
 Actions:
   latch snapshot [selector] [--depth N]
@@ -682,7 +690,15 @@ async function defaultLoadExploration() {
       throw fault('UNSUPPORTED', 'checkpoint requires Phase 5 exploration module.');
     },
     finishCommand: async (opts, _version, execute) =>
-      execute({command: 'disconnect', flags: {profile: opts.profile, session: opts.session, workspace: opts.workspace}}),
+      execute({
+        command: 'disconnect',
+        flags: {
+          profile: opts.profile,
+          session: opts.session,
+          workspace: opts.workspace,
+          ...(opts.closeTabs ? {'close-tabs': true} : {}),
+        },
+      }),
     libraryCommand: mod.libraryCommand || libMod.libraryCommand,
   };
 }
@@ -1013,7 +1029,12 @@ export async function executeCLI(invocation, depOverrides = {}) {
   }
 
   if (command === 'disconnect') {
-    const res = await call('session-disconnect', {sessionKey: key, workspace, session});
+    const res = await call('session-disconnect', {
+      sessionKey: key,
+      workspace,
+      session,
+      ...(f['close-tabs'] === true ? {closeTabs: true} : {}),
+    });
     await deps.removeWorkspaceBinding(workspace, session).catch(() => {});
     return {transport: 'native', session, workspace, ...res};
   }
@@ -1071,7 +1092,11 @@ export async function runCLI(argv, depOverrides = {}) {
     return {invocation, result};
   }
   if (command === 'finish') {
-    const result = await exp.finishCommand({profile, session, workspace}, releaseVersion, exec);
+    const result = await exp.finishCommand(
+      {profile, session, workspace, ...(flags['close-tabs'] === true ? {closeTabs: true} : {})},
+      releaseVersion,
+      exec,
+    );
     await deps.removeWorkspaceBinding(workspace, session).catch(() => {});
     return {invocation, result};
   }
@@ -1135,7 +1160,8 @@ export function formatResult(command, result, {json = false, action = null} = {}
     return `Released tab ${result.tabId}${result.sessionClosed ? ' (session closed)' : ''}.`;
   }
   if (command === 'disconnect') {
-    return `Disconnected session "${result.session}" (user tabs preserved).`;
+    const closed = Array.isArray(result.closedTabIds) ? result.closedTabIds.length : 0;
+    return `Disconnected session "${result.session}" (user tabs preserved${closed ? `; closed ${closed} Latch-opened ${closed === 1 ? 'tab' : 'tabs'}` : ''}).`;
   }
   if (command === 'finish') {
     if (result.library) {
