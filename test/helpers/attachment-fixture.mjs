@@ -150,7 +150,8 @@ export async function attachmentFixture(t, app, transport = 'native') {
     await fs.copyFile(path.join(root, 'package.json'), path.join(source, 'package.json'));
     await fs.cp(path.join(root, 'extension'), path.join(source, 'extension'), {recursive: true});
     const file = path.join(source, 'src/recovery-state.mjs');
-    let text = await fs.readFile(file, 'utf8');
+    // Windows runners check out with CRLF (core.autocrlf); anchors below are LF.
+    let text = (await fs.readFile(file, 'utf8')).replaceAll('\r\n', '\n');
     if (app.journalCrash) {
       text = text.replace(
         '    await fs.rename(temp, file);',
@@ -163,7 +164,7 @@ export async function attachmentFixture(t, app, transport = 'native') {
     const cleanupAnchor = '      await entry.relay.stop().catch(() => {});\n    }\n    const released = await this.releaseBrowser(entry, p);';
     const injectCleanup = async code => {
       const sessions = path.join(source, 'src/native-sessions.mjs');
-      const original = await fs.readFile(sessions, 'utf8');
+      const original = (await fs.readFile(sessions, 'utf8')).replaceAll('\r\n', '\n');
       if (!original.includes(cleanupAnchor)) throw new Error('native-sessions.mjs cleanup anchor moved; update the fixture.');
       await fs.writeFile(sessions, original.replace(cleanupAnchor, `      await entry.relay.stop().catch(() => {});\n      ${code}\n    }\n    const released = await this.releaseBrowser(entry, p);`));
     };
@@ -214,7 +215,7 @@ export async function attachmentFixture(t, app, transport = 'native') {
       await fs.writeFile(path.join(extension, 'popup-driver.html'), '<script type="module" src="popup-driver.js"></script>');
       await fs.writeFile(
         path.join(extension, 'popup-driver.js'),
-        `const endpoint=${JSON.stringify(recoveryURL)},task=(await chrome.storage.local.get('__popupTask')).__popupTask;let popup;try{popup=(await chrome.tabs.query({})).find(t=>t.url===chrome.runtime.getURL('popup.html'))||await chrome.tabs.create({url:chrome.runtime.getURL('popup.html'),active:false});await new Promise(r=>setTimeout(r,100));await chrome.debugger.attach({tabId:popup.id},'1.3');if(task.params.key){await chrome.debugger.sendCommand({tabId:popup.id},'Input.dispatchKeyEvent',{type:'keyDown',key:task.params.key,code:task.params.key,windowsVirtualKeyCode:9});await chrome.debugger.sendCommand({tabId:popup.id},'Input.dispatchKeyEvent',{type:'keyUp',key:task.params.key,code:task.params.key,windowsVirtualKeyCode:9})}const response=await chrome.debugger.sendCommand({tabId:popup.id},'Runtime.evaluate',{expression:task.params.expression||'document.body.innerText',awaitPromise:true,returnByValue:true});if(response.exceptionDetails)throw new Error(response.exceptionDetails.exception?.description||response.exceptionDetails.text);let screenshot;if(task.params.screenshot)screenshot=(await chrome.debugger.sendCommand({tabId:popup.id},'Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width:390,height:800,scale:1},captureBeyondViewport:true})).data;await chrome.debugger.detach({tabId:popup.id});await fetch(endpoint,{method:'POST',body:JSON.stringify({id:task.id,result:{value:response.result.value,screenshot}})})}catch(e){await fetch(endpoint,{method:'POST',body:JSON.stringify({id:task.id,error:e.message})})}finally{if(popup)await chrome.debugger.detach({tabId:popup.id}).catch(()=>{});const self=await chrome.tabs.getCurrent();await chrome.tabs.remove(self.id)}`,
+        `const endpoint=${JSON.stringify(recoveryURL)},task=(await chrome.storage.local.get('__popupTask')).__popupTask;let popup;try{popup=(await chrome.tabs.query({})).find(t=>t.url===chrome.runtime.getURL('popup.html'))||await chrome.tabs.create({url:chrome.runtime.getURL('popup.html'),active:false});await new Promise(r=>setTimeout(r,100));await chrome.debugger.attach({tabId:popup.id},'1.3');if(task.params.key){await chrome.tabs.update(popup.id,{active:true});await new Promise(r=>setTimeout(r,100));await chrome.debugger.sendCommand({tabId:popup.id},'Input.dispatchKeyEvent',{type:'keyDown',key:task.params.key,code:task.params.key,windowsVirtualKeyCode:9});await chrome.debugger.sendCommand({tabId:popup.id},'Input.dispatchKeyEvent',{type:'keyUp',key:task.params.key,code:task.params.key,windowsVirtualKeyCode:9})}const response=await chrome.debugger.sendCommand({tabId:popup.id},'Runtime.evaluate',{expression:task.params.expression||'document.body.innerText',awaitPromise:true,returnByValue:true});if(response.exceptionDetails)throw new Error(response.exceptionDetails.exception?.description||response.exceptionDetails.text);let screenshot;if(task.params.screenshot)screenshot=(await chrome.debugger.sendCommand({tabId:popup.id},'Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width:390,height:800,scale:1},captureBeyondViewport:true})).data;await chrome.debugger.detach({tabId:popup.id});await fetch(endpoint,{method:'POST',body:JSON.stringify({id:task.id,result:{value:response.result.value,screenshot}})})}catch(e){await fetch(endpoint,{method:'POST',body:JSON.stringify({id:task.id,error:e.message})})}finally{if(popup)await chrome.debugger.detach({tabId:popup.id}).catch(()=>{});const self=await chrome.tabs.getCurrent();await chrome.tabs.remove(self.id)}`,
       );
     }
     await fs.writeFile(path.join(extension, 'terminate.html'), '<script type="module" src="terminate.js"></script>');
@@ -434,7 +435,7 @@ export async function attachmentFixture(t, app, transport = 'native') {
       if (!app.recovery && !app.installed) throw new Error('Not a recovery fixture');
       const id = crypto.randomUUID();
       faults.push({id, action, params});
-      const ack = await eventually(() => acks.get(id), 10000);
+      const ack = await eventually(() => acks.get(id), 20000);
       acks.delete(id);
       if (ack.error) throw new Error(ack.error);
       return ack.result;
