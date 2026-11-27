@@ -72,7 +72,7 @@ async function pairing(t, {live = [NEW], ready = true} = {}) {
     return server;
   }));
   t.after(async () => { for (const server of servers) server.close(); await fs.rm(dir, {recursive: true, force: true}); });
-  const pair = async (...extra) => { const r = await command(process.execPath, [cli, 'pair', '--profile', 'work', ...extra], {env}); return {code: r.code, value: JSON.parse(r.out || r.err)}; };
+  const pair = async (...extra) => { const r = await command(process.execPath, [cli, 'pair', '--json', '--profile', 'work', ...extra], {env}); return {code: r.code, value: JSON.parse(r.out || r.err)}; };
   const read = async () => JSON.parse(await fs.readFile(config, 'utf8'));
   return {dir, config, original, pair, read};
 }

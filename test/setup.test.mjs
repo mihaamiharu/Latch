@@ -262,6 +262,7 @@ test('pairCommand auto-discovers a single live unpaired extension instance and r
       await exec(process.execPath, [
         cliEntry,
         'install',
+        '--json',
         '--root',
         f.options.root,
         '--registration-root',
