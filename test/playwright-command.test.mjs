@@ -6,43 +6,40 @@ import path from 'node:path';
 import net from 'node:net';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {validatePwArgs} from '../src/cli.mjs';
+import {parseArgs} from '../src/cli.mjs';
 import {sessionKey} from '../src/redact.mjs';
 import {ipcEndpoint} from '../src/platform.mjs';
 import {command} from './helpers/native-browser.mjs';
 
-test('pw keeps lifecycle and global session/format overrides out of forwarded actions', () => {
-  for (const args of [
-    [],
+test('flat CLI rejects unknown flags, invalid session/profile overrides, and legacy pw syntax', () => {
+  for (const argv of [
+    ['pw', 'click', 'e1'],
     ['attach'],
     ['close-all'],
-    ['tab-new'],
-    ['click', 'e1', '--session=other'],
-    ['snapshot', '-sother'],
-    ['snapshot', '-xsother'],
-    ['run-code', 'async()=>1', '--json=false'],
-    ['snapshot', '--no-json'],
-    ['snapshot', '--raw'],
+    ['click'],
+    ['click', 'e1', '--unknown-flag'],
+    ['snapshot', '--session', 'bad session!'],
+    ['snapshot', '-s'],
+    ['open', 'javascript:alert(1)'],
+    ['connect', 'not-a-tab'],
+    ['dialog', 'ignore'],
+    ['agents', 'unknown'],
   ]) {
-    assert.throws(() => validatePwArgs(args), {code: 'INVALID_ARGUMENT'});
+    assert.throws(() => parseArgs(argv));
   }
-  for (const args of [
-    ['snapshot', '--filename=a b.yaml'],
-    ['fill', 'e1', 'value with spaces'],
-    ['run-code', 'async(page)=>page.title()'],
-    ['click', 'e1'],
-    ['dialog-accept', 'ok'],
-  ]) {
-    validatePwArgs(args);
-  }
+
+  const parsed = parseArgs(['click', 'e1', '-s', 'agent']);
+  assert.equal(parsed.command, 'click');
+  assert.equal(parsed.action, 'click');
+  assert.deepEqual(parsed.actionArgs, {target: 'e1'});
+  assert.equal(parsed.flags.session, 'agent');
 });
 
-test('pw dispatches session-action over IPC and records zero-exit assertion errors cleanly', async t => {
+test('flat CLI dispatches session-open, session-action, and session-disconnect over IPC with smart defaults', async t => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-command-'));
   const runtime = path.join(os.tmpdir(), `latch-command-${crypto.randomBytes(5).toString('hex')}`);
   await fs.mkdir(runtime, {mode: 0o700});
   const workspace = await fs.realpath(dir);
-  const session = 'test';
   const instanceId = crypto.randomUUID();
   const epoch = crypto.randomUUID();
   const hostGeneration = crypto.randomUUID();
@@ -53,7 +50,8 @@ test('pw dispatches session-action over IPC and records zero-exit assertion erro
     LATCH_CONFIG: config,
     LATCH_CAPTURE: 'off',
   };
-  await fs.writeFile(config, JSON.stringify({profiles: {work: {instanceId, chromeProfileDir: 'Default'}}}));
+  // Use a non-"work" sole profile name to verify sole-profile auto-detection.
+  await fs.writeFile(config, JSON.stringify({profiles: {personal: {instanceId, chromeProfileDir: 'Default'}}}));
 
   const received = [];
   const host = net.createServer(socket => {
@@ -73,8 +71,25 @@ test('pw dispatches session-action over IPC and records zero-exit assertion erro
               instanceId,
               epoch,
               hostGeneration,
-              capabilities: {nativeTransport: true, nativeSessionSchema: 4, recoveryContract: 1},
+              capabilities: {nativeTransport: true, nativeSessionSchema: 4, recoveryContract: 1, createTab: 1},
               readiness: {verified: true},
+            },
+          }) + '\n',
+        );
+        return;
+      }
+      if (m.op === 'session-open') {
+        socket.end(
+          JSON.stringify({
+            v: 1,
+            id: m.id,
+            ok: true,
+            result: {
+              created: true,
+              connected: true,
+              tabId: 17,
+              focusEmulation: m.payload.focusEmulation,
+              page: {targetId: 't1', url: m.payload.url, title: 'Fixture'},
             },
           }) + '\n',
         );
@@ -104,6 +119,17 @@ test('pw dispatches session-action over IPC and records zero-exit assertion erro
             result: {clicked: true, url: 'https://fixture.test/', title: 'Fixture'},
           }) + '\n',
         );
+        return;
+      }
+      if (m.op === 'session-disconnect') {
+        socket.end(
+          JSON.stringify({
+            v: 1,
+            id: m.id,
+            ok: true,
+            result: {disconnected: true, preservedUserTabs: true},
+          }) + '\n',
+        );
       }
     });
   });
@@ -116,38 +142,48 @@ test('pw dispatches session-action over IPC and records zero-exit assertion erro
   });
 
   const cliEntry = fileURLToPath(new URL('../src/cli.mjs', import.meta.url));
-  const run = async (args, flags = []) => {
-    const r = await command(
-      process.execPath,
-      [cliEntry, 'pw', '--session', session, '--workspace', workspace, ...flags, '--', ...args],
-      {cwd: workspace, env},
-    );
-    return {...r, data: JSON.parse(r.out || r.err)};
+  const run = async args => {
+    const r = await command(process.execPath, [cliEntry, ...args], {cwd: workspace, env});
+    return r;
   };
 
-  const ok = await run(['click', 'e1']);
-  assert.equal(ok.code, 0);
-  assert.equal(ok.data.ok, true);
-  assert.equal(ok.data.clicked, true);
+  // Open without -s, --profile, or --workspace: auto-generates session and binds cwd.
+  const openRes = await run(['open', 'https://fixture.test/', '--json']);
+  assert.equal(openRes.code, 0, openRes.err);
+  const openData = JSON.parse(openRes.out);
+  assert.equal(openData.ok, true);
+  assert.equal(openData.profile, 'personal');
+  assert.match(openData.session, /^s-[a-f0-9]{6}$/);
+
+  // Zero repo dotfiles created in workspace.
+  const entries = await fs.readdir(workspace);
+  assert.ok(!entries.includes('.latch'));
+  assert.ok(!entries.includes('.playwright'));
+
+  // Action without -s resolves active session automatically; default output is concise text.
+  const clickRes = await run(['click', 'e1']);
+  assert.equal(clickRes.code, 0, clickRes.err);
+  assert.match(clickRes.out, /OK \(click\)/);
   const actionMsg = received.find(m => m.op === 'session-action');
-  assert.equal(actionMsg.payload.sessionKey, sessionKey(workspace, session));
+  assert.equal(actionMsg.payload.sessionKey, sessionKey(workspace, openData.session));
   assert.equal(actionMsg.payload.action, 'click');
   assert.deepEqual(actionMsg.payload.args, {target: 'e1'});
 
-  const evidence = path.join(workspace, 'recorded');
-  const captured = await run(['click', 'e-timeout'], [
-    '--evidence-dir',
-    evidence,
-    '--step',
-    'timeout-check',
-    '--expect-error',
-    'ACTION_TIMEOUT',
-  ]);
-  assert.equal(captured.code, 1);
-  assert.equal(captured.data.error.code, 'ACTION_TIMEOUT');
-  assert.equal(captured.data.error.evidence.checkStatus, 'pass');
-  const check = JSON.parse(await fs.readFile(path.join(evidence, 'result.json'))).checks[0];
-  assert.equal(check.operation.helperExitCode, 1);
-  assert.equal(check.operation.assertionExitCode, 0);
-  assert.equal(check.status, 'pass');
+  // Error output in --json and default mode.
+  const failJson = await run(['click', 'e-timeout', '--json']);
+  assert.equal(failJson.code, 1);
+  const errData = JSON.parse(failJson.err);
+  assert.equal(errData.ok, false);
+  assert.equal(errData.error.code, 'ACTION_TIMEOUT');
+  assert.equal(errData.error.hint, 'Take a fresh snapshot.');
+
+  const failText = await run(['click', 'e-timeout']);
+  assert.equal(failText.code, 1);
+  assert.match(failText.err, /ACTION_TIMEOUT/);
+  assert.match(failText.err, /Take a fresh snapshot\./);
+
+  // Disconnect without -s clears workspace binding.
+  const discRes = await run(['disconnect']);
+  assert.equal(discRes.code, 0, discRes.err);
+  assert.match(discRes.out, /Disconnected session/);
 });
