@@ -73,7 +73,7 @@ latch screenshot --out result.png
 latch disconnect
 ```
 
-- **Lifecycle:** `latch tabs`, `latch open <url> [--record] [--objective <text>] [--environment <text>] [--focus-emulation on|off]`, `latch connect [tabId] [...]` (omitting `tabId` attaches to the unowned tab in the Chrome **Latch** tab group), `latch sessions`, `latch release [tabId]`, `latch disconnect`, `latch finish`
+- **Lifecycle:** `latch tabs`, `latch open <url> [--record] [--objective <text>] [--environment <text>] [--focus-emulation on|off]` (automatically creates a per-session `Latch · <session>` Chrome tab group for the agent and its popups), `latch connect [tabId] [...]`, `latch sessions`, `latch release [tabId]`, `latch disconnect`, `latch finish`
 - **Actions:** `latch snapshot`, `latch click <ref|selector>`, `latch fill <ref|selector> <value>`, `latch type [ref|selector] <text>`, `latch press <key>`, `latch hover <ref|selector>`, `latch select <ref|selector> <value>`, `latch check <ref|selector>`, `latch uncheck <ref|selector>`, `latch upload <ref|selector> <path...>`, `latch screenshot [--out <path>]`, `latch goto <url>`, `latch back`, `latch forward`, `latch reload`, `latch eval <expr>`, `latch run-code <fn>`, `latch console`, `latch network`, `latch dialog <accept|dismiss> [promptText]`
 
 ### Recorded explorations
@@ -97,7 +97,7 @@ latch library serve
 
 Click the Latch toolbar icon in Chrome to inspect and control your bridge:
 
-- **Add tab to Latch / Remove from Latch:** Moves the current tab into or out of the green **Latch** Chrome tab group so you can run `latch connect` without copying a `tabId` (`latch open` also auto-groups new tabs and their popups here). Dragging an attached tab out of the **Latch** group immediately detaches automation while keeping the tab and login open.
+- **Add tab to Latch / Remove from Latch:** Optional 1-click toggle to move an existing tab into or out of a **Latch** Chrome tab group. (`latch open` automatically creates a per-session `Latch · <session>` tab group with no manual step; dragging any attached tab out of its session's group immediately detaches automation while keeping the tab and login open.)
 - **Open Library (`N`):** Lazily starts the local `127.0.0.1` Exploration Library viewer and opens it in a Chrome tab.
 - **Agent sessions:** Shows active sessions with attached tab count, **View run** (jumps directly to an active recording in the Library), and **Stop session** (preserves all website tabs and logins).
 - **Library & storage:** Collapsible panel showing the active artifacts path, **Choose folder…** (native OS Explorer/Finder/zenity/kdialog folder picker), **Save path**, and **Reset default**.

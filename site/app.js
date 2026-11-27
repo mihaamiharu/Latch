@@ -144,8 +144,8 @@ const FILMSTRIP_STEPS = [
 const COMMAND_GROUPS = {
   lifecycle: [
     ['latch tabs', 'List open Chrome tabs with IDs, titles, URLs, and current session ownership'],
-    ['latch open <url> [--record] [--objective <text>]', 'Open a new tab in the green Latch tab group and optionally record a filmstrip'],
-    ['latch connect [tabId] [--record] [--objective <text>]', 'Attach to a tab in the Latch group (no ID needed) or an explicit tabId while preserving cookies'],
+    ['latch open <url> [--record] [--objective <text>]', 'Open a new tab inside a per-session Latch · <session> Chrome tab group and optionally record a filmstrip'],
+    ['latch connect [tabId] [--record] [--objective <text>]', 'Attach to an existing signed-in tab (or an unowned Latch-grouped tab when tabId is omitted)'],
     ['latch sessions', 'Show active Latch sessions bound in the current paired Chrome profile'],
     ['latch release [tabId]', 'Detach debugger from one tab while keeping the browser tab open'],
     ['latch disconnect', 'Close the active Latch session and preserve all tabs and logins'],

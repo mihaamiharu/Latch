@@ -1107,8 +1107,9 @@ export function formatResult(command, result, {json = false, action = null} = {}
     if (!tabs.length) return `No open tabs [profile: ${result.profile}].`;
     const lines = [`Tabs (${tabs.length}) [profile: ${result.profile}]:`];
     for (const t of tabs) {
+      const groupBadge = t.latchGroup ? ` [${t.latchGroupTitle || 'Latch'}]` : '';
       lines.push(
-        `  [${t.tabId}] ${t.title || '(untitled)'} — ${t.url}${t.active ? ' (active)' : ''}${t.latchGroup ? ' [Latch]' : ''}${t.owner ? ' [owned]' : ''}`,
+        `  [${t.tabId}] ${t.title || '(untitled)'} — ${t.url}${t.active ? ' (active)' : ''}${groupBadge}${t.owner ? ' [owned]' : ''}`,
       );
     }
     return lines.join('\n');

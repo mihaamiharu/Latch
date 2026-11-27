@@ -27,7 +27,7 @@ Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and b
    latch connect [tabId]
    latch open https://staging.example.com
    ```
-   Omitting `tabId` attaches to an unowned tab in the green **Latch** group (`latch open` auto-groups new tabs/popups there). `--focus-emulation` defaults to `on`; pass `--record` or `--objective "<goal>"` (`--environment <env>`) to record.
+   `latch open` creates a per-session `Latch · <session>` Chrome tab group for the tab and its popups. `--focus-emulation` defaults to `on`; pass `--record` or `--objective "<goal>"` (`--environment <env>`) to record.
 
 3. **Inspect & interact**
    ```sh

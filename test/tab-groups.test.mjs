@@ -73,39 +73,47 @@ function mockChrome({tabs: initialTabs = [], groups: initialGroups = []} = {}) {
   return {api, tabs, groups, calls};
 }
 
-test('latch open auto-groups new tabs and child popups into the green Latch tab group', async () => {
+test('latch open creates a separate per-session Chrome tab group and keeps each session popups inside its own group', async () => {
   const {api, tabs, groups, calls} = mockChrome();
   const identity = {instanceId: crypto.randomUUID(), epoch: crypto.randomUUID()};
   const generation = crypto.randomUUID();
-  const key = 'a'.repeat(64);
-  const leaseId = crypto.randomUUID();
+  const keyA = 'a'.repeat(64);
+  const keyB = 'b'.repeat(64);
+  const leaseA = crypto.randomUUID();
+  const leaseB = crypto.randomUUID();
   const native = {available: true, addTab: async () => true, release: async () => {}, removeTab: async () => {}, isAttached: () => true};
 
   const controller = createController(api, identity, {nativeTransport: native});
   await controller.activateNative(generation);
-  const send = (op, p = {}) =>
-    controller.handle({v: 1, id: crypto.randomUUID(), op, payload: {...identity, hostGeneration: generation, leaseId, sessionKey: key, ...p}});
+  const send = (sessionKey, leaseId, op, p = {}) =>
+    controller.handle({v: 1, id: crypto.randomUUID(), op, payload: {...identity, hostGeneration: generation, leaseId, sessionKey, ...p}});
 
-  const created = await send('native-create-tab');
-  assert.equal(created.ok, true);
-  assert.equal(created.result.latchGroup, true);
-  const latchGroupId = created.result.groupId;
-  assert.ok(latchGroupId > -1);
-  assert.equal(groups.get(latchGroupId).title, LATCH_GROUP_TITLE);
-  assert.equal(groups.get(latchGroupId).color, LATCH_GROUP_COLOR);
+  const createdA = await send(keyA, leaseA, 'native-create-tab', {session: 'claude-qa'});
+  const createdB = await send(keyB, leaseB, 'native-create-tab', {session: 'codex-qa'});
+  assert.equal(createdA.ok, true);
+  assert.equal(createdB.ok, true);
+  assert.equal(createdA.result.latchGroup, true);
+  assert.equal(createdB.result.latchGroup, true);
+  assert.notEqual(createdA.result.groupId, createdB.result.groupId);
+  assert.equal(groups.get(createdA.result.groupId).title, 'Latch · claude-qa');
+  assert.equal(groups.get(createdB.result.groupId).title, 'Latch · codex-qa');
 
-  // Child popup spawned by the Latch-grouped tab automatically joins the same Latch group
-  const popupTab = {id: 500, windowId: 1, url: 'https://staging.example.com/popup', openerTabId: created.result.tabId, groupId: -1};
+  // Child popup spawned by claude-qa joins claude-qa's group, not codex-qa's
+  const popupTab = {id: 500, windowId: 1, url: 'https://staging.example.com/popup', openerTabId: createdA.result.tabId, groupId: -1};
   tabs.set(500, popupTab);
   await controller.observeTab(popupTab);
-  assert.equal(tabs.get(500).groupId, latchGroupId);
-  assert.equal(calls.updateGroup.length, 1); // reused existing Latch group without recreating
+  assert.equal(tabs.get(500).groupId, createdA.result.groupId);
+  assert.equal(calls.updateGroup.length, 2); // one per session group; popup reused parent's group
 
-  // Tabs listing exposes latchGroup: true
-  tabs.get(created.result.tabId).url = 'https://staging.example.com/';
-  const listed = await send('tabs');
-  assert.equal(listed.result.find(t => t.tabId === created.result.tabId).latchGroup, true);
-  assert.equal(listed.result.find(t => t.tabId === 500).latchGroup, true);
+  // Tabs listing exposes latchGroup: true and per-session latchGroupTitle
+  tabs.get(createdA.result.tabId).url = 'https://staging.example.com/a';
+  tabs.get(createdB.result.tabId).url = 'https://staging.example.com/b';
+  const listed = await send(keyA, leaseA, 'tabs');
+  const tabA = listed.result.find(t => t.tabId === createdA.result.tabId);
+  const tabB = listed.result.find(t => t.tabId === createdB.result.tabId);
+  assert.equal(tabA.latchGroupTitle, 'Latch · claude-qa');
+  assert.equal(tabB.latchGroupTitle, 'Latch · codex-qa');
+  assert.match(formatResult('tabs', {profile: 'work', tabs: listed.result}), /\[Latch · claude-qa\]/);
 });
 
 test('dragging a Latch-grouped tab out of the group detaches automation while preserving the tab; non-Latch connected tabs are unaffected', async () => {

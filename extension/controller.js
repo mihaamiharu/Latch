@@ -2,7 +2,24 @@ import {checkRequest, fault, safeError, webUrl} from './protocol.js';
 
 export const LATCH_GROUP_TITLE = 'Latch';
 export const LATCH_GROUP_COLOR = 'green';
+export const LATCH_GROUP_COLORS = ['green', 'cyan', 'blue', 'purple', 'orange', 'pink', 'yellow'];
 const TAB_GROUP_ID_NONE = -1;
+
+export function isLatchGroupTitle(title) {
+  return title === LATCH_GROUP_TITLE || (typeof title === 'string' && title.startsWith(`${LATCH_GROUP_TITLE} · `));
+}
+
+export function sessionGroupTitle(sessionName) {
+  const clean = typeof sessionName === 'string' ? sessionName.trim().slice(0, 40) : '';
+  return clean ? `${LATCH_GROUP_TITLE} · ${clean}` : LATCH_GROUP_TITLE;
+}
+
+export function sessionGroupColor(seed) {
+  if (!seed || typeof seed !== 'string') return LATCH_GROUP_COLOR;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = ((hash * 31) + seed.charCodeAt(i)) >>> 0;
+  return LATCH_GROUP_COLORS[hash % LATCH_GROUP_COLORS.length];
+}
 
 // This controller uses Chrome APIs only. It never evaluates code in another extension.
 export function createController(api, identity, {nativeTransport, nativeRecovery = false} = {}) {
@@ -12,33 +29,44 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
   let queue = Promise.resolve();
   let nativeGeneration;
 
-  async function latchGroupIds(windowId) {
-    if (typeof api.tabGroups?.query !== 'function') return new Set();
+  async function latchGroupsMap(windowId) {
+    if (typeof api.tabGroups?.query !== 'function') return new Map();
     try {
-      const query = windowId !== undefined ? {windowId, title: LATCH_GROUP_TITLE} : {title: LATCH_GROUP_TITLE};
+      const query = windowId !== undefined ? {windowId} : {};
       const groups = await api.tabGroups.query(query);
-      return new Set((groups || []).filter(g => Number.isSafeInteger(g?.id) && g.id > TAB_GROUP_ID_NONE).map(g => g.id));
+      const map = new Map();
+      for (const g of groups || []) {
+        if (Number.isSafeInteger(g?.id) && g.id > TAB_GROUP_ID_NONE && isLatchGroupTitle(g.title)) {
+          map.set(g.id, g.title);
+        }
+      }
+      return map;
     } catch {
-      return new Set();
+      return new Map();
     }
   }
 
-  async function ensureLatchGroup(tabId, windowId, preferredGroupId = null) {
+  async function createOrJoinGroup(tabId, windowId, {title = LATCH_GROUP_TITLE, color = LATCH_GROUP_COLOR, groupId = null, reuseByTitle = false} = {}) {
     if (typeof api.tabs?.group !== 'function') return null;
     try {
-      const existing = await latchGroupIds(windowId);
-      const targetGroupId =
-        preferredGroupId !== null && existing.has(preferredGroupId)
-          ? preferredGroupId
-          : existing.values().next().value;
-      if (targetGroupId !== undefined) {
-        const groupId = await api.tabs.group({tabIds: [tabId], groupId: targetGroupId});
-        return Number.isSafeInteger(groupId) ? groupId : targetGroupId;
+      const existing = await latchGroupsMap(windowId);
+      let targetGroupId = groupId !== null && existing.has(groupId) ? groupId : null;
+      if (targetGroupId === null && reuseByTitle) {
+        for (const [id, existingTitle] of existing) {
+          if (existingTitle === title) {
+            targetGroupId = id;
+            break;
+          }
+        }
       }
-      const groupId = await api.tabs.group({tabIds: [tabId]});
-      if (Number.isSafeInteger(groupId) && groupId > TAB_GROUP_ID_NONE) {
-        await api.tabGroups?.update?.(groupId, {title: LATCH_GROUP_TITLE, color: LATCH_GROUP_COLOR}).catch(() => {});
-        return groupId;
+      if (targetGroupId !== null) {
+        const joined = await api.tabs.group({tabIds: [tabId], groupId: targetGroupId});
+        return Number.isSafeInteger(joined) ? joined : targetGroupId;
+      }
+      const created = await api.tabs.group({tabIds: [tabId]});
+      if (Number.isSafeInteger(created) && created > TAB_GROUP_ID_NONE) {
+        await api.tabGroups?.update?.(created, {title, color}).catch(() => {});
+        return created;
       }
       return null;
     } catch {
@@ -46,17 +74,21 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
     }
   }
 
-  const plainTab = (tab, latchGroups = null) => ({
-    tabId: tab.id,
-    windowId: tab.windowId,
-    groupId: tab.groupId,
-    latchGroup: !!(latchGroups && Number.isSafeInteger(tab.groupId) && latchGroups.has(tab.groupId)),
-    openerTabId: tab.openerTabId,
-    title: tab.title || '',
-    url: tab.url || '',
-    active: !!tab.active,
-    owner: owners.get(tab.id) || null,
-  });
+  const plainTab = (tab, latchGroups = null) => {
+    const hasGroup = !!(latchGroups && Number.isSafeInteger(tab.groupId) && latchGroups.has(tab.groupId));
+    return {
+      tabId: tab.id,
+      windowId: tab.windowId,
+      groupId: tab.groupId,
+      latchGroup: hasGroup,
+      ...(hasGroup ? {latchGroupTitle: latchGroups.get(tab.groupId)} : {}),
+      openerTabId: tab.openerTabId,
+      title: tab.title || '',
+      url: tab.url || '',
+      active: !!tab.active,
+      owner: owners.get(tab.id) || null,
+    };
+  };
 
   const enqueue = fn => {
     const result = queue.then(fn);
@@ -65,7 +97,7 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
   };
 
   const inventory = async session => {
-    const latchGroups = await latchGroupIds();
+    const latchGroups = await latchGroupsMap();
     return {
       rootTabId: session.rootTabId,
       warnings: session.warnings.slice(),
@@ -91,11 +123,6 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
     const meta = session?.targets?.get(id);
     if (!session || !meta || meta.latchGroupId == null) return;
     if (tab.groupId === meta.latchGroupId) return;
-    const latchGroups = await latchGroupIds(tab.windowId);
-    if (Number.isSafeInteger(tab.groupId) && latchGroups.has(tab.groupId)) {
-      meta.latchGroupId = tab.groupId;
-      return;
-    }
     releasedTabs.add(id);
     forgetNativeTab(key, id);
     await nativeTransport.removeTab?.(key, id, {closed: false, reason: 'removed_from_latch_group'});
@@ -125,7 +152,12 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
         childLatchGroupId =
           tab.groupId === parent.latchGroupId
             ? parent.latchGroupId
-            : await ensureLatchGroup(tab.id, tab.windowId, parent.latchGroupId);
+            : await createOrJoinGroup(tab.id, tab.windowId, {
+                groupId: parent.latchGroupId,
+                title: session.groupTitle || LATCH_GROUP_TITLE,
+                color: session.groupColor || LATCH_GROUP_COLOR,
+                reuseByTitle: true,
+              });
       }
       owners.set(tab.id, key);
       session.targets.set(tab.id, {openerTabId: tab.openerTabId, depth: parent.depth + 1, latchGroupId: childLatchGroupId});
@@ -168,7 +200,7 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
       };
     }
     if (op === 'tabs') {
-      const latchGroups = await latchGroupIds();
+      const latchGroups = await latchGroupsMap();
       return (await api.tabs.query({})).filter(t => !t.incognito && webUrl(t.url)).map(t => plainTab(t, latchGroups));
     }
     if (typeof p.sessionKey !== 'string' || !/^[a-f0-9]{64}$/.test(p.sessionKey)) {
@@ -200,7 +232,13 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
       if (tab.incognito || !Number.isSafeInteger(tab.id) || tab.url !== 'about:blank') {
         throw fault('TAB_CHANGED', 'The newly created tab changed before reservation; it was preserved.');
       }
-      const latchGroupId = await ensureLatchGroup(tab.id, tab.windowId);
+      const groupTitle = sessionGroupTitle(p.session);
+      const groupColor = sessionGroupColor(p.session || p.sessionKey);
+      const latchGroupId = await createOrJoinGroup(tab.id, tab.windowId, {
+        title: groupTitle,
+        color: groupColor,
+        reuseByTitle: false,
+      });
       if (latchGroupId != null) tab.groupId = latchGroupId;
       sessions.set(p.sessionKey, {
         transport: 'native',
@@ -210,13 +248,15 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
         rootTabId: tab.id,
         createdTabId: tab.id,
         groupId: latchGroupId ?? tab.groupId,
+        groupTitle,
+        groupColor,
         windowId: tab.windowId,
         targets: new Map([[tab.id, {depth: 0, latchGroupId}]]),
         known: new Set([tab.id]),
         warnings: [],
       });
       owners.set(tab.id, p.sessionKey);
-      const latchGroups = latchGroupId != null ? new Set([latchGroupId]) : null;
+      const latchGroups = latchGroupId != null ? new Map([[latchGroupId, groupTitle]]) : null;
       return {...plainTab(tab, latchGroups), created: true};
     }
     if (op === 'native-health') {
@@ -248,7 +288,7 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
       if (old && !old.targets.has(tab.id)) throw fault('SESSION_TAB_LIMIT', 'Only the starting tab and its attributed children belong to this session.');
       if (!old && sessions.size >= 32) throw fault('SESSION_LIMIT', 'Too many browser sessions.');
       if (!old) await nativeTransport.preflight?.(tab.id);
-      const latchGroups = await latchGroupIds(tab.windowId);
+      const latchGroups = await latchGroupsMap(tab.windowId);
       const inLatchGroup = Number.isSafeInteger(tab.groupId) && latchGroups.has(tab.groupId);
       if (!old) {
         sessions.set(p.sessionKey, {
@@ -258,6 +298,8 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
           tabId: tab.id,
           rootTabId: tab.id,
           groupId: tab.groupId,
+          groupTitle: inLatchGroup ? latchGroups.get(tab.groupId) : null,
+          groupColor: LATCH_GROUP_COLOR,
           windowId: tab.windowId,
           targets: new Map([[tab.id, {depth: 0, latchGroupId: inLatchGroup ? tab.groupId : null}]]),
           known: new Set([tab.id]),
@@ -320,12 +362,13 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
         if (!tab || tab.incognito || !webUrl(tab.url)) {
           return {supported: false, tabId: tab?.id ?? null, title: tab?.title || '', inGroup: false, owned: false};
         }
-        const latchGroups = await latchGroupIds(tab.windowId);
+        const latchGroups = await latchGroupsMap(tab.windowId);
         return {
           supported: true,
           tabId: tab.id,
           title: tab.title || '',
           inGroup: Number.isSafeInteger(tab.groupId) && latchGroups.has(tab.groupId),
+          groupTitle: latchGroups.get(tab.groupId) || null,
           owned: owners.has(tab.id),
         };
       });
@@ -335,7 +378,11 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
         if (!tab || tab.incognito || !webUrl(tab.url)) {
           throw fault('TAB_UNSUPPORTED', 'Only ordinary HTTP(S) tabs can be added to the Latch tab group.');
         }
-        const groupId = await ensureLatchGroup(tab.id, tab.windowId);
+        const groupId = await createOrJoinGroup(tab.id, tab.windowId, {
+          title: LATCH_GROUP_TITLE,
+          color: LATCH_GROUP_COLOR,
+          reuseByTitle: true,
+        });
         if (groupId == null) {
           throw fault('GROUP_UNAVAILABLE', 'Chrome tab groups are unavailable for this tab.');
         }

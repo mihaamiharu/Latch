@@ -240,7 +240,10 @@ export class NativeSessions {
       sessionKey: key,
     };
 
-    const createdTab = await this.browser('native-create-tab', auth);
+    const createdTab = await this.browser('native-create-tab', {
+      ...auth,
+      ...(p.session ? {session: p.session} : {}),
+    });
     const tabId = createdTab.tabId;
     let relay;
     let created;
