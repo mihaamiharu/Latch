@@ -1,0 +1,6 @@
+{
+  "name": "latch",
+  "version": "1.0.0",
+  "description": "Connect Claude Code to signed-in Chrome tabs and record step-by-step browser explorations via the latch CLI.",
+  "skills": "./skills/"
+}
