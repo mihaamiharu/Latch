@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import {fault} from '../extension/protocol.js';
+import {isSameRegularFile, isWindowsPipe} from './platform.mjs';
 
 // Pinned playwright-cli 0.1.20 registry layout. Read only the exact task entry;
 // never scan, delete, or infer authority from a PID or an old timestamp.
@@ -12,7 +13,9 @@ export function daemonFile(workspace, session) {
     path.join(
       process.platform === 'darwin'
         ? path.join(os.homedir(), 'Library', 'Caches')
-        : process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'),
+        : process.platform === 'win32'
+          ? process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local')
+          : process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'),
       'ms-playwright',
       'daemon',
     );
@@ -30,7 +33,7 @@ export async function daemonIdentity(workspace, session) {
     }
     handle = await fs.open(file, 'r');
     const actual = await handle.stat();
-    if (actual.ino !== stat.ino || actual.dev !== stat.dev) {
+    if (!(await isSameRegularFile(stat, actual, file))) {
       throw fault('DAEMON_IDENTITY_CHANGED', 'CLI task registry changed.');
     }
     const c = JSON.parse(await handle.readFile('utf8'));
@@ -49,7 +52,12 @@ export async function daemonIdentity(workspace, session) {
     } catch (e) {
       if (e.code !== 'ENOENT') throw e;
     }
-    if (socket && (!socket.isSocket() || (process.getuid && socket.uid !== process.getuid()))) {
+    const validSocket = socket
+      ? isWindowsPipe(c.socketPath)
+        ? socket.isFile() || socket.isSocket()
+        : socket.isSocket() && (!process.getuid || socket.uid === process.getuid())
+      : true;
+    if (!validSocket) {
       throw fault('DAEMON_IDENTITY_UNCONFIRMED', 'CLI task socket is unsafe.');
     }
     return {
@@ -68,7 +76,12 @@ export async function daemonIdentity(workspace, session) {
         )
         .digest('hex'),
       socketExists: !!socket,
-      socketFingerprint: socket ? crypto.createHash('sha256').update(JSON.stringify([socket.dev, socket.ino])).digest('hex') : null,
+      socketFingerprint: socket
+        ? crypto
+            .createHash('sha256')
+            .update(JSON.stringify(isWindowsPipe(c.socketPath) ? [c.socketPath] : [socket.dev, socket.ino]))
+            .digest('hex')
+        : null,
     };
   } catch (e) {
     if (e.code === 'ENOENT') return null;

@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {once} from 'node:events';
 import {WebSocket} from 'ws';
-import {BrowserModel} from '../experiments/native-transport/browser-model.mjs';
-import {createRelay} from '../experiments/native-transport/relay.mjs';
+import {BrowserModel} from '../src/native-browser-model.mjs';
+import {createRelay} from '../src/native-relay.mjs';
 
 test('native target model exposes only its selected tab and rejects global/foreign commands', async () => {
   const calls = [], events = [];

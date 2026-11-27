@@ -2,11 +2,12 @@ import {CANDIDATE_VERSION} from './helpers/candidate.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {build, sourceProvenance} from '../src/build.mjs';
 import {ROOT, hash, verifyKit, chromeVersion, releaseManifest} from '../src/release.mjs';
-import {SUPPORT, assertMacOSVersion, assertNodeVersion} from '../src/compatibility.mjs';
+import {SUPPORT, assertSetupPlatform, assertNodeVersion} from '../src/compatibility.mjs';
 
 test('native release is reproducible, complete and leaves source/integration untouched', async t => {
   const dir = await fs.mkdtemp(path.join(ROOT, 'work/release-'));
@@ -48,8 +49,13 @@ test('native release is reproducible, complete and leaves source/integration unt
 });
 
 test('descriptor provenance distinguishes a committed tree from modified or unknown source', async t => {
-  const dir = await fs.mkdtemp('/tmp/latch-provenance-');
-  t.after(() => fs.rm(dir, {recursive: true, force: true}));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-provenance-'));
+  const prevCeiling = process.env.GIT_CEILING_DIRECTORIES;
+  process.env.GIT_CEILING_DIRECTORIES = os.tmpdir();
+  t.after(async () => {
+    prevCeiling === undefined ? delete process.env.GIT_CEILING_DIRECTORIES : (process.env.GIT_CEILING_DIRECTORIES = prevCeiling);
+    await fs.rm(dir, {recursive: true, force: true});
+  });
   assert.deepEqual(sourceProvenance(dir), {sourceRevision: null, sourceDirty: null});
   const git = (...args) =>
     assert.equal(spawnSync('git', ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', ...args], {cwd: dir}).status, 0);
@@ -75,13 +81,12 @@ test('missing identity and invalid Chrome version mapping fail instead of regene
   await assert.rejects(releaseManifest(dir), {code: 'RELEASE_IDENTITY_INVALID'});
 });
 
-test('OS and Node floor reject malformed or earlier versions and accept >=22.0.0', () => {
-  for (const version of ['26.9.9', '27', '27.0', 'invalid', '']) {
-    assert.throws(() => assertMacOSVersion(version), {code: 'SETUP_MACOS_UNSUPPORTED'});
+test('OS and Node floor reject unsupported platforms or earlier versions and accept >=22.0.0', async () => {
+  for (const platform of ['win32', 'darwin', 'linux']) {
+    const info = await assertSetupPlatform(platform);
+    assert.equal(info.platform, platform);
   }
-  for (const version of ['27.0.1', '27.0.2', '28.0']) {
-    assert.doesNotThrow(() => assertMacOSVersion(version));
-  }
+  await assert.rejects(assertSetupPlatform('freebsd'), {code: 'SETUP_PLATFORM_UNSUPPORTED'});
   for (const version of ['v20.0.0', '21.9.9', 'invalid', '']) {
     assert.throws(() => assertNodeVersion(version), {code: 'SETUP_NODE_VERSION'});
   }

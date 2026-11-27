@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 import crypto from 'node:crypto';
@@ -12,7 +13,7 @@ async function fixture(t) {
   const parent = fileURLToPath(new URL('../work/diagnostics-tests/', import.meta.url));
   await fs.mkdir(parent, {recursive: true});
   const work = await fs.mkdtemp(path.join(parent, 'case-'));
-  const runtime = `/tmp/latch-diag-${crypto.randomBytes(5).toString('hex')}`;
+  const runtime = path.join(os.tmpdir(), `latch-diag-${crypto.randomBytes(5).toString('hex')}`);
   await fs.mkdir(runtime, {mode: 0o700});
   const previous = {runtime: process.env.LATCH_RUNTIME_DIR, config: process.env.LATCH_CONFIG};
   process.env.LATCH_RUNTIME_DIR = runtime;
@@ -51,16 +52,26 @@ test('a missing alias is distinguished from an unreachable paired socket', async
 
 test('discovery preserves unreachable socket failures as diagnostics', async t => {
   const f = await fixture(t);
-  await fs.writeFile(socketPath(f.instanceId), 'not a listening socket');
+  const address = socketPath(f.instanceId);
+  if (process.platform === 'win32') {
+    const server = net.createServer(socket => socket.destroy());
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(address, resolve);
+    });
+    t.after(() => new Promise(resolve => server.close(resolve)));
+  } else {
+    await fs.writeFile(address, 'not a listening socket');
+  }
   const result = await discoverDetailed();
   assert.deepEqual(result.profiles, []);
   assert.equal(result.warnings.length, 1);
   assert.equal(result.warnings[0].instanceId, f.instanceId);
-  assert.match(result.warnings[0].message, /ECONNREFUSED|ENOTSOCK/);
+  assert.match(result.warnings[0].message, /ECONNREFUSED|ENOTSOCK|disconnected/i);
   assert.equal(result.runtimeDirectory, f.runtime);
 });
 
-test('Unix socket access denial is not reported as missing pairing', {skip: process.getuid?.() === 0}, async t => {
+test('Unix socket access denial is not reported as missing pairing', {skip: process.platform === 'win32' || process.getuid?.() === 0}, async t => {
   const f = await fixture(t);
   const address = socketPath(f.instanceId);
   const server = net.createServer(socket => socket.destroy());

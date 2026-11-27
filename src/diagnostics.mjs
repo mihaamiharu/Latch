@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import {readConfig, configPath, rootDir, socketPath, request} from './local.mjs';
+import {isWindowsPipe} from './platform.mjs';
 import {fault, safeError} from '../extension/protocol.js';
 
 // Read-only: reports this exact caller's context without listing browser tabs,
@@ -66,11 +67,13 @@ export async function diagnose(profileAlias = 'work') {
     result.paths.socket = socketPath(profile.instanceId);
     try {
       const stat = await fs.lstat(result.paths.socket);
+      const winPipe = isWindowsPipe(result.paths.socket);
       result.socket = {
         exists: true,
-        isSocket: stat.isSocket(),
-        ownerUid: stat.uid,
-        mode: (stat.mode & 0o777).toString(8),
+        isSocket: winPipe ? stat.isFile() || stat.isSocket() : stat.isSocket(),
+        ...(winPipe ? {isNamedPipe: true} : {}),
+        ownerUid: winPipe ? null : stat.uid,
+        mode: winPipe ? null : (stat.mode & 0o777).toString(8),
       };
     } catch (error) {
       result.socket = {

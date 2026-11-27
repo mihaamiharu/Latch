@@ -5,10 +5,12 @@ import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 import crypto from 'node:crypto';
+import {fileURLToPath} from 'node:url';
 import {validatePlaywrightArgs} from '../src/playwright-command.mjs';
 import {sessionKey} from '../src/playwright.mjs';
 import {daemonFile} from '../src/daemon-identity.mjs';
 import {recoveryPath} from '../src/recovery-state.mjs';
+import {ipcEndpoint} from '../src/platform.mjs';
 import {command} from './helpers/native-browser.mjs';
 
 test('pw keeps lifecycle and global session/format overrides out of forwarded commands', () => {
@@ -37,7 +39,7 @@ test('pw keeps lifecycle and global session/format overrides out of forwarded co
 
 test('pw propagates zero-exit tool errors and never starts an absent, foreign or stale task', async t => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-command-'));
-  const runtime = `/tmp/latch-command-${crypto.randomBytes(5).toString('hex')}`;
+  const runtime = path.join(os.tmpdir(), `latch-command-${crypto.randomBytes(5).toString('hex')}`);
   await fs.mkdir(runtime, {mode: 0o700});
   const workspace = await fs.realpath(dir);
   const session = 'test';
@@ -50,7 +52,9 @@ test('pw propagates zero-exit tool errors and never starts an absent, foreign or
   const script = path.join(dir, 'fake-cli');
   const calls = path.join(dir, 'calls.jsonl');
   const daemonRoot = path.join(dir, 'daemon');
-  const taskSocket = path.join(runtime, 'task.sock');
+  const taskSocket = process.platform === 'win32'
+    ? `\\\\.\\pipe\\latch-task-${crypto.randomUUID()}`
+    : path.join(runtime, 'task.sock');
   const env = {
     ...process.env,
     LATCH_RUNTIME_DIR: runtime,
@@ -111,7 +115,7 @@ test('pw propagates zero-exit tool errors and never starts an absent, foreign or
     });
   });
   const daemon = net.createServer(socket => socket.end());
-  await new Promise(r => host.listen(path.join(runtime, instanceId + '.sock'), r));
+  await new Promise(r => host.listen(ipcEndpoint(instanceId, process.platform, env), r));
   await new Promise(r => daemon.listen(taskSocket, r));
   t.after(async () => {
     await Promise.all([host, daemon].map(s => new Promise(r => s.close(r))));
@@ -119,10 +123,11 @@ test('pw propagates zero-exit tool errors and never starts an absent, foreign or
     await fs.rm(runtime, {recursive: true, force: true});
   });
 
+  const cliEntry = fileURLToPath(new URL('../src/cli.mjs', import.meta.url));
   const run = async (args, flags = []) => {
     const r = await command(
       process.execPath,
-      [new URL('../src/cli.mjs', import.meta.url).pathname, 'pw', '--session', session, '--workspace', workspace, ...flags, '--', ...args],
+      [cliEntry, 'pw', '--session', session, '--workspace', workspace, ...flags, '--', ...args],
       {cwd: workspace, env},
     );
     return {...r, data: JSON.parse(r.out || r.err)};
@@ -187,7 +192,7 @@ test('pw propagates zero-exit tool errors and never starts an absent, foreign or
   const captured = await command(
     process.execPath,
     [
-      new URL('../src/cli.mjs', import.meta.url).pathname,
+      cliEntry,
       'pw',
       '--session',
       session,

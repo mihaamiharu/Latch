@@ -1,245 +1,279 @@
-import {CANDIDATE_VERSION} from './helpers/candidate.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import path from 'node:path';
-import crypto from 'node:crypto';
 import os from 'node:os';
+import path from 'node:path';
+import net from 'node:net';
+import crypto from 'node:crypto';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
+import {fileURLToPath} from 'node:url';
 import {ROOT, HOST_NAME, EXTENSION_ID} from '../src/release.mjs';
-import {build} from '../src/build.mjs';
-import {inspectSetup, stageSetup, activateSetup, rollbackSetup, setupSkills, uninstallSetup, configureNativeSetup} from '../src/setup.mjs';
+import {
+  appDataDir,
+  configPath,
+  libraryRoot,
+  sessionsDir,
+  workspaceBindingPath,
+  ipcEndpoint,
+  nativeMessagingManifestPath,
+  readNativeHostRegistration,
+} from '../src/platform.mjs';
+import {installCommand, pairCommand, doctorCommand, uninstallCommand} from '../src/setup.mjs';
 
 const exec = promisify(execFile);
+const cliEntry = fileURLToPath(new URL('../src/cli.mjs', import.meta.url));
 
 async function fixture(t) {
-  const dir = await fs.mkdtemp(path.join(ROOT, 'work/setup-'));
-  const prior = {config: process.env.LATCH_CONFIG, runtime: process.env.LATCH_RUNTIME_DIR};
-  process.env.LATCH_CONFIG = path.join(dir, 'config.json');
-  process.env.LATCH_RUNTIME_DIR = '/tmp/latch-setup-' + crypto.randomBytes(5).toString('hex');
-  await fs.writeFile(process.env.LATCH_CONFIG, '{"v":1,"profiles":{}}\n');
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-setup-'));
+  const prior = {
+    config: process.env.LATCH_CONFIG,
+    runtime: process.env.LATCH_RUNTIME_DIR,
+    artifacts: process.env.LATCH_ARTIFACT_ROOT,
+  };
+  const runtime = path.join(dir, 'runtime-ipc');
+  await fs.mkdir(runtime, {recursive: true});
+  process.env.LATCH_CONFIG = path.join(dir, 'app', 'config.json');
+  process.env.LATCH_RUNTIME_DIR = runtime;
+  process.env.LATCH_ARTIFACT_ROOT = path.join(dir, 'app', 'artifacts');
+  const testRegistryKey = `HKCU\\Software\\LatchTest\\${crypto.randomUUID()}\\NativeMessagingHosts\\${HOST_NAME}`;
   t.after(async () => {
-    for (const [k, v] of [['LATCH_CONFIG', prior.config], ['LATCH_RUNTIME_DIR', prior.runtime]]) {
+    if (process.platform === 'win32') {
+      await exec('reg.exe', ['delete', `HKCU\\Software\\LatchTest`, '/f'], {windowsHide: true}).catch(() => {});
+    }
+    for (const [k, v] of [
+      ['LATCH_CONFIG', prior.config],
+      ['LATCH_RUNTIME_DIR', prior.runtime],
+      ['LATCH_ARTIFACT_ROOT', prior.artifacts],
+    ]) {
       v === undefined ? delete process.env[k] : (process.env[k] = v);
     }
     await fs.rm(dir, {recursive: true, force: true});
   });
-  const built = await build({out: path.join(dir, 'build')});
-  const options = {
-    kit: built.kit,
-    root: path.join(dir, 'installed with spaces'),
-    registrationRoot: path.join(dir, 'registrations'),
-    userRoot: path.join(dir, 'user'),
-    extensionUnloaded: true,
-    tasksDrained: true,
+  return {
+    dir,
+    runtime,
+    testRegistryKey,
+    options: {
+      root: path.join(dir, 'installed with spaces'),
+      registrationRoot: path.join(dir, 'registrations'),
+      userRoot: path.join(dir, 'user'),
+      registryKey: testRegistryKey,
+      skipRegistry: process.platform !== 'win32',
+    },
   };
-  return {dir, options};
 }
 
-test('setup stages without registration, activates idempotently, installs stable managed links and preserves data on uninstall', async t => {
-  const f = await fixture(t);
-  const o = f.options;
-  const before = await fs.readFile(process.env.LATCH_CONFIG, 'utf8');
-  const plan = await inspectSetup(o);
-  const staged = await stageSetup(o);
-  assert.equal(staged.planToken, plan.planToken);
-  await assert.rejects(fs.stat(plan.paths.registration), {code: 'ENOENT'});
-  await assert.rejects(activateSetup({...o, expect: 'bad'}), {code: 'SETUP_PLAN_CHANGED'});
-  const active = await activateSetup({...o, expect: plan.planToken});
-  assert.equal(active.activated, true);
-  assert.equal(active.verified, false);
-  assert.equal(JSON.parse((await exec(active.cli, ['version'])).stdout).version, CANDIDATE_VERSION);
-  await setupSkills(o);
-  await setupSkills(o);
-  const link = path.join(o.userRoot, '.agents/skills/latch');
-  assert.equal(await fs.readlink(link), path.join(o.root, 'current/skills/latch'));
-  const cwd = path.join(f.dir, 'task with spaces');
-  await fs.mkdir(cwd);
-  const result = await exec(process.execPath, [path.join(link, 'scripts/latch.mjs'), 'version'], {cwd});
-  assert.equal(JSON.parse(result.stdout).version, CANDIDATE_VERSION);
-  const again = await inspectSetup(o);
-  await activateSetup({...o, expect: again.planToken});
-  assert.equal(await fs.readFile(process.env.LATCH_CONFIG, 'utf8'), before);
-  const marker = path.join(o.root, 'evidence.txt');
-  await fs.writeFile(marker, 'keep');
-  await uninstallSetup(o);
-  assert.equal(await fs.readFile(marker, 'utf8'), 'keep');
-  assert.equal(await fs.readFile(process.env.LATCH_CONFIG, 'utf8'), before);
-  await assert.rejects(fs.lstat(link), {code: 'ENOENT'});
-});
-
-test('foreign registration, skill collisions, missing maintenance and old installer gates remain untouched', async t => {
-  const {options: o} = await fixture(t);
-  await fs.mkdir(o.registrationRoot, {recursive: true});
-  const reg = path.join(o.registrationRoot, HOST_NAME + '.json');
-  await fs.writeFile(reg, 'foreign');
-  await assert.rejects(inspectSetup(o), {code: 'INSTALL_FOREIGN_REGISTRATION'});
-  assert.equal(await fs.readFile(reg, 'utf8'), 'foreign');
-  await fs.unlink(reg);
-  let plan = await inspectSetup(o);
-  await assert.rejects(activateSetup({...o, expect: plan.planToken, extensionUnloaded: false}), {code: 'MAINTENANCE_UNVERIFIED'});
-  await assert.rejects(fs.stat(reg), {code: 'ENOENT'});
-  await activateSetup({...o, expect: plan.planToken});
-  const skill = path.join(o.userRoot, '.claude/skills/latch');
-  await fs.mkdir(skill, {recursive: true});
-  await fs.writeFile(path.join(skill, 'keep'), 'user skill');
-  await assert.rejects(setupSkills(o), {code: 'SKILL_CONFLICT'});
-  assert.equal(await fs.readFile(path.join(skill, 'keep'), 'utf8'), 'user skill');
-  await assert.rejects(fs.lstat(path.join(o.userRoot, '.agents/skills/latch')), {code: 'ENOENT'});
-  await fs.mkdir(path.join(o.root, 'setup.lock'));
-  await fs.writeFile(path.join(o.root, 'setup.lock/owner.json'), '{"pid":1,"startedAt":0}');
-  plan = await inspectSetup(o);
-  assert.ok(plan.blockers.includes('SETUP_BUSY'));
-  await assert.rejects(stageSetup(o), {code: 'SETUP_BUSY'});
-  assert.equal(await fs.readFile(path.join(o.root, 'setup.lock/owner.json'), 'utf8'), '{"pid":1,"startedAt":0}');
-});
-
-test('caught activation failure restores the previous registration, receipt and code selection', async t => {
-  const {options: o} = await fixture(t);
-  const first = await inspectSetup(o);
-  await activateSetup({...o, expect: first.planToken});
-  const receipt = await fs.readFile(first.paths.receipt, 'utf8');
-  const reg = await fs.readFile(first.paths.registration, 'utf8');
-  const pointer = await fs.readlink(first.paths.current);
-  const plan = await inspectSetup(o);
-  const rename = fs.rename.bind(fs);
-  let injected = false;
-  t.mock.method(fs, 'rename', async (a, b) => {
-    if (b === first.paths.receipt && !injected) {
-      injected = true;
-      throw Object.assign(new Error('Injected receipt failure'), {code: 'EIO'});
-    }
-    return rename(a, b);
-  });
-  await assert.rejects(activateSetup({...o, expect: plan.planToken}), {code: 'EIO'});
-  assert.equal(await fs.readFile(first.paths.receipt, 'utf8'), receipt);
-  assert.equal(await fs.readFile(first.paths.registration, 'utf8'), reg);
-  assert.equal(await fs.readlink(first.paths.current), pointer);
-  await assert.rejects(fs.stat(first.paths.gate), {code: 'ENOENT'});
-});
-
-test('real installer process loss leaves its gate and journal inspectable without reclaiming them', async t => {
-  const {dir, options: o} = await fixture(t);
-  const plan = await inspectSetup(o);
-  await activateSetup({...o, expect: plan.planToken});
-  const receipt = await fs.readFile(plan.paths.receipt, 'utf8');
-  const reg = await fs.readFile(plan.paths.registration, 'utf8');
-  const next = await inspectSetup(o);
-  const child = path.join(dir, 'interrupt.mjs');
-  await fs.writeFile(
-    child,
-    `import fs from 'node:fs/promises';import {activateSetup} from ${JSON.stringify(new URL('../src/setup.mjs', import.meta.url).href)};const rename=fs.rename.bind(fs);fs.rename=async(a,b)=>{await rename(a,b);if(b===${JSON.stringify(plan.paths.transaction)})process.kill(process.pid,'SIGKILL')};await activateSetup(${JSON.stringify({...o, expect: next.planToken})});`,
+test('platform contract computes Windows, macOS, and Linux paths and workspace bindings', () => {
+  assert.equal(
+    appDataDir('win32', {LOCALAPPDATA: 'C:\\Users\\alice\\AppData\\Local'}),
+    path.join('C:\\Users\\alice\\AppData\\Local', 'Latch'),
   );
-  await assert.rejects(exec(process.execPath, [child]), error => error.signal === 'SIGKILL');
-  const interrupted = await inspectSetup(o);
-  assert.ok(interrupted.gate);
-  assert.equal(JSON.parse(interrupted.transaction).state, 'activating');
-  assert.equal(await fs.readFile(plan.paths.receipt, 'utf8'), receipt);
-  assert.equal(await fs.readFile(plan.paths.registration, 'utf8'), reg);
-  await assert.rejects(stageSetup(o), {code: 'SETUP_BUSY'});
+  assert.equal(
+    appDataDir('darwin', {}),
+    path.join(os.homedir(), 'Library', 'Application Support', 'Latch'),
+  );
+  assert.equal(
+    appDataDir('linux', {XDG_CONFIG_HOME: '/home/alice/.xdg'}),
+    path.join('/home/alice/.xdg', 'latch'),
+  );
+  assert.equal(
+    configPath('linux', {XDG_CONFIG_HOME: '/home/alice/.xdg'}),
+    path.join('/home/alice/.xdg', 'latch', 'config.json'),
+  );
+  assert.equal(
+    libraryRoot('linux', {XDG_CONFIG_HOME: '/home/alice/.xdg'}),
+    path.join('/home/alice/.xdg', 'latch', 'artifacts'),
+  );
+  assert.equal(
+    sessionsDir('linux', {XDG_CONFIG_HOME: '/home/alice/.xdg'}),
+    path.join('/home/alice/.xdg', 'latch', 'sessions'),
+  );
+
+  const id = crypto.randomUUID();
+  assert.equal(ipcEndpoint(id, 'win32', {}), `\\\\.\\pipe\\latch-${id}`);
+  assert.equal(ipcEndpoint(id, 'linux', {LATCH_RUNTIME_DIR: '/tmp/latch-r'}), path.join('/tmp/latch-r', `${id}.sock`));
+
+  assert.equal(
+    nativeMessagingManifestPath('win32', {LOCALAPPDATA: 'C:\\Users\\alice\\AppData\\Local'}),
+    path.join('C:\\Users\\alice\\AppData\\Local', 'Latch', 'NativeMessagingHosts', `${HOST_NAME}.json`),
+  );
+  assert.equal(
+    nativeMessagingManifestPath('darwin', {}),
+    path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts', `${HOST_NAME}.json`),
+  );
+  assert.equal(
+    nativeMessagingManifestPath('linux', {XDG_CONFIG_HOME: '/home/alice/.xdg'}),
+    path.join('/home/alice/.xdg', 'google-chrome', 'NativeMessagingHosts', `${HOST_NAME}.json`),
+  );
+
+  const binding = workspaceBindingPath(ROOT);
+  const expectedHash = crypto.createHash('sha256').update(path.resolve(ROOT).replace(/[\\/]+$/, '')).digest('hex');
+  assert.ok(binding.endsWith(path.join('sessions', `${expectedHash}.json`)));
 });
 
-test('wrong prerequisites and a reachable bridge block setup', async t => {
-  const {dir, options: o} = await fixture(t);
-  const fake = path.join(dir, 'wrong-node');
-  await fs.writeFile(fake, '#!/bin/sh\nprintf \'{"version":"v20.0.0","platform":"darwin","architecture":"arm64"}\'\n', {mode: 0o700});
-  await assert.rejects(inspectSetup({...o, node: fake}), {code: 'SETUP_NODE_VERSION'});
-  await assert.rejects(stageSetup({...o, node: fake}), {code: 'SETUP_NODE_VERSION'});
-  await assert.rejects(fs.stat(o.root), {code: 'ENOENT'});
-  await fs.writeFile(fake, '#!/bin/sh\nprintf \'{"version":"v22.0.0","platform":"darwin","architecture":"x64"}\'\n', {mode: 0o700});
-  await assert.rejects(stageSetup({...o, node: fake}), {code: 'SETUP_NODE_PLATFORM'});
-  await assert.rejects(fs.stat(o.root), {code: 'ENOENT'});
-  const wrongCLI = path.join(dir, 'wrong-cli');
-  const priorCLI = process.env.LATCH_PLAYWRIGHT_CLI;
-  await fs.writeFile(wrongCLI, '#!/bin/sh\nprintf \'{"version":"0.1.99"}\'\n', {mode: 0o700});
-  process.env.LATCH_PLAYWRIGHT_CLI = wrongCLI;
-  try {
-    await assert.rejects(inspectSetup(o), {code: 'UNSUPPORTED_VERSION'});
-  } finally {
-    priorCLI === undefined ? delete process.env.LATCH_PLAYWRIGHT_CLI : (process.env.LATCH_PLAYWRIGHT_CLI = priorCLI);
-  }
-  const {default: net} = await import('node:net');
-  const instance = crypto.randomUUID();
-  const runtime = process.env.LATCH_RUNTIME_DIR;
-  await fs.mkdir(runtime, {recursive: true});
-  const server = net.createServer(s => s.end());
-  await new Promise(r => server.listen(path.join(runtime, instance + '.sock'), r));
-  t.after(async () => {
-    await new Promise(r => server.close(r));
-    await fs.rm(runtime, {recursive: true, force: true});
-  });
-  await fs.writeFile(process.env.LATCH_CONFIG, JSON.stringify({profiles: {work: {instanceId: instance}}}));
-  const plan = await inspectSetup(o);
-  await assert.rejects(activateSetup({...o, expect: plan.planToken}), {code: 'INSTALL_ACTIVE'});
-  await assert.rejects(fs.stat(plan.paths.registration), {code: 'ENOENT'});
-});
+test('installCommand, doctorCommand, and uninstallCommand work across Windows, macOS, and Linux paths and preserve data', async t => {
+  const f = await fixture(t);
 
-test('unsupported platform or architecture blocks every installer mutation before creating the root', async t => {
-  const {options: o} = await fixture(t);
-  const before = await fs.readFile(process.env.LATCH_CONFIG);
-  for (const [method, value, code] of [
-    ['platform', 'linux', 'SETUP_PLATFORM_UNSUPPORTED'],
-    ['arch', 'x64', 'SETUP_ARCHITECTURE_UNSUPPORTED'],
-  ]) {
-    const mock = t.mock.method(os, method, () => value);
-    for (const action of [inspectSetup, stageSetup, activateSetup, rollbackSetup, setupSkills, uninstallSetup, configureNativeSetup]) {
-      await assert.rejects(action(o), {code});
+  // Validate Windows, macOS, and Linux registration layouts (skipping Windows reg.exe when emulating other OSes).
+  for (const targetPlatform of ['win32', 'darwin', 'linux']) {
+    const regRoot = path.join(f.dir, `reg-${targetPlatform}`);
+    const installRoot = path.join(f.dir, `rt-${targetPlatform}`);
+    const userRoot = path.join(f.dir, `user-${targetPlatform}`);
+    const useRealWinRegistry = targetPlatform === 'win32' && process.platform === 'win32';
+    const opts = {
+      platform: targetPlatform,
+      root: installRoot,
+      registrationRoot: regRoot,
+      userRoot,
+      registryKey: f.testRegistryKey,
+      skipRegistry: !useRealWinRegistry,
+    };
+
+    const installed = await installCommand(opts);
+    assert.equal(installed.installed, true);
+    assert.equal(installed.platform, targetPlatform);
+    assert.equal(installed.hostName, HOST_NAME);
+    assert.equal(installed.extensionId, EXTENSION_ID);
+
+    const manifest = JSON.parse(await fs.readFile(installed.manifestPath, 'utf8'));
+    assert.equal(manifest.name, HOST_NAME);
+    assert.deepEqual(manifest.allowed_origins, [`chrome-extension://${EXTENSION_ID}/`]);
+    assert.equal(manifest.path, installed.launcherPath);
+    assert.equal(installed.launcherPath.endsWith('.cmd'), targetPlatform === 'win32');
+
+    if (useRealWinRegistry) {
+      const reg = await readNativeHostRegistration({
+        manifestPath: installed.manifestPath,
+        platform: 'win32',
+        registryKey: f.testRegistryKey,
+      });
+      assert.equal(reg.registryValue, installed.manifestPath);
     }
-    await assert.rejects(fs.stat(o.root), {code: 'ENOENT'});
-    await assert.rejects(fs.stat(o.registrationRoot), {code: 'ENOENT'});
-    assert.deepEqual(await fs.readFile(process.env.LATCH_CONFIG), before);
-    mock.mock.restore();
+
+    const doc = await doctorCommand(opts);
+    assert.equal(doc.checks.platform.ok, true);
+    assert.equal(doc.checks.node.ok, true);
+    assert.equal(doc.checks.nativeHost.ok, true);
+    assert.equal(doc.checks.nativeHost.launcherExists, true);
+
+    const configBefore = await fs.readFile(process.env.LATCH_CONFIG, 'utf8');
+    const artifactMarker = path.join(process.env.LATCH_ARTIFACT_ROOT, 'keep.txt');
+    await fs.writeFile(artifactMarker, 'preserve-me');
+
+    const uninstalled = await uninstallCommand(opts);
+    assert.equal(uninstalled.unregistered, true);
+    assert.equal(uninstalled.dataPreserved, true);
+    assert.equal(uninstalled.removedManifest, true);
+    await assert.rejects(fs.stat(installed.manifestPath), {code: 'ENOENT'});
+    assert.equal(await fs.readFile(process.env.LATCH_CONFIG, 'utf8'), configBefore);
+    assert.equal(await fs.readFile(artifactMarker, 'utf8'), 'preserve-me');
   }
 });
 
-test('managed CLI pins its validated executable and Node for minimal PATH, rejects changed plans and never substitutes a missing CLI', async t => {
-  const {dir, options: original} = await fixture(t);
-  const calls = path.join(dir, 'selected-calls');
-  const otherCalls = path.join(dir, 'other-calls');
-  const selected = path.join(dir, "selected cli 'with spaces'.js");
-  const other = path.join(dir, 'other-cli.js');
-  const script = file =>
-    `#!/usr/bin/env node\nimport fs from 'node:fs';fs.appendFileSync(${JSON.stringify(file)},JSON.stringify({node:process.execPath,version:process.version})+'\\n');console.log(JSON.stringify({version:'0.1.20'}));`;
-  await fs.writeFile(selected, script(calls), {mode: 0o700});
-  await fs.writeFile(other, script(otherCalls), {mode: 0o700});
-  const o = {...original, playwrightCLI: selected};
-  const first = await inspectSetup(o);
-  assert.equal(first.prerequisites.playwrightCLI, selected);
-  await fs.appendFile(selected, '\n// changed since inspection');
-  await assert.rejects(activateSetup({...o, expect: first.planToken}), {code: 'SETUP_PLAN_CHANGED'});
-  await assert.rejects(fs.stat(first.paths.registration), {code: 'ENOENT'});
-  const plan = await inspectSetup(o);
-  await activateSetup({...o, expect: plan.planToken});
-  const before = await fs.readFile(plan.paths.receipt);
-  const config = await fs.readFile(process.env.LATCH_CONFIG);
-  const receipt = JSON.parse(before);
-  assert.equal(receipt.playwrightCLI, selected);
-  assert.equal(receipt.playwrightCLIEntrySHA256, plan.prerequisites.playwrightCLIEntrySHA256);
-  const env = {...process.env, PATH: '/usr/bin:/bin', LATCH_PLAYWRIGHT_CLI: other};
-  const cli = path.join(o.root, 'bin/latch');
-  const preflight = JSON.parse((await exec(cli, ['preflight', '--workspace', dir, '--session', 'task'], {cwd: dir, env})).stdout);
-  assert.equal(preflight.checks.find(c => c.id === 'playwright-cli').status, 'pass');
-  const invoked = (await fs.readFile(calls, 'utf8')).trim().split('\n').map(JSON.parse);
-  assert.equal(invoked.at(-1).node, plan.paths.node);
-  await assert.rejects(fs.stat(otherCalls), {code: 'ENOENT'});
-  await fs.unlink(selected);
-  const missing = JSON.parse((await exec(cli, ['preflight', '--workspace', dir, '--session', 'task'], {cwd: dir, env})).stdout);
-  assert.equal(missing.checks.find(c => c.id === 'playwright-cli').error.code, 'CLI_UNAVAILABLE');
-  await assert.rejects(fs.stat(otherCalls), {code: 'ENOENT'});
-  assert.equal(JSON.parse((await exec(cli, ['version'], {env})).stdout).version, CANDIDATE_VERSION);
-  assert.deepEqual(await fs.readFile(plan.paths.receipt), before);
-  assert.deepEqual(await fs.readFile(process.env.LATCH_CONFIG), config);
-  await assert.rejects(stageSetup(o), {code: 'SETUP_EXECUTABLE_UNAVAILABLE'});
+test('installCommand and uninstallCommand refuse to overwrite a foreign native host manifest', async t => {
+  const f = await fixture(t);
+  await fs.mkdir(f.options.registrationRoot, {recursive: true});
+  const foreignPath = path.join(f.options.registrationRoot, `${HOST_NAME}.json`);
+  await fs.writeFile(foreignPath, JSON.stringify({name: 'com.other.host', allowed_origins: []}));
+
+  await assert.rejects(installCommand(f.options), {code: 'INSTALL_FOREIGN_REGISTRATION'});
+  await assert.rejects(uninstallCommand(f.options), {code: 'INSTALL_FOREIGN_REGISTRATION'});
+  assert.equal(JSON.parse(await fs.readFile(foreignPath, 'utf8')).name, 'com.other.host');
 });
 
-test('an unowned receipt cannot supply an executable during inspection', async t => {
-  const {dir, options: o} = await fixture(t);
-  const called = path.join(dir, 'foreign-was-run');
-  const script = path.join(dir, 'foreign-cli');
-  await fs.writeFile(script, `#!/bin/sh\n/usr/bin/touch '${called}'\nprintf '{"version":"0.1.20"}'\n`, {mode: 0o700});
-  await fs.mkdir(o.root, {recursive: true});
-  await fs.writeFile(path.join(o.root, 'receipt.json'), JSON.stringify({schema: 1, extensionId: EXTENSION_ID, playwrightCLI: script}));
-  await assert.rejects(inspectSetup(o), {code: 'INSTALL_ROOT_FOREIGN'});
-  await assert.rejects(fs.stat(called), {code: 'ENOENT'});
+test('doctorCommand --fix repairs missing native host registration', async t => {
+  const f = await fixture(t);
+  const broken = await doctorCommand(f.options);
+  assert.equal(broken.checks.nativeHost.ok, false);
+
+  const repaired = await doctorCommand({...f.options, fix: true});
+  assert.equal(repaired.fixed, true);
+  assert.equal(repaired.checks.nativeHost.ok, true);
+});
+
+test('pairCommand auto-discovers a single live unpaired extension instance and rejects ambiguity', async t => {
+  const f = await fixture(t);
+  await fs.mkdir(path.dirname(process.env.LATCH_CONFIG), {recursive: true});
+  await fs.writeFile(process.env.LATCH_CONFIG, JSON.stringify({v: 1, profiles: {}}));
+
+  // No live instances -> NO_UNPAIRED_INSTANCE
+  await assert.rejects(pairCommand({profile: 'work'}), {code: 'NO_UNPAIRED_INSTANCE'});
+
+  const makeMockHost = async id => {
+    const server = net.createServer(socket => {
+      let body = '';
+      socket.on('data', chunk => {
+        body += chunk;
+        if (!body.includes('\n')) return;
+        const msg = JSON.parse(body.slice(0, body.indexOf('\n')));
+        socket.end(
+          JSON.stringify({
+            v: 1,
+            id: msg.id,
+            ok: true,
+            result: {
+              instanceId: id,
+              epoch: crypto.randomUUID(),
+              extensionVersion: '1.0.0',
+              releaseVersion: '1.0.0',
+              readiness: {verified: true},
+              capabilities: {nativeTransport: true, nativeSessionSchema: 4, uiControl: 1},
+            },
+          }) + '\n',
+        );
+      });
+    });
+    await new Promise(resolve => server.listen(ipcEndpoint(id), resolve));
+    t.after(() => new Promise(resolve => server.close(resolve)));
+    return server;
+  };
+
+  const id1 = crypto.randomUUID();
+  await makeMockHost(id1);
+
+  const paired = await pairCommand({profile: 'work'});
+  assert.equal(paired.paired, true);
+  assert.equal(paired.autoDiscovered, true);
+  assert.equal(paired.instanceId, id1);
+  assert.equal(paired.chromeProfileDir, 'Default');
+
+  // Re-running pairCommand on already-paired work alias is idempotent
+  const idempotent = await pairCommand({profile: 'work'});
+  assert.equal(idempotent.alreadyPaired, true);
+  assert.equal(idempotent.instanceId, id1);
+
+  // Doctor sees live healthy bridge over real IPC (Named Pipe on Windows, Unix socket on POSIX)
+  await installCommand(f.options);
+  const health = await doctorCommand({...f.options, profile: 'work'});
+  assert.equal(health.healthy, true);
+  assert.equal(health.checks.bridge.ok, true);
+
+  // Two additional unpaired instances -> MULTIPLE_UNPAIRED_INSTANCES
+  const id2 = crypto.randomUUID();
+  const id3 = crypto.randomUUID();
+  await makeMockHost(id2);
+  await makeMockHost(id3);
+  await assert.rejects(pairCommand({profile: 'personal'}), {code: 'MULTIPLE_UNPAIRED_INSTANCES'});
+
+  // CLI wiring smoke for install/doctor/uninstall
+  const cliInstall = JSON.parse(
+    (
+      await exec(process.execPath, [
+        cliEntry,
+        'install',
+        '--root',
+        f.options.root,
+        '--registration-root',
+        f.options.registrationRoot,
+        '--user-root',
+        f.options.userRoot,
+        '--registry-key',
+        f.testRegistryKey,
+        ...(process.platform !== 'win32' ? ['--skip-registry'] : []),
+      ])
+    ).stdout,
+  );
+  assert.equal(cliInstall.ok, true);
+  assert.equal(cliInstall.installed, true);
 });

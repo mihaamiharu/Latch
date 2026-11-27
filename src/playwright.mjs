@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {fault, safeError} from '../extension/protocol.js';
+import {spawnCommandSpec} from './platform.mjs';
 
 export const CLI_META = Symbol('playwright-process-result');
 
@@ -33,16 +34,21 @@ export async function workspaceAt(start = process.cwd()) {
 export const sessionKey = (workspace, session) =>
   crypto.createHash('sha256').update(JSON.stringify([workspace, session])).digest('hex');
 
-export function runCLI(session, args, {workspace, chromeProfileDir, timeout = 45000, executable, nodeExecutable} = {}) {
+export async function runCLI(session, args, {workspace, chromeProfileDir, timeout = 45000, executable, nodeExecutable} = {}) {
+  const spec = await spawnCommandSpec(
+    executable || process.env.LATCH_PLAYWRIGHT_CLI || 'playwright-cli',
+    [`-s=${session}`, '--json', ...args],
+    {nodeExecutable, env: {...process.env, NO_UPDATE_NOTIFIER: '1'}},
+  );
   return new Promise((resolve, reject) => {
     const started = performance.now();
     const env = {...process.env, NO_UPDATE_NOTIFIER: '1'};
     if (nodeExecutable) env.PATH = path.dirname(nodeExecutable) + path.delimiter + (env.PATH || '');
     if (chromeProfileDir) env.PLAYWRIGHT_MCP_PROFILE_DIR_NAME = chromeProfileDir;
-    const child = spawn(executable || process.env.LATCH_PLAYWRIGHT_CLI || 'playwright-cli', [`-s=${session}`, '--json', ...args], {
+    const child = spawn(spec.command, spec.args, {
       cwd: workspace,
       env,
-      shell: false,
+      ...spec.options,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     const stdoutChunks = [];

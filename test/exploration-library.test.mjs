@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import {allocateRun,saveMeta,loadMeta,runPath,lockRun,verifyArtifacts,boundRun,indexArtifact} from '../src/exploration-storage.mjs';
 import {addStates,writeHandoff,elementsOf,validateExploration,actionOf} from '../src/exploration-model.mjs';
 import {libraryCommand,saveReview,startLibraryServer,exportRun} from '../src/exploration-library.mjs';
 
-async function fixture(t){const root=await fs.mkdtemp('/tmp/latch-library-'),prior=process.env.LATCH_ARTIFACT_ROOT;process.env.LATCH_ARTIFACT_ROOT=path.join(root,'central artifacts');t.after(async()=>{prior===undefined?delete process.env.LATCH_ARTIFACT_ROOT:process.env.LATCH_ARTIFACT_ROOT=prior;await fs.rm(root,{recursive:true,force:true});});const meta=await allocateRun({workspace:root,session:'agent',profile:'work'},{objective:'Explore checkout'});return {root,meta,dir:await runPath(meta.id)};}
+async function fixture(t){const root=await fs.mkdtemp(path.join(os.tmpdir(),'latch-library-')),prior=process.env.LATCH_ARTIFACT_ROOT;process.env.LATCH_ARTIFACT_ROOT=path.join(root,'central artifacts');t.after(async()=>{prior===undefined?delete process.env.LATCH_ARTIFACT_ROOT:process.env.LATCH_ARTIFACT_ROOT=prior;await fs.rm(root,{recursive:true,force:true});});const meta=await allocateRun({workspace:root,session:'agent',profile:'work'},{objective:'Explore checkout'});return {root,meta,dir:await runPath(meta.id)};}
 const snapshot='- heading "Checkout" [level=1] [ref=e1]\n- textbox "Email" [ref=e2]\n- button "Pay" [ref=e3]\n- button "Pay" [ref=e4]';
 test('central runs are isolated by workspace and reject a second binding without mixing evidence',async t=>{
  const f=await fixture(t);await assert.rejects(allocateRun({workspace:f.root,session:'agent',profile:'work'}),{code:'EXPLORATION_BUSY'});
@@ -29,7 +30,7 @@ test('QA review is separate and handoff export is self-contained and never merge
 });
 test('schema rejects dangling transitions and symlinked artifacts fail verification',async t=>{
  const f=await fixture(t);assert.throws(()=>validateExploration({schema_version:1,run_id:'x',states:[],transitions:[{id:'a',from:'missing'}],final_states:[]}),{code:'EXPLORATION_SCHEMA_INVALID'});
- await fs.writeFile(path.join(f.root,'outside'),'private');await fs.symlink(path.join(f.root,'outside'),path.join(f.dir,'outside.yaml'));f.meta.artifacts=[{path:'outside.yaml',type:'snapshot',bytes:7,sha256:'x'}];await saveMeta(f.meta);assert.equal((await verifyArtifacts(f.meta)).verified,false);
+ await fs.writeFile(path.join(f.root,'outside'),'private');try{await fs.symlink(path.join(f.root,'outside'),path.join(f.dir,'outside.yaml'));}catch(e){if(e.code==='EPERM')await fs.symlink(f.root,path.join(f.dir,'outside.yaml'),'junction');else throw e}f.meta.artifacts=[{path:'outside.yaml',type:'snapshot',bytes:7,sha256:'x'}];await saveMeta(f.meta);assert.equal((await verifyArtifacts(f.meta)).verified,false);
 });
 test('a busy library writer blocks offline repair without blocking a browser-independent review',async t=>{
  const f=await fixture(t);let release,entered;const ready=new Promise(r=>entered=r),barrier=new Promise(r=>release=r);const held=lockRun(f.meta.id,()=>{entered();return barrier});await ready;await assert.rejects(libraryCommand('repair',{run:f.meta.id}),{code:'EXPLORATION_BUSY'});await saveReview(f.meta.id,{decision:'investigate'});release();await held;

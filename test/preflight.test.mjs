@@ -1,19 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 import crypto from 'node:crypto';
 import {preflight} from '../src/preflight.mjs';
 import {diagnose} from '../src/diagnostics.mjs';
+import {ipcEndpoint} from '../src/platform.mjs';
 
 async function fixture(t) {
-  const dir = await fs.mkdtemp('/tmp/latch-preflight-'), runtime = path.join(dir, 'r'), workspace = path.join(dir, 'task with spaces');
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-preflight-')), runtime = path.join(dir, 'r'), workspace = path.join(dir, 'task with spaces');
   await fs.mkdir(runtime); await fs.mkdir(workspace);
-  const instanceId = crypto.randomUUID(), socket = path.join(runtime, instanceId + '.sock'), config = path.join(dir, 'config.json');
+  const instanceId = crypto.randomUUID(), config = path.join(dir, 'config.json');
   await fs.writeFile(config, JSON.stringify({profiles: {work: {instanceId, chromeProfileDir: 'Default', defaultTransport: 'native'}}, keep: 'untouched'}));
-  const cli = path.join(dir, 'cli'); await fs.writeFile(cli, '#!/bin/sh\nprintf \'{"version":"0.1.20"}\'\n', {mode: 0o700});
+  const cli = path.join(dir, 'cli'); await fs.writeFile(cli, `#!${process.execPath}\nconsole.log(JSON.stringify({version:"0.1.20"}));\n`, {mode: 0o700});
   const env = {LATCH_CONFIG: config, LATCH_RUNTIME_DIR: runtime, PWTEST_DAEMON_SESSION_DIR: path.join(dir, 'daemon'), LATCH_PLAYWRIGHT_CLI: cli};
+  const socket = ipcEndpoint(instanceId, process.platform, env);
   const before = Object.fromEntries(Object.keys(env).map(k => [k, process.env[k]])); Object.assign(process.env, env);
   const calls = []; let cap = {nativeTransport: true, nativeSessionSchema: 4, recoveryContract: 1};
   const server = net.createServer(s => { let data = ''; s.on('data', chunk => {
@@ -36,7 +39,7 @@ test('same-caller preflight probes exact task paths without attachment, defaults
   for (const directory of Object.values(result.paths)) assert.ok(!(await fs.readdir(directory)).some(n => n.startsWith('.latch-preflight-')));
   assert.equal(path.basename(result.paths.daemonCache), crypto.createHash('sha1').update(f.workspace).digest('hex').slice(0, 16));
 });
-test('denied socket retains paired identity, unknown capabilities and skips task writes', {skip: process.getuid?.() === 0}, async t => {
+test('denied socket retains paired identity, unknown capabilities and skips task writes', {skip: process.platform === 'win32' || process.getuid?.() === 0}, async t => {
   const f = await fixture(t); await fs.chmod(f.socket, 0o000); const result = await f.run();
   assert.equal(result.ready, false); assert.equal(result.health.configuration.paired, true);
   assert.equal(result.health.connection.error.code, 'BRIDGE_ACCESS_DENIED'); assert.equal(result.health.layers.native, 'unknown');

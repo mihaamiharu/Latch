@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {fault} from '../extension/protocol.js';
 import {redact} from './playwright.mjs';
+import {isSameRegularFile} from './platform.mjs';
 
 export const LIMITS = Object.freeze({
   commands: 256,
@@ -54,7 +55,7 @@ export async function regularFile(file, maximum = LIMITS.textBytes) {
   const handle = await fs.open(file, 'r');
   try {
     const actual = await handle.stat();
-    if (actual.ino !== stat.ino || actual.dev !== stat.dev) {
+    if (!(await isSameRegularFile(stat, actual, file))) {
       throw fault('EVIDENCE_CHANGED', 'Evidence changed while opening it.');
     }
     if (actual.size > maximum) throw fault('EVIDENCE_LIMIT', 'Evidence grew beyond its byte limit.');

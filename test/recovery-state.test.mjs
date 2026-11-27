@@ -25,10 +25,10 @@ test('connection grants fence expired/EOF holders without stealing live grants o
  c.end(g);const successor=c.begin('a',owner);assert.throws(()=>c.check(g,owner,g.nonce),{code:'OPERATION_FENCED'});c.check(successor,owner,successor.nonce);c.end(g);assert.equal(c.grants.get('a'),successor);c.end(peer);c.end(successor);
 });
 test('atomic bounded schema-4 records preserve corrupt, partial, foreign and unknown state',async t=>{
- const f=await fixture(t),r=await f.store.write(f.key,f.record),file=recoveryPath(f.identity.instanceId,f.key);assert.equal((await fs.stat(file)).mode&0o777,0o600);assert.equal((await fs.stat(path.dirname(file))).mode&0o777,0o700);assert.equal((await readRecovery(f.identity.instanceId,f.key)).revision,r.revision);
+ const f=await fixture(t),r=await f.store.write(f.key,f.record),file=recoveryPath(f.identity.instanceId,f.key);if(process.platform!=='win32'){assert.equal((await fs.stat(file)).mode&0o777,0o600);assert.equal((await fs.stat(path.dirname(file))).mode&0o777,0o700)}assert.equal((await readRecovery(f.identity.instanceId,f.key)).revision,r.revision);
  await fs.writeFile(file+'.incomplete.tmp','{"v":');await fs.writeFile(file,'{"v":');await assert.rejects(f.store.read(f.key),{code:'RECOVERY_STATE_CORRUPT'});assert.equal(await fs.readFile(file,'utf8'),'{"v":');assert.equal(await fs.readFile(file+'.incomplete.tmp','utf8'),'{"v":');
  await fs.writeFile(file,JSON.stringify({...r,v:99}));await assert.rejects(f.store.read(f.key),{code:'RECOVERY_STATE_UNSUPPORTED'});
- await fs.unlink(file);await fs.symlink(file+'.incomplete.tmp',file);await assert.rejects(f.store.read(f.key),{code:'RECOVERY_STATE_UNSAFE'});await fs.unlink(file);
+ await fs.unlink(file);try{await fs.symlink(file+'.incomplete.tmp',file)}catch(e){if(e.code==='EPERM')await fs.symlink(path.dirname(file),file,'junction');else throw e}await assert.rejects(f.store.read(f.key),{code:'RECOVERY_STATE_UNSAFE'});await fs.unlink(file);
  await assert.rejects(f.store.write(f.key,{...f.record,stage:'x'.repeat(65536)}),{code:'RECOVERY_STATE_LARGE'});
 });
 test('reconciliation is read-only offline, guarded/idempotent online, and cannot erase a successor',async t=>{
@@ -48,7 +48,7 @@ test('operation EOF fences late commits while normal agent exit preserves health
 
 test('daemon ownership detects a replaced task without treating normal socket retirement as replacement',async t=>{
  const f=await fixture(t),{daemonFile,daemonIdentity,assertDaemon}=await import('../src/daemon-identity.mjs'),{default:net}=await import('node:net');const previous=process.env.PWTEST_DAEMON_SESSION_DIR;process.env.PWTEST_DAEMON_SESSION_DIR=path.join(f.dir,'daemon');t.after(()=>{previous===undefined?delete process.env.PWTEST_DAEMON_SESSION_DIR:process.env.PWTEST_DAEMON_SESSION_DIR=previous});
- const file=daemonFile(f.workspace,'agent'),socketPath=path.join(f.dir,'cli.sock'),server=net.createServer();await new Promise(r=>server.listen(socketPath,r));t.after(()=>server.close());await fs.mkdir(path.dirname(file),{recursive:true});const config={name:'agent',workspaceDir:f.workspace,attached:true,version:'pinned-fixture',timestamp:194,socketPath};await fs.writeFile(file,JSON.stringify(config));
+ const file=daemonFile(f.workspace,'agent'),socketPath=process.platform==='win32'?'\\\\.\\pipe\\latch-cli-test-'+crypto.randomUUID():path.join(f.dir,'cli.sock'),server=net.createServer();await new Promise(r=>server.listen(socketPath,r));t.after(()=>server.close());await fs.mkdir(path.dirname(file),{recursive:true});const config={name:'agent',workspaceDir:f.workspace,attached:true,version:'pinned-fixture',timestamp:194,socketPath};await fs.writeFile(file,JSON.stringify(config));
  const identity=await daemonIdentity(f.workspace,'agent'),record={...f.record,daemonFingerprint:identity.fingerprint,daemonSocketFingerprint:identity.socketFingerprint};assert.equal((await assertDaemon(record)).absent,false);await new Promise(r=>server.close(r));assert.equal((await assertDaemon(record)).absent,false);
  await fs.writeFile(file,JSON.stringify({...config,timestamp:195}));await assert.rejects(assertDaemon(record),{code:'DAEMON_IDENTITY_CHANGED'});
 });

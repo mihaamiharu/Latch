@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
 import {recordEvidence} from '../src/evidence.mjs';
@@ -13,8 +14,10 @@ import {fault} from '../extension/protocol.js';
 import {eventually} from './helpers/native-browser.mjs';
 
 async function fixture(t) {
-  const workspace=await fs.mkdtemp('/tmp/latch-recorder-'),dir=path.join(workspace,'work/latch/run');
-  t.after(()=>fs.rm(workspace,{recursive:true,force:true}));
+  const workspace=await fs.mkdtemp(path.join(os.tmpdir(),'latch-recorder-')),dir=path.join(workspace,'work/latch/run');
+  const prevCeiling=process.env.GIT_CEILING_DIRECTORIES;
+  process.env.GIT_CEILING_DIRECTORIES=os.tmpdir();
+  t.after(async()=>{prevCeiling===undefined?delete process.env.GIT_CEILING_DIRECTORIES:process.env.GIT_CEILING_DIRECTORIES=prevCeiling;await fs.rm(workspace,{recursive:true,force:true});});
   const invoke=(command,step,extra={})=>({command,flags:{session:'agent',profile:'work',workspace,'evidence-dir':dir,step,...extra},...(command==='pw'?{playwrightArgs:['run-code','async(page)=>page.title()']}: {})});
   const run=(command,step,operation,extra={})=>recordEvidence(invoke(command,step,extra),'test-release',operation);
   return {workspace,dir,invoke,run};
@@ -118,7 +121,7 @@ test('selective export includes only chosen verified artifacts and check metadat
 test('unsafe captures fail without modifying the linked file and leave a truthful post-action reporting failure',async t=>{
   const f=await fixture(t),privateFile=path.join(f.workspace,'keep');await fs.writeFile(privateFile,'private unchanged');
   const invocation={...f.invoke('pw','capture'),playwrightArgs:['snapshot']};let actions=0;
-  await assert.rejects(recordEvidence(invocation,'test-release',async forwarded=>{actions++;await fs.symlink(privateFile,forwarded.playwrightArgs[1].slice(11));return {result:'saved'}}),e=>e.code==='EVIDENCE_WRITE_FAILED'&&e.reporting.operationOutcome==='succeeded');
+  await assert.rejects(recordEvidence(invocation,'test-release',async forwarded=>{actions++;const target=forwarded.playwrightArgs[1].slice(11);try{await fs.symlink(privateFile,target)}catch(e){if(e.code==='EPERM')await fs.symlink(f.workspace,target,'junction');else throw e}return {result:'saved'}}),e=>e.code==='EVIDENCE_WRITE_FAILED'&&e.reporting.operationOutcome==='succeeded');
   assert.equal(actions,1);assert.equal(await fs.readFile(privateFile,'utf8'),'private unchanged');assert.equal((await inspectEvidence(f.dir)).checks[0].status,'unknown');
 });
 test('report failure retains the actually observed action-helper exit independently of recording failure',async t=>{

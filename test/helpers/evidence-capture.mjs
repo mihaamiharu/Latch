@@ -6,6 +6,7 @@ import {performance} from 'node:perf_hooks';
 import assert from 'node:assert/strict';
 import {command} from './native-browser.mjs';
 import {hash,pixels,row,MiB} from '../fixtures/evidence-app.mjs';
+import {spawnCommandSpec} from '../../src/platform.mjs';
 
 // The pinned CLI already bundles pngjs; no runtime dependency or copied decoder.
 export async function pngDecoder(){
@@ -15,7 +16,9 @@ export async function pngDecoder(){
 }
 export async function captureCLI(f,index,args,{name='command',limit=64*MiB,timeout=65000,fail=false}={}){
  const dest=path.join(f.evidence,`${name}.stdout.partial`),start=performance.now();const file=await fs.open(dest,'wx',0o600);let bytes=0,stderr=Buffer.alloc(0),failure;
- const child=spawn('playwright-cli',['-s=agent','--json',...args],{cwd:f.workspaces[index],env:{...f.env,DEBUG:''},stdio:['ignore','pipe','pipe']});
+ const env={...f.env,DEBUG:''};
+ const spec=await spawnCommandSpec('playwright-cli',['-s=agent','--json',...args],{env});
+ const child=spawn(spec.command,spec.args,{cwd:f.workspaces[index],env,...spec.options,stdio:['ignore','pipe','pipe']});
  let force;const timer=setTimeout(()=>{failure=new Error('Fixture CLI deadline');child.kill('SIGTERM');kill()},timeout);
  const kill=()=>{force=setTimeout(()=>{child.kill('SIGKILL');child.stdout.destroy();child.stderr.destroy()},1000);force.unref()};
  child.stderr.on('data',b=>{if(stderr.length<16384)stderr=Buffer.concat([stderr,b.subarray(0,16384-stderr.length)])});

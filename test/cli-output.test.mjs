@@ -96,7 +96,7 @@ test('CLI deadline reaps a subprocess that ignores SIGTERM and reports uncertain
     if (pid) try { process.kill(pid, 'SIGKILL'); } catch {}
     if (old === undefined) delete process.env.LATCH_PLAYWRIGHT_CLI;
     else process.env.LATCH_PLAYWRIGHT_CLI = old;
-    await fs.rm(dir, {recursive: true, force: true});
+    await fs.rm(dir, {recursive: true, force: true, maxRetries: 10, retryDelay: 50});
   });
   await fs.writeFile(
     script,
@@ -112,7 +112,7 @@ test('CLI deadline reaps a subprocess that ignores SIGTERM and reports uncertain
   const descendantCode = `require('fs').writeFileSync(${JSON.stringify(descendantFile)},String(process.pid));setInterval(()=>{},1000)`;
   await fs.writeFile(
     script,
-    `#!${process.execPath}\nrequire('fs').writeFileSync(${JSON.stringify(pidFile)},String(process.pid));require('child_process').spawn(process.execPath,['-e',${JSON.stringify(descendantCode)}],{stdio:['ignore','inherit','inherit']});process.on('SIGTERM',()=>process.exit(0));setInterval(()=>{},1000);`,
+    `#!${process.execPath}\nrequire('fs').writeFileSync(${JSON.stringify(pidFile)},String(process.pid));require('child_process').spawn(process.execPath,['-e',${JSON.stringify(descendantCode)}],{cwd:${JSON.stringify(os.tmpdir())},stdio:['ignore','inherit','inherit'],detached:true});process.on('SIGTERM',()=>process.exit(0));setInterval(()=>{},1000);`,
     {mode: 0o700},
   );
   await assert.rejects(runCLI('test', ['inherited-pipe'], {workspace: dir, timeout: 1500}), {code: 'CLI_TIMEOUT'});

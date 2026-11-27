@@ -1,35 +1,21 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import {execFile} from 'node:child_process';
-import {promisify} from 'node:util';
-import {configPath, privateDirectory} from './local.mjs';
+import {privateDirectory} from './local.mjs';
+import {libraryRoot as platformLibraryRoot, isProcessAlive} from './platform.mjs';
 import {atomic, exclusive, regularFile, directory, scrub, digest} from './evidence-storage.mjs';
 import {fault} from '../extension/protocol.js';
 
 export {atomic, exclusive, regularFile, scrub, digest};
 
-const exec = promisify(execFile);
-
 async function processIdentity(pid) {
-  try {
-    return (
-      await exec('/bin/ps', ['-p', String(pid), '-o', 'lstart=', '-o', 'comm='], {
-        env: {...process.env, TZ: 'UTC', LC_ALL: 'C'},
-        timeout: 2000,
-        maxBuffer: 4096,
-      })
-    ).stdout.trim();
-  } catch (e) {
-    if (e.code === 1) return null;
-    throw fault('EXPLORATION_BUSY', 'Cannot verify the previous capture process identity.');
-  }
+  return isProcessAlive(pid) ? `pid:${pid}` : null;
 }
 
 export const MAX_VIDEO = 512 * 1024 * 1024;
 export const MAX_RUN = 2 * 1024 * 1024 * 1024;
 export const runPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
-export const libraryRoot = () => path.resolve(process.env.LATCH_ARTIFACT_ROOT || path.join(path.dirname(configPath()), 'artifacts'));
+export const libraryRoot = () => platformLibraryRoot();
 export const bindingKey = ({workspace, session, profile = 'work'}) => digest(JSON.stringify([workspace, session, profile]));
 
 export async function libraryDirs() {
