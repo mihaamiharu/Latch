@@ -54,7 +54,7 @@ test('identity prefers storage over a conflicting backup, and a broken backup ca
 });
 
 async function pairing(t, {live = [NEW], ready = true} = {}) {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-pair-')), runtime = path.join(dir, 'r'), config = path.join(dir, 'config.json');
+  const dir = await fs.mkdtemp(path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), 'latch-pair-')), runtime = path.join(dir, 'r'), config = path.join(dir, 'config.json');
   await fs.mkdir(runtime, {mode: 0o700});
   const original = {v: 1, profiles: {work: {instanceId: OLD, chromeProfileDir: 'Default'}}};
   await fs.writeFile(config, JSON.stringify(original), {mode: 0o600});

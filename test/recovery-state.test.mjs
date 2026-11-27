@@ -17,7 +17,7 @@ import {workspaceBindingPath, ipcEndpoint} from '../src/platform.mjs';
 import {sessionKey} from '../src/redact.mjs';
 
 async function fixture(t) {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-binding-'));
+  const dir = await fs.mkdtemp(path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), 'latch-binding-'));
   const original = {config: process.env.LATCH_CONFIG, runtime: process.env.LATCH_RUNTIME_DIR};
   process.env.LATCH_CONFIG = path.join(dir, 'app', 'config.json');
   process.env.LATCH_RUNTIME_DIR = path.join(dir, 'runtime');

@@ -37,7 +37,7 @@ test('flat CLI rejects unknown flags, invalid session/profile overrides, and leg
 
 test('flat CLI dispatches session-open, session-action, and session-disconnect over IPC with smart defaults', async t => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-command-'));
-  const runtime = path.join(os.tmpdir(), `latch-command-${crypto.randomBytes(5).toString('hex')}`);
+  const runtime = path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), `latch-command-${crypto.randomBytes(5).toString('hex')}`);
   await fs.mkdir(runtime, {mode: 0o700});
   const workspace = await fs.realpath(dir);
   const instanceId = crypto.randomUUID();

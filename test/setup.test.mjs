@@ -25,7 +25,7 @@ const exec = promisify(execFile);
 const cliEntry = fileURLToPath(new URL('../src/cli.mjs', import.meta.url));
 
 async function fixture(t) {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-setup-'));
+  const dir = await fs.mkdtemp(path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), 'latch-setup-'));
   const prior = {
     config: process.env.LATCH_CONFIG,
     runtime: process.env.LATCH_RUNTIME_DIR,

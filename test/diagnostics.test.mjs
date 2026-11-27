@@ -13,7 +13,7 @@ async function fixture(t) {
   const parent = fileURLToPath(new URL('../work/diagnostics-tests/', import.meta.url));
   await fs.mkdir(parent, {recursive: true});
   const work = await fs.mkdtemp(path.join(parent, 'case-'));
-  const runtime = path.join(os.tmpdir(), `latch-diag-${crypto.randomBytes(5).toString('hex')}`);
+  const runtime = path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), `latch-diag-${crypto.randomBytes(5).toString('hex')}`);
   await fs.mkdir(runtime, {mode: 0o700});
   const previous = {runtime: process.env.LATCH_RUNTIME_DIR, config: process.env.LATCH_CONFIG};
   process.env.LATCH_RUNTIME_DIR = runtime;

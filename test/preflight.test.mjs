@@ -10,7 +10,7 @@ import {diagnose} from '../src/diagnostics.mjs';
 import {ipcEndpoint} from '../src/platform.mjs';
 
 async function fixture(t) {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-preflight-'));
+  const dir = await fs.mkdtemp(path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), 'latch-preflight-'));
   const runtime = path.join(dir, 'r');
   const workspace = path.join(dir, 'task with spaces');
   await fs.mkdir(runtime);

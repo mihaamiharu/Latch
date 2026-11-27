@@ -275,7 +275,7 @@ test('BrowserEngine executes all 21 actions, tracks refs/dialogs/console/network
 });
 
 test('native-host accepts only locked IPC operations and cleanly rejects legacy internal ops on socket', async t => {
-  const runtime = path.join(os.tmpdir(), `latch-nh-${crypto.randomBytes(5).toString('hex')}`);
+  const runtime = path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), `latch-nh-${crypto.randomBytes(5).toString('hex')}`);
   await fs.mkdir(runtime, {mode: 0o700});
   const oldRuntime = process.env.LATCH_RUNTIME_DIR;
   process.env.LATCH_RUNTIME_DIR = runtime;
