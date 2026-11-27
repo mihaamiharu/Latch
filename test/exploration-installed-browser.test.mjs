@@ -6,6 +6,7 @@ import {CANDIDATE_KIT} from './helpers/candidate.mjs';
 import {attachmentFixture} from './helpers/attachment-fixture.mjs';
 import {evidenceApp} from './fixtures/evidence-app.mjs';
 import {installCommand, doctorCommand} from '../src/setup.mjs';
+import {suiteGate} from './helpers/browser-suite.mjs';
 
 async function envOf(env, fn) {
   const keys = ['LATCH_CONFIG', 'LATCH_RUNTIME_DIR', 'PWTEST_DAEMON_SESSION_DIR'];
@@ -19,7 +20,9 @@ async function envOf(env, fn) {
 }
 
 test('exact installed candidate creates a central PNG filmstrip/YAML bundle, exports it and preserves the browser on finish', {
-  skip: process.env.LATCH_EXPLORATION_INSTALLED !== '1',
+  // On Windows the installed kit registers com.latch.bridge in the per-user
+  // registry (HKCU), which would overwrite the user's real installation.
+  skip: suiteGate('LATCH_EXPLORATION_INSTALLED', {windows: false, reason: 'Installs the real com.latch.bridge host, which on Windows means rewriting the per-user HKCU registration of the installed Latch; kept off on Windows.'}),
   timeout: 180000,
 }, async t => {
   const app = await evidenceApp();

@@ -11,7 +11,7 @@ Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and b
 
 - `--profile` defaults to the sole/default paired profile (`work`); `--workspace` defaults to `cwd`.
 - `-s` / `--session` auto-generates on `open`/`connect` and binds to `<appDataDir>/sessions/` (no repo dotfiles); later commands reuse it.
-- Pass `--json` for structured `{ ok, ... }` output.
+- `--json` gives structured `{ ok, ... }` output.
 
 ## Workflow
 
@@ -20,7 +20,7 @@ Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and b
    latch doctor
    latch tabs
    ```
-   Run `latch doctor --fix` if host registration needs repair, or `latch pair` if unpaired.
+   `latch doctor --fix` repairs host registration; `latch pair` pairs.
 
 2. **Attach or open a tab**
    ```sh
@@ -45,10 +45,10 @@ Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and b
    latch finish
    latch library serve
    ```
-   Use `latch checkpoint <note> [--annotation-file <path>]`, `latch finish` to capture final states and disconnect, and `latch library <list|show|serve|review|export|delete> [--run <id>]` (or the popup **Open Library** button) for filmstrip review. Change storage folder via `latch config set artifacts-dir <path>`.
+   Use `latch checkpoint <note> [--annotation-file <path>]`, `latch finish [--close-tabs]` (capture final states, disconnect), and `latch library <list|show|serve|review|export|delete> [--run <id>]` (or popup **Open Library**) for filmstrip review. Storage: `latch config set artifacts-dir <path>`.
 
 5. **Clean up**
-   `latch release [tabId]` detaches one tab; `latch disconnect` ends the session while preserving Chrome tabs and logins.
+   `latch release [tabId]` detaches one tab; `latch disconnect` ends the session, keeping tabs and logins. On finish/disconnect, `--close-tabs` closes only `latch open` tabs and popups, never `connect`ed ones; groups collapse by default.
 
 ## Safety rules
 

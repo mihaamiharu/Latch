@@ -22,10 +22,23 @@ async function chromePath() {
         : 'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing';
   const executable = process.env.LATCH_SPIKE_BROWSER || process.env.LATCH_CHROME ||
     path.join(cacheDir, 'chromium-' + pin.cacheRevision, binaryRel);
-  const actual = await command(executable, ['--version']);
-  if (actual.code !== 0 || actual.out.trim() !== 'Google Chrome for Testing ' + pin.version)
-    throw new Error(`Browser pin mismatch for ${lane}: expected Chrome for Testing ${pin.version}; found ${actual.out.trim() || actual.err}. No browser fixture was launched.`);
+  // AGENTS.md: the full Chrome for Testing binary, never the headless shell.
+  if (/headless[_-]shell/i.test(executable)) throw new Error('Refusing the Chromium headless shell; use the full Chrome for Testing binary.');
+  const actual = await chromeVersion(executable);
+  if (actual !== 'Google Chrome for Testing ' + pin.version)
+    throw new Error(`Browser pin mismatch for ${lane}: expected Chrome for Testing ${pin.version}; found ${actual || 'no version'}. No browser fixture was launched.`);
   return executable;
+}
+// chrome.exe --version prints nothing on Windows (GUI subsystem), so read the
+// binary's version resource instead. Returns e.g. "Google Chrome for Testing 157.0.8103.39".
+async function chromeVersion(executable) {
+  if (process.platform !== 'win32') {
+    const r = await command(executable, ['--version']);
+    return r.code === 0 ? r.out.trim() : '';
+  }
+  const script = '$v=(Get-Item -LiteralPath $env:LATCH_VERSION_PROBE).VersionInfo;$v.ProductName+" "+$v.ProductVersion';
+  const r = await command('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {env: {...process.env, LATCH_VERSION_PROBE: executable}});
+  return r.code === 0 ? r.out.trim() : '';
 }
 function control(socketPath, request) {
   return new Promise((resolve, reject) => {
@@ -72,9 +85,12 @@ async function stopBrowser(browser) {
   await new Promise(resolve => {
     const timer = setTimeout(() => { browser.kill('SIGKILL'); resolve(); }, 3000);
     browser.once('exit', () => { clearTimeout(timer); resolve(); });
-    browser.kill('SIGTERM');
+    // SIGTERM on Windows only ends the browser process and orphans its
+    // renderer/GPU children, which keep the disposable profile locked.
+    if (process.platform === 'win32') spawn('taskkill.exe', ['/T', '/F', '/PID', String(browser.pid)], {stdio: 'ignore', windowsHide: true});
+    else browser.kill('SIGTERM');
   });
 }
 
 
-export {chromePath, control, eventually, command, stopBrowser};
+export {chromePath, chromeVersion, control, eventually, command, stopBrowser};

@@ -4,12 +4,15 @@ import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import http from 'node:http';
 import {fileURLToPath} from 'node:url';
-import {chromePath, eventually, command, stopBrowser, control, HEADLESS_ARGS} from './native-browser.mjs';
+import {chromePath, chromeVersion, eventually, command, stopBrowser, control, HEADLESS_ARGS} from './native-browser.mjs';
 import {redact, sessionKey} from '../../src/redact.mjs';
 import {installedControl} from './installed-control.mjs';
+import {
+  testHostName, registerTestHost, unregisterTestHost, suspendTestHost, restoreTestHost, sweepStaleTestHosts,
+  writeHostLauncher, fixtureEndpoint, fixtureRuntime, realInstallSnapshot, assertRealInstallUnchanged, browserEvidence,
+} from './browser-suite.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
 export const valueOf = value => {
   try {
     return JSON.parse(value.result);
@@ -21,7 +24,9 @@ export const valueOf = value => {
 export async function attachmentFixture(t, app, transport = 'native') {
   const chrome = await chromePath();
   const run = crypto.randomUUID();
-  const versions = {node: process.version, playwrightCLI: '0.1.20', chrome: (await command(chrome, ['--version'])).out.trim()};
+  const realBefore = await realInstallSnapshot();
+  await sweepStaleTestHosts();
+  const versions = {node: process.version, chrome: await chromeVersion(chrome)};
   const base = path.join(root, 'work/attachment-compat');
   await fs.mkdir(base, {recursive: true});
   const temp = await fs.mkdtemp(path.join(base, transport + '-'));
@@ -45,8 +50,7 @@ export async function attachmentFixture(t, app, transport = 'native') {
       throw new Error('Private download inbox was not retained; refusing to trigger downloads.');
     }
   };
-  const runtime = `/tmp/latch-ab-${crypto.randomBytes(5).toString('hex')}`;
-  const cliBrowser = path.join(temp, 'headless-browser');
+  const runtime = fixtureRuntime('latch-ab');
   await fs.mkdir(evidence);
   await fs.cp(app.artifactExtension || path.join(root, 'extension'), extension, {recursive: true});
   if (app.recoveryAlarm) {
@@ -69,7 +73,7 @@ export async function attachmentFixture(t, app, transport = 'native') {
   const extensionId = [...crypto.createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest().subarray(0, 16)]
     .map(b => String.fromCharCode(97 + (b >> 4), 97 + (b & 15)))
     .join('');
-  const hostName = app.installed ? 'com.latch.bridge' : `com.latch.compat_${crypto.randomBytes(5).toString('hex')}`;
+  const hostName = app.installed ? 'com.latch.bridge' : testHostName();
   await fs.writeFile(
     path.join(extension, 'protocol.js'),
     (await fs.readFile(path.join(extension, 'protocol.js'), 'utf8')).replace("'com.latch.bridge'", JSON.stringify(hostName)),
@@ -77,13 +81,11 @@ export async function attachmentFixture(t, app, transport = 'native') {
   const env = {
     ...process.env,
     LATCH_CAPTURE: 'off',
-    DEBUG: app.protocolEvidence ? 'pw:protocol' : '',
     LATCH_RUNTIME_DIR: runtime,
     LATCH_CONFIG: path.join(temp, 'config.json'),
-    PWTEST_DAEMON_SESSION_DIR: path.join(temp, 'daemon'),
+    // Sessions, journals and the default artifact library stay in the fixture.
+    LATCH_HOME: path.join(temp, 'latch-home'),
     NO_UPDATE_NOTIFIER: '1',
-    PLAYWRIGHT_MCP_EXECUTABLE_PATH: cliBrowser,
-    PWTEST_EXTENSION_USER_DATA_DIR: profile,
   };
   const workspaces = [];
   for (const name of ['a', 'b', 'outsider']) {
@@ -134,12 +136,9 @@ export async function attachmentFixture(t, app, transport = 'native') {
     recoveryURL = 'http://127.0.0.1:' + recoveryServer.address().port + route;
     t.after(() => new Promise(r => { recoveryServer.close(r); recoveryServer.closeAllConnections(); }));
   }
-  const hosts = path.join(profile, 'NativeMessagingHosts');
-  const hostFile = path.join(hosts, hostName + '.json');
   const extensionLoad = app.installed ? path.join(app.installedRoot, 'extension') : app.stableExtension ? path.join(temp, 'extension-current') : extension;
-  if (app.stableExtension) await fs.symlink(extension, extensionLoad, 'dir');
+  if (app.stableExtension) await fs.symlink(extension, extensionLoad, process.platform === 'win32' ? 'junction' : 'dir');
   const extensions = [extensionLoad];
-  await fs.writeFile(cliBrowser, `#!/bin/sh\nexec ${quote(chrome)} --headless=new --use-mock-keychain --password-store=basic "$@"\n`, {mode: 0o700});
 
   let hostSource = path.join(root, 'src/native-host.mjs');
   const journalBarrier = path.join(temp, 'journal-write-reached');
@@ -159,44 +158,32 @@ export async function attachmentFixture(t, app, transport = 'native') {
       );
     }
     await fs.writeFile(file, text);
+    // Faults go into the private copy of native-sessions.mjs, after the
+    // session's relay (its debugger access) has stopped: the v1.1 cleanup path.
+    const cleanupAnchor = '      await entry.relay.stop().catch(() => {});\n    }\n    const released = await this.releaseBrowser(entry, p);';
+    const injectCleanup = async code => {
+      const sessions = path.join(source, 'src/native-sessions.mjs');
+      const original = await fs.readFile(sessions, 'utf8');
+      if (!original.includes(cleanupAnchor)) throw new Error('native-sessions.mjs cleanup anchor moved; update the fixture.');
+      await fs.writeFile(sessions, original.replace(cleanupAnchor, `      await entry.relay.stop().catch(() => {});\n      ${code}\n    }\n    const released = await this.releaseBrowser(entry, p);`));
+    };
     if (app.popupCleanupFault) {
-      const daemon = path.join(source, 'src/daemon-identity.mjs');
-      await fs.writeFile(
-        daemon,
-        (await fs.readFile(daemon, 'utf8')).replace(
-          'export async function assertDaemon(record) {',
-          "export async function assertDaemon(record) { if(path.basename(record.workspace)==='a')throw fault('DAEMON_IDENTITY_CHANGED','Controlled fixture cleanup failure.');",
-        ),
-      );
+      await injectCleanup("if(entry.workspace&&/^[^a-z0-9]a$/i.test(String(entry.workspace).slice(-2)))throw fault('CLEANUP_FAILED','Controlled fixture cleanup failure.');");
     }
     if (app.popupPauseCleanup) {
-      const daemon = path.join(source, 'src/daemon-identity.mjs');
-      await fs.writeFile(
-        daemon,
-        (await fs.readFile(daemon, 'utf8')).replace(
-          'export async function assertDaemon(record) {',
-          `export async function assertDaemon(record) { if(path.basename(record.workspace)==='a' && await fs.stat(${JSON.stringify(popupPause)}).catch(()=>null)){await fs.writeFile(${JSON.stringify(popupBarrier)},'accepted-cleanup-after-access-revocation');const end=Date.now()+12000;while(await fs.stat(${JSON.stringify(popupPause)}).catch(()=>null)){if(Date.now()>end)throw fault('FIXTURE_PAUSE_TIMEOUT','Private cleanup pause expired.');await new Promise(r=>setTimeout(r,25))}}`,
-        ),
-      );
+      await injectCleanup(`{const fs=await import('node:fs/promises');if(entry.workspace&&/^[^a-z0-9]a$/i.test(String(entry.workspace).slice(-2))&&await fs.stat(${JSON.stringify(popupPause)}).catch(()=>null)){await fs.writeFile(${JSON.stringify(popupBarrier)},'accepted-cleanup-after-access-revocation');const end=Date.now()+12000;while(await fs.stat(${JSON.stringify(popupPause)}).catch(()=>null)){if(Date.now()>end)throw fault('FIXTURE_PAUSE_TIMEOUT','Private cleanup pause expired.');await new Promise(r=>setTimeout(r,25))}}}`);
     }
     hostSource = path.join(source, 'src/native-host.mjs');
   }
-  const launcher = path.join(temp, 'native-host');
-  await fs.writeFile(
-    launcher,
-    `#!/bin/sh\nexport LATCH_RUNTIME_DIR=${quote(runtime)}\nexport LATCH_CONFIG=${quote(env.LATCH_CONFIG)}\nexport PWTEST_DAEMON_SESSION_DIR=${quote(env.PWTEST_DAEMON_SESSION_DIR)}\nexec ${quote(process.execPath)} ${quote(hostSource)} "$@" 2>>${quote(path.join(temp, 'native.stderr.log'))}\n`,
-    {mode: 0o700},
-  );
-  await fs.mkdir(hosts, {recursive: true});
-  registration = JSON.stringify({
-    name: hostName,
-    description: 'Attachment fixture',
-    type: 'stdio',
-    path: launcher,
-    allowed_origins: [`chrome-extension://${extensionId}/`],
-  });
-  if (app.installed) registration = await fs.readFile(hostFile, 'utf8');
-  else await fs.writeFile(hostFile, registration, {mode: 0o600, flag: 'wx'});
+  if (!app.installed) {
+    const launcher = await writeHostLauncher(temp, {hostSource, env, stderrLog: path.join(temp, 'native.stderr.log')});
+    registration = await registerTestHost({
+      name: hostName,
+      profile,
+      temp,
+      manifest: {description: 'Latch test-only fixture host', type: 'stdio', path: launcher, allowed_origins: [`chrome-extension://${extensionId}/`]},
+    });
+  }
 
   const provision = `const w=await chrome.windows.create({url:${JSON.stringify(['a', 'b', 'outsider'].map(name => app.origin + '/root#' + encodeURIComponent(run + ':' + name)))},type:'normal'});await fetch(${JSON.stringify(app.origin + '/__seed')},{method:'POST',mode:'no-cors',body:JSON.stringify({run,tabs:w.tabs.map(t=>t.id)})});`;
   const seed = `(async()=>{${app.recovery ? `if((await chrome.storage.local.get('__fixtureSeed')).__fixtureSeed!==run){${provision}await chrome.storage.local.set({__fixtureSeed:run})}const url=chrome.runtime.getURL('fixture-control.html');` : provision}})().catch(e=>console.error('Fixture provisioning failed',e.message));`;
@@ -299,7 +286,7 @@ export async function attachmentFixture(t, app, transport = 'native') {
     return events;
   };
   const nativeStatus = async () =>
-    control(path.join(runtime, identity.instanceId + '.sock'), {
+    control(fixtureEndpoint(identity.instanceId, runtime), {
       v: 1,
       id: crypto.randomUUID(),
       op: 'native-status',
@@ -308,7 +295,7 @@ export async function attachmentFixture(t, app, transport = 'native') {
   const captureTrace = async index => {
     if (!identity) return;
     const payload = {...identity, sessionKey: sessionKey(workspaces[index], 'agent')};
-    const trace = await control(path.join(runtime, identity.instanceId + '.sock'), {
+    const trace = await control(fixtureEndpoint(identity.instanceId, runtime), {
       v: 1,
       id: crypto.randomUUID(),
       op: 'native-trace',
@@ -323,30 +310,35 @@ export async function attachmentFixture(t, app, transport = 'native') {
     await progress('latch', index, args[0], 'start');
     const latchArgs = [...args];
     latchArgs.splice(args.includes('--') ? args.indexOf('--') : args.length, 0, '--workspace', workspaces[index]);
+    if (!latchArgs.includes('--json')) latchArgs.push('--json');
     const result = app.installed
       ? await command(path.join(app.installedRoot, 'bin/latch'), latchArgs, {cwd: workspaces[index], env})
-      : await command(process.execPath, [path.join(root, 'skills/latch/scripts/latch.mjs'), ...latchArgs], {cwd: workspaces[index], env});
+      : await command(process.execPath, [path.join(root, 'src/cli.mjs'), ...latchArgs], {cwd: workspaces[index], env});
     await progress('latch', index, args[0], 'done');
     const parsed = JSON.parse(result.out || result.err);
     if (result.code !== (fail ? 1 : 0)) throw new Error(`Latch ${args[0]} failed: ${redact(JSON.stringify(parsed))}`);
     return parsed;
   };
-  const pw = async (index, args, {fail = false} = {}) => {
-    await progress('playwright', index, args[0], 'start');
-    const result = await command('playwright-cli', ['-s=agent', '--json', ...args], {cwd: workspaces[index], env});
-    await progress('playwright', index, args[0], 'done');
+  // v1.1 drives pages through Latch's own action commands (bundled
+  // playwright-core), not an external playwright-cli daemon. `pw` keeps the
+  // suites' call shape: run-code results come back as {result: <json>}.
+  const pw = async (index, args, {fail = false, session = 'agent'} = {}) => {
+    if (args[0] === 'detach') return {};
+    await progress('latch-action', index, args[0], 'start');
+    const result = await command(process.execPath, [path.join(root, 'src/cli.mjs'), ...args, '--session', session, '--workspace', workspaces[index], '--json'], {cwd: workspaces[index], env});
+    await progress('latch-action', index, args[0], 'done');
     let parsed;
     try {
-      parsed = JSON.parse(result.out);
+      parsed = JSON.parse(result.out || result.err);
     } catch {
-      if (!fail) throw new Error('Playwright returned invalid output');
-      parsed = {isError: true, error: 'CLI_RESPONSE_LOST', exitCode: result.code, stdoutBytes: Buffer.byteLength(result.out), stderrBytes: Buffer.byteLength(result.err)};
+      if (!fail) throw new Error('Latch action returned invalid output: ' + redact(result.out + result.err).slice(0, 2000));
+      parsed = {ok: false, error: {code: 'CLI_RESPONSE_LOST'}, exitCode: result.code};
     }
-    if (!fail && (result.code !== 0 || parsed.isError)) {
+    if (!fail && (result.code !== 0 || parsed.ok === false)) {
       await fs.writeFile(path.join(evidence, 'last-error.txt'), redact(JSON.stringify(parsed)));
-      throw new Error(`Playwright ${args[0]} failed: ${redact(JSON.stringify(parsed))}`);
+      throw new Error(`Latch ${args[0]} failed: ${redact(JSON.stringify(parsed))}`);
     }
-    return parsed;
+    return parsed.ok === false ? parsed : {...parsed, result: JSON.stringify(parsed.value)};
   };
   const close = async () => {
     if (closed) return;
@@ -359,13 +351,13 @@ export async function attachmentFixture(t, app, transport = 'native') {
     for (let i = 0; i < 2; i++) await captureTrace(i);
     for (let i = 0; i < workspaces.length; i++) {
       await latch(i, ['disconnect', '--profile', 'work', '--session', 'agent']).catch(() => {});
-      await pw(i, ['detach']).catch(() => {});
     }
     if (app.protocolEvidence) await fs.writeFile(path.join(evidence, 'protocol-targets.json'), JSON.stringify(await protocolEvents(), null, 2));
     await stopBrowser(browser);
-    if ((await fs.readFile(hostFile, 'utf8').catch(() => '')) === registration) await fs.unlink(hostFile);
-    if ((await fs.readFile(hostFile + '.paused', 'utf8').catch(() => '')) === registration) await fs.unlink(hostFile + '.paused');
+    if (!app.installed) await unregisterTestHost(registration);
     await fs.rm(runtime, {recursive: true, force: true});
+    await assertRealInstallUnchanged(realBefore);
+    await fs.writeFile(path.join(evidence, 'browser-evidence.json'), JSON.stringify({...evidenceRecord, realInstallUnchanged: true}, null, 2));
   };
   t.after(close);
 
@@ -389,6 +381,13 @@ export async function attachmentFixture(t, app, transport = 'native') {
   ];
   const browserEnv = () =>
     app.installed ? {...env, ...(app.minimalHostPath ? {PATH: '/usr/bin:/bin', LATCH_PLAYWRIGHT_CLI: undefined} : {})} : process.env;
+  const evidenceRecord = browserEvidence({
+    chrome, version: versions.chrome, hostName, registryKey: registration?.registryKey,
+    launchArgs: args
+      .filter(a => !a.startsWith('--user-data-dir=') && a !== 'about:blank')
+      .map(a => (a.startsWith('--disable-extensions-except=') || a.startsWith('--load-extension=') ? a.split('=')[0] + '=<fixture extensions>' : a)),
+  });
+  await fs.writeFile(path.join(evidence, 'browser-evidence.json'), JSON.stringify(evidenceRecord, null, 2));
   const log = await fs.open(path.join(temp, 'chrome.stderr.log'), 'w');
   browser = spawn(chrome, args, {env: browserEnv(), stdio: ['ignore', 'ignore', log.fd]});
   await log.close();
@@ -442,22 +441,19 @@ export async function attachmentFixture(t, app, transport = 'native') {
     },
     refreshIdentity: async (timeout = 20000) =>
       (identity = await eventually(async () => (await latch(0, ['discover'])).profiles.find(p => p.instanceId === identity.instanceId), timeout)),
-    suspendHost: async () => {
-      if ((await fs.readFile(hostFile, 'utf8')) !== registration) throw new Error('Fixture registration changed');
-      await fs.rename(hostFile, hostFile + '.paused');
-    },
-    restoreHost: async () => {
-      if ((await fs.readFile(hostFile + '.paused', 'utf8')) !== registration) throw new Error('Fixture registration changed');
-      await fs.rename(hostFile + '.paused', hostFile);
-    },
+    suspendHost: async () => suspendTestHost(registration),
+    restoreHost: async () => restoreTestHost(registration),
+    evidenceRecord,
     stop: async () => stopBrowser(browser),
     restartBrowser: async () => {
       await stopBrowser(browser);
       browser = spawn(chrome, args, {env: browserEnv(), stdio: ['ignore', 'ignore', 'ignore']});
       return browser.pid;
     },
-    connect: async (index, tabId, {background = false} = {}) =>
-      latch(index, ['connect', '--profile', 'work', ...(background ? ['--focus-emulation', 'on'] : []), '--session', 'agent', '--tab', String(tabId)]),
+    // background: true => --focus-emulation on, false => off, omitted => the
+    // v1.1 default (on), which also keeps an existing session's setting valid.
+    connect: async (index, tabId, {background} = {}) =>
+      latch(index, ['connect', '--profile', 'work', ...(background === undefined ? [] : ['--focus-emulation', background ? 'on' : 'off']), '--session', 'agent', '--tab', String(tabId)]),
     states: () => [...app.states.values()].filter(state => state.actor.startsWith(run)),
   };
 }

@@ -3,21 +3,39 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {pathToFileURL} from 'node:url';
+import {fileURLToPath} from 'node:url';
+import {chromium} from 'playwright-core';
 import {EXTENSION_ID} from '../src/release.mjs';
-import {chromePath, command, eventually, HEADLESS_ARGS} from './helpers/native-browser.mjs';
+import {chromePath, chromeVersion, eventually, HEADLESS_ARGS} from './helpers/native-browser.mjs';
+import {suiteGate, testHostName, realInstallSnapshot, assertRealInstallUnchanged, browserEvidence} from './helpers/browser-suite.mjs';
 
-const enabled = process.env.LATCH_IDENTITY === '1' && process.platform === 'darwin';
+const root = fileURLToPath(new URL('../', import.meta.url));
 
-test('real headless extension restores its ID from backup, and creates a new one once both copies are gone', {skip: !enabled, timeout: 90000}, async t => {
-  const which = await command('which', ['playwright-cli']), executable = await fs.realpath(which.out.trim());
-  const {chromium} = await import(pathToFileURL(path.join(path.dirname(executable), 'node_modules/playwright-core/index.mjs')).href);
+test('real headless extension restores its ID from backup, and creates a new one once both copies are gone', {skip: suiteGate('LATCH_IDENTITY'), timeout: 90000}, async t => {
+  const realBefore = await realInstallSnapshot();
+  const executablePath = await chromePath();
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-identity-')), extension = path.join(temp, 'extension');
-  await fs.cp(path.resolve('dist/latch'), extension, {recursive: true});
-  const context = await chromium.launchPersistentContext(path.join(temp, 'profile'), {executablePath: await chromePath(), channel: 'chromium', headless: true,
-    ignoreDefaultArgs: ['--disable-extensions', '--enable-automation', '--disable-component-extensions-with-background-pages'],
-    args: [...HEADLESS_ARGS.filter(arg => !arg.startsWith('--headless')), '--use-mock-keychain', '--password-store=basic', '--enable-unsafe-extension-debugging']});
-  t.after(async () => { await context.close().catch(() => {}); await fs.rm(temp, {recursive: true, force: true}); });
+  await fs.cp(path.join(root, 'dist/latch'), extension, {recursive: true});
+  // The built extension asks for com.latch.bridge. Point this copy at a
+  // test-only host name that is never registered, so it can never reach the
+  // user's installed native host (on Windows the registration is per user).
+  const hostName = testHostName();
+  const protocolFile = path.join(extension, 'protocol.js');
+  const protocol = await fs.readFile(protocolFile, 'utf8');
+  assert.ok(protocol.includes("'com.latch.bridge'"));
+  await fs.writeFile(protocolFile, protocol.replace("'com.latch.bridge'", JSON.stringify(hostName)));
+  const args = [...HEADLESS_ARGS.filter(arg => !arg.startsWith('--headless')), '--use-mock-keychain', '--password-store=basic', '--enable-unsafe-extension-debugging'];
+  const context = await chromium.launchPersistentContext(path.join(temp, 'profile'), {executablePath, channel: 'chromium', headless: true,
+    ignoreDefaultArgs: ['--disable-extensions', '--enable-automation', '--disable-component-extensions-with-background-pages'], args});
+  const evidence = path.join(root, 'work/identity-browser');
+  await fs.mkdir(evidence, {recursive: true});
+  const record = browserEvidence({chrome: executablePath, version: await chromeVersion(executablePath), hostName, registryKey: null,
+    launchArgs: ['--headless (playwright-core launchPersistentContext headless:true, new headless)', ...args, '--remote-debugging-pipe (playwright-core)']});
+  t.after(async () => {
+    await context.close().catch(() => {});
+    await fs.rm(temp, {recursive: true, force: true, maxRetries: 10, retryDelay: 200});
+    await assertRealInstallUnchanged(realBefore);
+  });
   const settings = await context.newPage();
   await settings.goto('chrome://extensions/');
   await settings.evaluate(() => chrome.developerPrivate.updateProfileConfiguration({inDeveloperMode: true}));
@@ -57,4 +75,7 @@ test('real headless extension restores its ID from backup, and creates a new one
   })));
   const replacement = await stored();
   assert.notEqual(replacement, original, 'a full wipe must not keep the identity');
+  await fs.writeFile(path.join(evidence, 'identity-result.json'), JSON.stringify({...record, nativeHost: {...record.nativeHost, registered: false},
+    restoredFromBackup: true, regeneratedAfterFullWipe: true}, null, 2));
+  console.log('Identity evidence: ' + evidence);
 });

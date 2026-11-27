@@ -148,8 +148,8 @@ const COMMAND_GROUPS = {
     ['latch connect [tabId] [--record] [--objective <text>]', 'Attach to an existing signed-in tab (or an unowned Latch-grouped tab when tabId is omitted)'],
     ['latch sessions', 'Show active Latch sessions bound in the current paired Chrome profile'],
     ['latch release [tabId]', 'Detach debugger from one tab while keeping the browser tab open'],
-    ['latch disconnect', 'Close the active Latch session and preserve all tabs and logins'],
-    ['latch finish', 'Finalize a recorded exploration, write handoff YAML/JSON, and disconnect'],
+    ['latch disconnect [--close-tabs]', 'End the session and keep tabs and logins; --close-tabs closes only tabs latch open created (and their popups), never connected tabs'],
+    ['latch finish [--close-tabs]', 'Finalize a recorded exploration, write handoff YAML/JSON, and disconnect; the finished tab group collapses by default'],
   ],
   actions: [
     ['latch snapshot [selector] [--depth N]', 'Capture ARIA snapshot with interactive refs (large trees >12 KB spill to disk)'],

@@ -6,9 +6,9 @@ import {fileURLToPath} from 'node:url';
 import {actionApp} from './fixtures/action-app.mjs';
 import {attachmentFixture, valueOf} from './helpers/attachment-fixture.mjs';
 import {command, eventually} from './helpers/native-browser.mjs';
+import {suiteGate} from './helpers/browser-suite.mjs';
 
-const enabled = process.env.LATCH_ACTION_FAILURES === '1' && process.platform === 'darwin';
-test('action failure diagnostics: native', {skip: !enabled, timeout: 180000}, async t => {
+test('action failure diagnostics: native', {skip: suiteGate('LATCH_ACTION_FAILURES'), timeout: 180000}, async t => {
   const app = await actionApp();
   app.recovery = true;
   let f;
@@ -21,19 +21,19 @@ test('action failure diagnostics: native', {skip: !enabled, timeout: 180000}, as
   const pw = async (args, fail = false) => {
     const r = await command(
       process.execPath,
-      [cli, 'pw', '--profile', 'work', '--session', 'agent', '--workspace', f.workspaces[0], '--', ...args],
+      [cli, ...args, '--profile', 'work', '--session', 'agent', '--workspace', f.workspaces[0], '--json'],
       {cwd: f.workspaces[0], env: f.env},
     );
     const data = JSON.parse(r.out || r.err);
     assert.equal(r.code, fail ? 1 : 0, JSON.stringify(data));
-    return data;
+    return data.ok === false ? data : {...data, result: JSON.stringify(data.value)};
   };
   const configBefore = await fs.readFile(f.env.LATCH_CONFIG, 'utf8');
-  const report = {transport: 'native', headless: f.headless, launchArgs: f.launchArgs, versions: f.versions};
-  const off = await f.connect(0, f.tabs[0]);
+  const report = {...f.evidenceRecord, transport: 'native', versions: f.versions};
+  const off = await f.connect(0, f.tabs[0], {background: false});
   assert.equal(off.focusEmulation, false);
-  assert.ok(off.warnings.some(w => w.code === 'FOCUS_EMULATION_DISABLED'));
-  report.focusOff = off.warnings;
+  // v1.1 removed the FOCUS_EMULATION_DISABLED warning; focus emulation now defaults on.
+  report.focusOff = {focusEmulation: off.focusEmulation, warnings: off.warnings};
   const probe = await f.pw(0, [
     'run-code',
     'async(page)=>{const editor=page.locator(".cm-content").first();const state={count:await editor.count(),visible:await editor.isVisible(),enabled:await editor.isEnabled(),...await page.evaluate(()=>({visibility:document.visibilityState,focused:document.hasFocus()}))};try{await editor.click({trial:true,timeout:1500});return {...state,trial:"passed"}}catch(e){return {...state,trial:"failed",error:e.message}}}',
@@ -48,8 +48,9 @@ test('action failure diagnostics: native', {skip: !enabled, timeout: 180000}, as
 
   // A script asking for Save must fail even though the real button is present.
   const wrong = await pw(['run-code', 'async(page)=>page.getByRole("button",{name:"Save",exact:true}).click({timeout:1200})'], true);
-  assert.equal(wrong.error.code, 'PLAYWRIGHT_ERROR');
-  assert.match(wrong.error.diagnostics.upstreamError, /Timeout/);
+  // v1.1 classifies a locator that never resolves as ACTION_TIMEOUT.
+  assert.equal(wrong.error.code, 'ACTION_TIMEOUT');
+  assert.match(wrong.error.message, /timed out|Timeout/i);
   assert.equal(app.receipts.length, 0);
   report.wrongLocator = wrong;
   const saved = valueOf(
@@ -63,8 +64,8 @@ test('action failure diagnostics: native', {skip: !enabled, timeout: 180000}, as
   assert.deepEqual(app.receipts, [{actor: f.run + ':a', value: 'Verified once', sequence: 1}]);
   report.save = saved;
   report.receipts = app.receipts;
-  await pw(['screenshot', `--filename=${path.join(f.evidence, 'saved.png')}`]);
-  await pw(['snapshot', `--filename=${path.join(f.evidence, 'saved.yaml')}`]);
+  await pw(['screenshot', '--out', path.join(f.evidence, 'saved.png')]);
+  await fs.writeFile(path.join(f.evidence, 'saved.yaml'), (await pw(['snapshot'])).snapshot || '');
   await f.latch(0, ['disconnect', '--session', 'agent']);
   const retired = await pw(['snapshot'], true);
   assert.ok(['SESSION_STALE', 'SESSION_UNAVAILABLE'].includes(retired.error.code));

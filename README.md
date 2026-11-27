@@ -137,6 +137,13 @@ npm test
 
 `npm run build` produces `dist/latch/`, `dist/latch-1.1.1/`, and deterministic release archives in `dist/`. Browser integration tests run headless with disposable profiles per [AGENTS.md](AGENTS.md).
 
+Real-browser suites are opt-in and run on macOS and Windows with the full Chrome for Testing binary pinned in `test/browser-versions.json` (never the headless shell). Each suite registers a throwaway `com.latch.test_*` native host (on Windows under `HKCU\Software\Google\Chrome\NativeMessagingHosts`), removes it afterwards, and fails if the real `com.latch.bridge` registration or `config.json` changed. Every run writes `browser-evidence.json` with the headless mode and launch flags; headless results do not establish headed focus or tab-group collapse behavior.
+
+```sh
+npm run build          # popup-ui loads dist/latch-<version>/extension
+npm run test:browser   # all suites, or e.g. npm run test:open-tab
+```
+
 ## More documentation
 
 - [SETUP.md](SETUP.md) — cross-platform installation, pairing, and troubleshooting

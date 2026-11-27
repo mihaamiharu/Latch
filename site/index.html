@@ -91,7 +91,7 @@
             <article class="pillar-card">
               <h3>Single-tab safety in your work Chrome</h3>
               <p>
-                Attach one signed-in tab with <code>latch connect &lt;tabId&gt;</code> and per-session locks (<code>-s</code>). Your email, Slack, and other tabs stay isolated and untouched on disconnect.
+                Attach one signed-in tab with <code>latch connect &lt;tabId&gt;</code> and per-session locks (<code>-s</code>). Your email, Slack, and other tabs stay isolated and untouched on disconnect. Finished session groups collapse by default; <code>--close-tabs</code> (or the popup's <em>On session finish</em> setting) closes only tabs Latch opened.
               </p>
             </article>
             <article class="pillar-card">
@@ -377,7 +377,7 @@ latch doctor</pre>
                   <tbody>
                     <tr>
                       <td>Windows 10 / 11</td>
-                      <td>Named Pipes (<code>\\.\pipe\latch-*</code>), HKCU Native Messaging, Explorer folder picker</td>
+                      <td>Named Pipes (<code>\\.\pipe\latch-*</code>), HKCU Native Messaging, Explorer folder picker; real-browser suites run headless on Chrome for Testing in Windows CI</td>
                     </tr>
                     <tr>
                       <td>macOS &amp; Linux</td>

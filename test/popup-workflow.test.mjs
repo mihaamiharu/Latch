@@ -5,12 +5,12 @@ import path from 'node:path';
 import {popupApp} from './fixtures/popup-app.mjs';
 import {attachmentFixture,valueOf} from './helpers/attachment-fixture.mjs';
 import {eventually} from './helpers/native-browser.mjs';
+import {suiteGate} from './helpers/browser-suite.mjs';
 import {sessionKey} from '../src/redact.mjs';
 
-const enabled=process.env.LATCH_POPUP_WORKFLOW==='1'&&process.platform==='darwin';
 const identify=`const c=await child.context().newCDPSession(child);let targetId;try{targetId=(await c.send('Target.getTargetInfo')).targetInfo.targetId}finally{await c.detach()}`;
 
-test('native popup ownership: concurrent parents, standard events, redirects and surviving children',{skip:!enabled,timeout:180000},async t=>{
+test('native popup ownership: concurrent parents, standard events, redirects and surviving children',{skip:suiteGate('LATCH_POPUP_WORKFLOW'),timeout:180000},async t=>{
   const app=await popupApp();let f;t.after(async()=>{await f?.close();await app.close();});
   f=await attachmentFixture(t,app,'native');
   await Promise.all([f.connect(0,f.tabs[0],{background:true}),f.connect(1,f.tabs[1],{background:true})]);
@@ -39,7 +39,7 @@ test('native popup ownership: concurrent parents, standard events, redirects and
   const childConnection=await f.connect(0,childA.tabId);
   assert.equal(childConnection.page.targetId,a.targetId);
   assert.equal(valueOf(await f.pw(0,['run-code',"async(page)=>await page.locator('#role').innerText()"])), '/child');
-  const released=await f.latch(0,['release','--session','agent','--tab',String(childA.tabId)]);
+  const released=await f.latch(0,['release',String(childA.tabId),'--session','agent']);
   assert.equal(released.sessionClosed,false);
   await f.connect(0,f.tabs[0]);
   await f.pw(1,['run-code',`async(page)=>{for(const p of page.context().pages())if(p!==page&&p.url().split('#')[0].split('?')[0].endsWith('/child'))await p.close()}`]);
@@ -75,8 +75,8 @@ test('native popup ownership: concurrent parents, standard events, redirects and
   assert.ok(nestedTab);
   const survivor=await f.connect(0,nestedTab.tabId);
   assert.equal(survivor.page.targetId,nested.targetId);
-  await f.pw(0,['snapshot',`--filename=${path.join(f.evidence,'surviving-child.yaml')}`]);
-  await f.pw(0,['screenshot',`--filename=${path.join(f.evidence,'surviving-child.png')}`]);
+  await fs.writeFile(path.join(f.evidence,'surviving-child.yaml'),(await f.pw(0,['snapshot'])).snapshot||'');
+  await f.pw(0,['screenshot','--out',path.join(f.evidence,'surviving-child.png')]);
   outcomes.push({case:'nested child survives both parent and starting-tab closure',outcome:'passed'});
   assert.equal(valueOf(await f.pw(1,['run-code',"async(page)=>await page.locator('#actor').innerText()"])),f.run+':b');
   await f.latch(0,['disconnect','--session','agent']);
@@ -85,7 +85,7 @@ test('native popup ownership: concurrent parents, standard events, redirects and
   assert.ok(after.some(tab=>tab.tabId===nestedTab.tabId&&tab.owner===null));
   assert.ok(after.some(tab=>tab.tabId===f.tabs[2]&&tab.owner===null));
   assert.ok(!after.some(tab=>tab.owner));
-  await fs.writeFile(path.join(f.evidence,'report.json'),JSON.stringify({outcome:'passed',transport:'native',headless:f.headless,launchArgs:f.launchArgs,versions:f.versions,realNativeMessaging:true,
+  await fs.writeFile(path.join(f.evidence,'report.json'),JSON.stringify({...f.evidenceRecord,outcome:'passed',transport:'native',versions:f.versions,realNativeMessaging:true,
     focusEmulation:true,focusPolicy:'concurrent opening uses focus emulation; sequential popup cases explicitly foreground the parent',runtimeRemoteDebugging:false,outcomes,
     cleanupPreservedRemainingTabs:true,limits:{ownedTabs:16,popupDepth:4},
     notCovered:['frames and files','large payloads','restart recovery','installed Work rollout']},null,2));
