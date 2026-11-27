@@ -43,6 +43,32 @@ function taskView(task) {
   }
   card.append(list);
 
+  const actions = document.createElement('div');
+  actions.className = 'task-actions';
+
+  if (task.runId) {
+    const view = document.createElement('button');
+    view.disabled = busy;
+    view.type = 'button';
+    view.textContent = 'View run';
+    view.setAttribute('aria-label', `View exploration run for ${task.session}`);
+    view.onclick = async () => {
+      if (busy) return;
+      busy = true;
+      view.disabled = true;
+      try {
+        const res = await ui('open-library', {runId: task.runId});
+        await chrome.tabs.create({url: res.url});
+      } catch (e) {
+        $('notice').textContent = `${e.message} (${e.code})`;
+      } finally {
+        busy = false;
+        view.disabled = false;
+      }
+    };
+    actions.append(view);
+  }
+
   if (task.revocable) {
     const stop = document.createElement('button');
     stop.disabled = busy;
@@ -77,16 +103,47 @@ function taskView(task) {
         await refresh();
       }
     };
-    card.append(stop);
+    actions.append(stop);
   } else {
     const hint = document.createElement('p');
     hint.className = 'hint';
     hint.textContent = task.state === 'connecting'
       ? 'Connection in progress. Refresh to check its state.'
       : 'Inspect this task with Latch reconciliation.';
-    card.append(hint);
+    actions.append(hint);
   }
+  card.append(actions);
   return card;
+}
+
+function renderLibrary(library) {
+  const openBtn = $('open-library');
+  const storageSection = $('storage-section');
+  if (!library) {
+    openBtn.hidden = true;
+    storageSection.hidden = true;
+    return;
+  }
+  const count = Number.isFinite(library.runCount) ? library.runCount : 0;
+  openBtn.textContent = count > 0 ? `Open Library (${count})` : 'Open Library';
+  openBtn.hidden = false;
+  storageSection.hidden = false;
+
+  const input = $('artifacts-dir');
+  const saveBtn = $('save-artifacts');
+  const resetBtn = $('reset-artifacts');
+  const meta = $('storage-meta');
+  input.value = library.path || '';
+  if (library.envOverride) {
+    meta.textContent = 'Overridden by LATCH_ARTIFACT_ROOT environment variable.';
+  } else if (library.source === 'config') {
+    meta.textContent = `Custom folder saved in config.json (default: ${library.defaultPath}).`;
+  } else {
+    meta.textContent = `Using default folder (${count} saved ${count === 1 ? 'run' : 'runs'}).`;
+  }
+  input.disabled = !!library.envOverride || busy;
+  saveBtn.disabled = !!library.envOverride || busy;
+  resetBtn.disabled = !!library.envOverride || library.source === 'default' || busy;
 }
 
 async function refresh() {
@@ -105,6 +162,7 @@ async function refresh() {
     $('count').textContent = '0';
     $('profile').textContent = 'This Chrome profile';
     $('empty').hidden = false;
+    renderLibrary(null);
 
     if (!status.connected) {
       $('empty').textContent = 'Sessions are unavailable while the bridge is offline.';
@@ -130,6 +188,7 @@ async function refresh() {
       ? `Paired profile: ${data.profile.aliases.join(', ')}`
       : 'This profile is not paired. See connection details to pair it.';
     if (!data.nativeAvailable) $('connection').textContent = 'Bridge connected · native access unavailable';
+    renderLibrary(data.library || null);
     $('count').textContent = String(data.sessions.length);
     $('empty').hidden = !!data.sessions.length;
     $('empty').textContent = 'No active agent sessions. Connect from your task terminal.';
@@ -140,6 +199,7 @@ async function refresh() {
       extensionVersion: data.extensionVersion,
       nativeAvailable: data.nativeAvailable,
       uiControl: data.uiControl,
+      library: data.library || null,
       truncated: data.truncated,
     }, null, 2);
   } catch (e) {
@@ -151,6 +211,49 @@ async function refresh() {
 }
 
 $('refresh').onclick = () => void refresh();
+$('open-library').onclick = async () => {
+  if (busy) return;
+  busy = true;
+  $('open-library').disabled = true;
+  try {
+    const res = await ui('open-library');
+    await chrome.tabs.create({url: res.url});
+  } catch (e) {
+    $('notice').textContent = `${e.message} (${e.code})`;
+  } finally {
+    busy = false;
+    $('open-library').disabled = false;
+  }
+};
+$('save-artifacts').onclick = async () => {
+  if (busy) return;
+  busy = true;
+  $('save-artifacts').disabled = true;
+  try {
+    const value = $('artifacts-dir').value.trim();
+    const res = await ui('set-config', {key: 'artifactsDir', value});
+    $('notice').textContent = `Artifacts folder saved: ${res.path}`;
+  } catch (e) {
+    $('notice').textContent = `${e.message} (${e.code})`;
+  } finally {
+    busy = false;
+    await refresh();
+  }
+};
+$('reset-artifacts').onclick = async () => {
+  if (busy) return;
+  busy = true;
+  $('reset-artifacts').disabled = true;
+  try {
+    const res = await ui('set-config', {key: 'artifactsDir', reset: true});
+    $('notice').textContent = `Artifacts folder reset to default: ${res.path}`;
+  } catch (e) {
+    $('notice').textContent = `${e.message} (${e.code})`;
+  } finally {
+    busy = false;
+    await refresh();
+  }
+};
 $('retry').onclick = async () => {
   if (busy) return;
   busy = true;

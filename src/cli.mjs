@@ -5,7 +5,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {ACTIONS, fault, webUrl} from '../extension/protocol.js';
 import {diagnose} from './diagnostics.mjs';
-import {discoverDetailed, readConfig, request} from './local.mjs';
+import {discoverDetailed, getArtifactsConfig, readConfig, request, setArtifactsDir} from './local.mjs';
 import {isMainModule, privateDirectory, sessionsDir} from './platform.mjs';
 import {readWorkspaceBinding, removeWorkspaceBinding, writeWorkspaceBinding} from './recovery-state.mjs';
 import {cliError, sessionKey, workspaceAt} from './redact.mjs';
@@ -32,7 +32,7 @@ export const LIFECYCLE_COMMANDS = new Set([
   'finish',
 ]);
 export const EXPLORATION_COMMANDS = new Set(['checkpoint', 'library']);
-export const SETUP_COMMANDS = new Set(['install', 'pair', 'doctor', 'uninstall', 'agents']);
+export const SETUP_COMMANDS = new Set(['install', 'pair', 'doctor', 'uninstall', 'agents', 'config']);
 export const DIAGNOSTIC_COMMANDS = new Set(['discover', 'diagnose', 'version', 'help']);
 
 const GLOBAL_BOOLEAN_FLAGS = new Set(['json', 'help']);
@@ -124,6 +124,7 @@ Setup & Agents:
   latch install
   latch pair [--profile <alias>] [--instance <uuid> --chrome-profile-dir <dir>] [--replace --expect-old <uuid>]
   latch doctor [--fix]
+  latch config [get [artifacts-dir] | set artifacts-dir <path> | unset artifacts-dir]
   latch uninstall
   latch agents <install|status|uninstall> [--target antigravity,claude,codex,cursor]
 
@@ -492,6 +493,39 @@ export function parseArgs(argv = []) {
       flags.agentsAction = args[0];
       break;
     }
+    case 'config': {
+      const action = args[0] || 'get';
+      if (!['get', 'set', 'unset', 'reset'].includes(action)) {
+        throw fault('INVALID_ARGUMENT', 'Usage: latch config <get|set|unset> artifacts-dir [path]');
+      }
+      const key = args[1];
+      if (action === 'get') {
+        if (args.length > 2 || (key !== undefined && !['artifacts-dir', 'artifactsDir'].includes(key))) {
+          throw fault('INVALID_ARGUMENT', 'Usage: latch config get [artifacts-dir]');
+        }
+        flags.configAction = 'get';
+        flags.configKey = 'artifactsDir';
+        break;
+      }
+      if (!['artifacts-dir', 'artifactsDir'].includes(key)) {
+        throw fault('INVALID_ARGUMENT', `Usage: latch config ${action} artifacts-dir${action === 'set' ? ' <path>' : ''}`);
+      }
+      if (action === 'set') {
+        if (args.length !== 3 || !args[2].trim()) {
+          throw fault('INVALID_ARGUMENT', 'Usage: latch config set artifacts-dir <path>');
+        }
+        flags.configAction = 'set';
+        flags.configKey = 'artifactsDir';
+        flags.configValue = args[2];
+        break;
+      }
+      if (args.length !== 2) {
+        throw fault('INVALID_ARGUMENT', `Usage: latch config ${action} artifacts-dir`);
+      }
+      flags.configAction = 'unset';
+      flags.configKey = 'artifactsDir';
+      break;
+    }
   }
 
   return {command, flags, args, action: null, actionArgs: null};
@@ -641,6 +675,8 @@ async function defaultLoadAgents() {
 function makeDeps(overrides = {}) {
   return {
     readConfig,
+    getArtifactsConfig,
+    setArtifactsDir,
     request,
     discoverDetailed,
     diagnose,
@@ -724,6 +760,12 @@ export async function executeCLI(invocation, depOverrides = {}) {
     }
     const {agentsCommand} = await deps.loadAgents();
     return await agentsCommand(action, {target: f.target});
+  }
+  if (command === 'config') {
+    const action = f.configAction || 'get';
+    if (action === 'get') return deps.getArtifactsConfig();
+    if (action === 'unset') return await deps.setArtifactsDir(null);
+    return await deps.setArtifactsDir(path.resolve(process.cwd(), f.configValue));
   }
   if (command === 'library') {
     const libraryAction = f.libraryAction ?? args[0] ?? 'list';
@@ -942,7 +984,7 @@ export async function runCLI(argv, depOverrides = {}) {
   if (command === 'help') {
     return {invocation, result: {usage}};
   }
-  if (['version', 'discover', 'install', 'uninstall', 'agents', 'library', 'pair'].includes(command)) {
+  if (['version', 'discover', 'install', 'uninstall', 'agents', 'library', 'pair', 'config'].includes(command)) {
     return {invocation, result: await executeCLI(invocation, deps)};
   }
 
@@ -1143,6 +1185,15 @@ export function formatResult(command, result, {json = false, action = null} = {}
       return items.map(t => `  ${(t.clients || [t.target || t.name]).join(', ')}: ${t.status} (${t.path || ''})`).join('\n');
     }
     return JSON.stringify(result, null, 2);
+  }
+  if (command === 'config') {
+    const actionLabel = result.reset ? 'Reset artifacts folder to default' : result.updated ? 'Saved artifacts folder' : 'Artifacts folder';
+    const note = result.envOverride ? ' (overridden by LATCH_ARTIFACT_ROOT env)' : '';
+    return [
+      `${actionLabel}: ${result.path} [${result.source}]${note}`,
+      `Default: ${result.defaultPath}`,
+      `Config: ${result.configPath}`,
+    ].join('\n');
   }
   return JSON.stringify(result, null, 2);
 }

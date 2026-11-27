@@ -45,7 +45,7 @@ Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and b
    latch finish
    latch library serve
    ```
-   Use `latch checkpoint <note> [--annotation-file <path>]`, `latch finish` to capture final states and disconnect, and `latch library <list|show|serve|review|export> [--run <id>]` for local filmstrip review.
+   Use `latch checkpoint <note> [--annotation-file <path>]`, `latch finish` to capture final states and disconnect, and `latch library <list|show|serve|review|export> [--run <id>]` (or the popup **Open Library** button) for filmstrip review. Change storage folder via `latch config set artifacts-dir <path>`.
 
 5. **Clean up**
    `latch release [tabId]` detaches one tab; `latch disconnect` ends the session while preserving Chrome tabs and logins.

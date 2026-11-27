@@ -281,7 +281,7 @@ const consume = decoder(message => {
       message.nonce !== controlNonce ||
       message.hostGeneration !== hostGeneration ||
       !uuid.test(message.id || '') ||
-      !['status', 'revoke'].includes(message.op) ||
+      !['status', 'revoke', 'open-library', 'set-config'].includes(message.op) ||
       uiPending.size >= 16 ||
       uiPending.has(message.id) ||
       JSON.stringify(message.payload || {}).length > 8192
@@ -292,7 +292,12 @@ const consume = decoder(message => {
     const job = (async () => {
       let response;
       try {
-        const result = await (message.op === 'status' ? ui.status() : ui.revoke(message.payload || {}));
+        const payload = message.payload || {};
+        let result;
+        if (message.op === 'status') result = await ui.status();
+        else if (message.op === 'revoke') result = await ui.revoke(payload);
+        else if (message.op === 'open-library') result = await ui.openLibrary(payload);
+        else result = await ui.setConfig(payload);
         if (Buffer.byteLength(JSON.stringify(result)) > 65536) {
           throw Object.assign(new Error('Popup status exceeded its bound.'), {code: 'UI_MESSAGE_TOO_LARGE'});
         }

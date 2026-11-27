@@ -1,6 +1,9 @@
 import path from 'node:path';
 import {fault} from '../extension/protocol.js';
-import {readConfig} from './local.mjs';
+import {readConfig, setArtifactsDir} from './local.mjs';
+import {describeLibraryRoot} from './platform.mjs';
+import {boundRun, listRuns, runPattern} from './exploration-storage.mjs';
+import {startLibraryServer} from './exploration-library.mjs';
 
 const short = (value, n = 160) => String(value || '').slice(0, n);
 
@@ -8,10 +11,17 @@ export class NativeUI {
   constructor(identity, sessions, browser) {
     Object.assign(this, {identity, sessions, browser});
     this.stopped = false;
+    this.libraryServer = null;
+    this.libraryStarting = null;
   }
 
   stop() {
     this.stopped = true;
+    if (this.libraryServer) {
+      const server = this.libraryServer;
+      this.libraryServer = null;
+      void server.close().catch(() => {});
+    }
   }
 
   async status() {
@@ -25,6 +35,8 @@ export class NativeUI {
     const tabs = await this.browser('tabs', {instanceId: this.identity.instanceId, epoch: this.identity.epoch});
     const rows = [];
     let truncated = false;
+    const libraryInfo = describeLibraryRoot();
+    const runCount = (await listRuns().catch(() => [])).length;
 
     for (const [key, entry] of this.sessions.sessions) {
       if (rows.length >= 32) {
@@ -33,6 +45,17 @@ export class NativeUI {
       }
       const status = entry.relay.status();
       const owned = tabs.filter(t => t.owner === key);
+      let runId = null;
+      if (entry.workspace && entry.session) {
+        const profileCandidates = aliases.length ? aliases : ['work'];
+        for (const alias of profileCandidates) {
+          const bound = await boundRun({workspace: entry.workspace, session: entry.session, profile: alias}).catch(() => null);
+          if (bound?.id) {
+            runId = bound.id;
+            break;
+          }
+        }
+      }
       rows.push({
         key,
         session: short(entry.session || key.slice(0, 12), 60),
@@ -43,6 +66,7 @@ export class NativeUI {
         revision: entry.leaseId,
         hostGeneration: this.identity.hostGeneration,
         revocable: !status.stopped,
+        runId,
         tabCount: owned.length,
         tabs: owned.slice(0, 16).map(t => ({
           tabId: t.tabId,
@@ -64,6 +88,15 @@ export class NativeUI {
       release: this.identity.releaseVersion,
       extensionVersion: this.identity.extensionVersion,
       uiControl: 1,
+      library: {
+        runCount,
+        path: libraryInfo.path,
+        defaultPath: libraryInfo.defaultPath,
+        configuredPath: libraryInfo.configuredPath,
+        source: libraryInfo.source,
+        envOverride: libraryInfo.envOverride,
+        serverUrl: this.libraryServer?.url || null,
+      },
       sessions: rows,
       truncated,
     };
@@ -74,6 +107,58 @@ export class NativeUI {
       result.truncated = true;
     }
     return result;
+  }
+
+  async openLibrary(payload = {}) {
+    if (this.stopped) throw fault('BRIDGE_DISCONNECTED', 'Local bridge is stopping.');
+    const runId = payload.runId ? String(payload.runId) : null;
+    if (runId && !runPattern.test(runId)) {
+      throw fault('INVALID_RUN', 'Invalid exploration run ID.');
+    }
+    if (!this.libraryServer) {
+      if (!this.libraryStarting) {
+        this.libraryStarting = startLibraryServer({port: 0}).finally(() => {
+          this.libraryStarting = null;
+        });
+      }
+      const started = await this.libraryStarting;
+      if (this.stopped) {
+        void started.close().catch(() => {});
+        throw fault('BRIDGE_DISCONNECTED', 'Local bridge is stopping.');
+      }
+      this.libraryServer = started;
+    }
+    const baseUrl = this.libraryServer.url;
+    return {
+      url: runId ? `${baseUrl}/run/${runId}` : baseUrl,
+      baseUrl,
+      ...(runId ? {runId} : {}),
+    };
+  }
+
+  async setConfig(payload = {}) {
+    if (this.stopped) throw fault('BRIDGE_DISCONNECTED', 'Local bridge is stopping.');
+    const key = payload.key;
+    if (key !== 'artifactsDir' && key !== 'artifacts-dir') {
+      throw fault('INVALID_ARGUMENT', 'Unsupported config key. Expected artifactsDir.');
+    }
+    const reset = payload.reset === true || payload.value === null || payload.value === undefined || payload.value === '';
+    const updated = reset
+      ? await setArtifactsDir(null)
+      : await setArtifactsDir(payload.value, {requireAbsolute: true});
+    const runCount = (await listRuns().catch(() => [])).length;
+    return {
+      ...updated,
+      library: {
+        runCount,
+        path: updated.path,
+        defaultPath: updated.defaultPath,
+        configuredPath: updated.configuredPath,
+        source: updated.source,
+        envOverride: updated.envOverride,
+        serverUrl: this.libraryServer?.url || null,
+      },
+    };
   }
 
   async revoke(p) {

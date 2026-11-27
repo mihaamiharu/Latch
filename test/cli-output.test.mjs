@@ -394,3 +394,37 @@ test('CLI executes when invoked through a symlink or junction (npm link)', async
   assert.equal(parsed.ok, true);
   assert.equal(parsed.nativeSessionSchema, 4);
 });
+
+test('latch config manages artifactsDir with LATCH_ARTIFACT_ROOT env > config.json > default precedence', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-cfg-cli-'));
+  const customDir = path.join(dir, 'custom-runs');
+  const envDir = path.join(dir, 'env-runs');
+  t.after(() => fs.rm(dir, {recursive: true, force: true}));
+
+  const env = {...process.env, LATCH_CONFIG: path.join(dir, 'config.json')};
+  delete env.LATCH_ARTIFACT_ROOT;
+
+  const initial = JSON.parse((await exec(process.execPath, [cliEntry, 'config', 'get', '--json'], {env})).stdout);
+  assert.equal(initial.ok, true);
+  assert.equal(initial.source, 'default');
+  assert.equal(initial.envOverride, false);
+
+  const setOut = (await exec(process.execPath, [cliEntry, 'config', 'set', 'artifacts-dir', customDir], {env})).stdout;
+  assert.match(setOut, /Saved artifacts folder:/);
+  assert.match(setOut, /\[config\]/);
+
+  const afterSet = JSON.parse((await exec(process.execPath, [cliEntry, 'config', 'get', '--json'], {env})).stdout);
+  assert.equal(afterSet.source, 'config');
+  assert.equal(afterSet.path, path.resolve(customDir));
+
+  const envOverridden = JSON.parse(
+    (await exec(process.execPath, [cliEntry, 'config', 'get', '--json'], {env: {...env, LATCH_ARTIFACT_ROOT: envDir}})).stdout,
+  );
+  assert.equal(envOverridden.source, 'env');
+  assert.equal(envOverridden.envOverride, true);
+  assert.equal(envOverridden.path, path.resolve(envDir));
+
+  const unsetRes = JSON.parse((await exec(process.execPath, [cliEntry, 'config', 'unset', 'artifacts-dir', '--json'], {env})).stdout);
+  assert.equal(unsetRes.reset, true);
+  assert.equal(unsetRes.source, 'default');
+});

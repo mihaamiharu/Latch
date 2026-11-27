@@ -101,7 +101,7 @@ export function createBridgeConnection(api, {host, hello, dispatch, invalidate, 
     ui(op,payload={}) {
       if(!port||!state.connected)return Promise.reject(fault('BRIDGE_NOT_READY','Local bridge is not ready.'));
       if(!state.uiControl)return Promise.reject(fault('UI_UNSUPPORTED','Update the matching Latch host to use session controls.'));
-      if(!['status','revoke'].includes(op)||uiPending.size>=16||JSON.stringify(payload).length>8192)return Promise.reject(fault('UI_REQUEST_INVALID','Unsupported or busy popup request.'));
+      if(!['status','revoke','open-library','set-config'].includes(op)||uiPending.size>=16||JSON.stringify(payload).length>8192)return Promise.reject(fault('UI_REQUEST_INVALID','Unsupported or busy popup request.'));
       const next=port,id=crypto.randomUUID();
       return new Promise((resolve,reject)=>{const timer=timers.setTimeout(()=>{uiPending.delete(id);reject(fault('UI_TIMEOUT','The request timed out; refresh to check its outcome.'))},op==='revoke'?35000:12000);uiPending.set(id,{resolve,reject,timer});try{next.postMessage({v:1,type:'ui-request',id,nonce:activeNonce,hostGeneration:state.hostGeneration,op,payload})}catch(e){uiPending.delete(id);timers.clearTimeout(timer);reject(e)}});
     },

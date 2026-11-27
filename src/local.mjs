@@ -7,6 +7,7 @@ import {
   UUID_PATTERN,
   runtimeDir,
   configPath,
+  describeLibraryRoot,
   ipcEndpoint,
   privateDirectory,
   discoverIpcEndpoints,
@@ -67,6 +68,71 @@ export async function updateConfig(change) {
     });
     await fs.rmdir(gate);
   }
+}
+
+export function getArtifactsConfig({platform = process.platform, env = process.env} = {}) {
+  return {
+    configPath: configPath(platform, env),
+    ...describeLibraryRoot(platform, env),
+  };
+}
+
+export async function setArtifactsDir(
+  rawPath,
+  {requireAbsolute = false, platform = process.platform, env = process.env} = {},
+) {
+  if (rawPath === null || rawPath === undefined || String(rawPath).trim() === '') {
+    await updateConfig(config => {
+      delete config.artifactsDir;
+    });
+    return {
+      updated: true,
+      reset: true,
+      configPath: configPath(platform, env),
+      ...describeLibraryRoot(platform, env),
+    };
+  }
+  const trimmed = String(rawPath).trim();
+  if (trimmed.length > 512 || trimmed.includes('\0')) {
+    throw fault('INVALID_ARGUMENT', 'Artifacts folder path is invalid or too long.');
+  }
+  if (requireAbsolute && !path.isAbsolute(trimmed)) {
+    throw fault('INVALID_ARGUMENT', 'Specify an absolute folder path for artifactsDir.');
+  }
+  const resolved = path.resolve(trimmed);
+  if (path.parse(resolved).root === resolved) {
+    throw fault('INVALID_ARGUMENT', 'Refusing to use a filesystem root as the artifacts folder.');
+  }
+  let existing = null;
+  try {
+    existing = await fs.lstat(resolved);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (existing && (!existing.isDirectory() || existing.isSymbolicLink())) {
+    throw fault('INVALID_ARGUMENT', 'Artifacts path must be a regular directory (not a file or symlink).');
+  }
+  await privateDirectory(resolved, platform);
+  const probe = path.join(resolved, `.latch-write-probe-${crypto.randomUUID()}`);
+  let handle;
+  try {
+    handle = await fs.open(probe, 'wx', 0o600);
+    await handle.writeFile('ok');
+  } finally {
+    if (handle) {
+      await handle.close().catch(() => {});
+      await fs.unlink(probe).catch(() => {});
+    }
+  }
+  await updateConfig(config => {
+    config.artifactsDir = resolved;
+  });
+  return {
+    updated: true,
+    reset: false,
+    configPath: configPath(platform, env),
+    ...describeLibraryRoot(platform, env),
+  };
 }
 
 export function socketError(error, address) {

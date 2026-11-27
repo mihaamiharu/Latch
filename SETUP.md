@@ -18,6 +18,16 @@ Latch connects coding agents to tabs in your real Google Chrome profile across *
 
 Environment overrides: `LATCH_CONFIG`, `LATCH_RUNTIME_DIR`, `LATCH_ARTIFACT_ROOT`, `LATCH_HOME`.
 
+You can also configure a custom exploration artifacts folder persistently in `config.json` (resolution order: `LATCH_ARTIFACT_ROOT` env → `config.json` `artifactsDir` → default `<appDataDir>/artifacts`) via CLI or the extension popup's **Library & storage** section:
+
+```sh
+latch config get artifacts-dir
+latch config set artifacts-dir /path/to/artifacts
+latch config unset artifacts-dir
+```
+
+Click **Open Library** in the Latch Chrome extension popup at any time to start the local Exploration Library viewer in a browser tab without needing `latch library serve`.
+
 ## 1. Install native host & CLI launcher
 
 From your Latch checkout or extracted release kit:

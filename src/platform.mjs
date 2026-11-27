@@ -41,9 +41,42 @@ export function configPath(platform = process.platform, env = process.env) {
   return path.join(appDataDir(platform, env), 'config.json');
 }
 
-export function libraryRoot(platform = process.platform, env = process.env) {
-  if (env.LATCH_ARTIFACT_ROOT) return path.resolve(env.LATCH_ARTIFACT_ROOT);
+export function defaultLibraryRoot(platform = process.platform, env = process.env) {
   return path.join(path.dirname(configPath(platform, env)), 'artifacts');
+}
+
+export function configuredArtifactsDir(platform = process.platform, env = process.env) {
+  try {
+    const raw = fsSync.readFileSync(configPath(platform, env), 'utf8');
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.artifactsDir === 'string' && parsed.artifactsDir.trim()) {
+      return path.resolve(parsed.artifactsDir.trim());
+    }
+  } catch {}
+  return null;
+}
+
+export function libraryRoot(platform = process.platform, env = process.env) {
+  if (env.LATCH_ARTIFACT_ROOT && env.LATCH_ARTIFACT_ROOT.trim()) {
+    return path.resolve(env.LATCH_ARTIFACT_ROOT.trim());
+  }
+  return configuredArtifactsDir(platform, env) || defaultLibraryRoot(platform, env);
+}
+
+export function describeLibraryRoot(platform = process.platform, env = process.env) {
+  const defaultPath = defaultLibraryRoot(platform, env);
+  const configuredPath = configuredArtifactsDir(platform, env);
+  const envPath = env.LATCH_ARTIFACT_ROOT && env.LATCH_ARTIFACT_ROOT.trim()
+    ? path.resolve(env.LATCH_ARTIFACT_ROOT.trim())
+    : null;
+  const source = envPath ? 'env' : configuredPath ? 'config' : 'default';
+  return {
+    path: envPath || configuredPath || defaultPath,
+    defaultPath,
+    configuredPath,
+    source,
+    envOverride: !!envPath,
+  };
 }
 
 export function sessionsDir(platform = process.platform, env = process.env) {

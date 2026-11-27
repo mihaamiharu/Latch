@@ -90,3 +90,55 @@ test('profile labels and status remain bounded, and host shutdown fences UI auth
   f.ui.stop();
   await assert.rejects(f.ui.status(), {code: 'BRIDGE_DISCONNECTED'});
 });
+
+test('popup UI exposes library status, lazily opens loopback library server, and updates artifactsDir', async t => {
+  const f = await fixture(t);
+  const customArtifacts = path.join(f.dir, 'custom-artifacts');
+  const beforeArt = process.env.LATCH_ARTIFACT_ROOT;
+  delete process.env.LATCH_ARTIFACT_ROOT;
+  t.after(async () => {
+    f.ui.stop();
+    beforeArt === undefined ? delete process.env.LATCH_ARTIFACT_ROOT : (process.env.LATCH_ARTIFACT_ROOT = beforeArt);
+  });
+
+  const initialStatus = await f.ui.status();
+  assert.equal(initialStatus.library.runCount, 0);
+  assert.equal(initialStatus.library.source, 'default');
+  assert.equal(initialStatus.library.envOverride, false);
+  assert.equal(initialStatus.sessions[0].runId, null);
+
+  await assert.rejects(f.ui.setConfig({key: 'unknownKey', value: customArtifacts}), {code: 'INVALID_ARGUMENT'});
+  await assert.rejects(f.ui.setConfig({key: 'artifactsDir', value: 'relative/path'}), {code: 'INVALID_ARGUMENT'});
+
+  const saved = await f.ui.setConfig({key: 'artifactsDir', value: customArtifacts});
+  assert.equal(saved.updated, true);
+  assert.equal(saved.reset, false);
+  assert.equal(saved.library.source, 'config');
+  assert.equal(saved.library.path, path.resolve(customArtifacts));
+
+  const {allocateRun} = await import('../src/exploration-storage.mjs');
+  const run = await allocateRun(
+    {workspace: f.workspace, session: 'agent', profile: 'work'},
+    {objective: 'Popup library link test'},
+  );
+
+  const withRunStatus = await f.ui.status();
+  assert.equal(withRunStatus.library.runCount, 1);
+  assert.equal(withRunStatus.sessions[0].runId, run.id);
+
+  await assert.rejects(f.ui.openLibrary({runId: '../bad'}), {code: 'INVALID_RUN'});
+  const opened1 = await f.ui.openLibrary();
+  const opened2 = await f.ui.openLibrary({runId: run.id});
+  assert.equal(opened1.baseUrl, opened2.baseUrl);
+  assert.equal(opened2.url, `${opened1.baseUrl}/run/${run.id}`);
+  const pageRes = await fetch(opened1.url);
+  assert.equal(pageRes.status, 200);
+  assert.match(await pageRes.text(), /Exploration library/);
+
+  const reset = await f.ui.setConfig({key: 'artifactsDir', reset: true});
+  assert.equal(reset.reset, true);
+  assert.equal(reset.library.source, 'default');
+
+  f.ui.stop();
+  await assert.rejects(f.ui.openLibrary(), {code: 'BRIDGE_DISCONNECTED'});
+});
