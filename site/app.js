@@ -133,7 +133,7 @@ const FILMSTRIP_STEPS = [
     },
     after: {
       title: 'Validation alert visible (state-00003.png)',
-      desc: 'Checkpoint records observed behavior separately from expected assertions for human QA review.',
+      desc: 'Checkpoint logs what the agent observed without fabricating assertions—verify the real state in seconds.',
       img: 'assets/film-state-3.png',
       alt: 'Staging checkout page displaying inline card number required alert',
     },

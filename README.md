@@ -2,24 +2,20 @@
 
 **Your signed-in Chrome, ready for coding agents.**
 
-Attach Claude Code, Codex, Cursor, or Antigravity to one authenticated Chrome tab at a time—no repo dotfiles, no stolen cursor, and optional before/after PNG filmstrips for human QA review before writing Playwright tests.
+Built on `playwright-core` for Claude Code, Codex, Cursor, and Antigravity. Attach an agent to one authenticated Chrome tab at a time—no repo dotfiles, no stolen cursor, and optional before/after PNG filmstrips so you can verify what the agent actually did.
 
 **Docs & Showcase:** https://mihaamiharu.github.io/Latch/ · **npm:** `@mihaamiharu/latch` · **Releases:** [v1.0.0](https://github.com/mihaamiharu/Latch/releases/tag/v1.0.0)
 
-![Latch Exploration Library showing a before/after PNG filmstrip, observed locators, and local QA review](site/assets/library-filmstrip.png)
+![Latch local filmstrip viewer showing before/after PNG screenshots of an agent run](site/assets/library-filmstrip.png)
 
-## Why Latch instead of Playwright or MCP?
+## Built for coding agents
 
-If you just need a headless browser for `localhost` or public pages, use **Playwright** or your IDE's built-in browser—you don't need Latch.
+- **Single-tab safety:** Explicitly attach one signed-in tab (`latch connect <tabId>`) with per-session ownership locks. Your other tabs, cookies, and logins stay isolated and untouched on disconnect.
+- **Agent-native ergonomics:** Flat CLI commands, a compact 3 KB skill prompt, background focus emulation (your cursor and active window aren't hijacked), and zero dotfiles written into your repository.
+- **Visual proof of work:** When an agent runs in a background tab, don't just take `"verified"` at face value. Pass `--record` to inspect before/after PNG screenshots, ARIA snapshots, and checkpoints locally.
+- **One-command multi-agent setup:** `latch agents install` wires Antigravity, Claude Code, Codex, and Cursor together without maintaining separate MCP JSON configs.
 
-Use **Latch** when your coding agent needs to work inside your **real, SSO/MFA-signed-in Chrome** with guardrails and visual proof:
-
-| Pain point | Stock Playwright / `@playwright/cli` | Playwright / Chrome DevTools MCP | **Latch** |
-| --- | --- | --- | --- |
-| **SSO / MFA without exposing your whole browser** | Isolated profiles by default; extension mode lacks per-tab session locks. | `chrome-devtools-mcp --autoConnect` exposes *every* tab and cookie in Chrome. | **Single-tab ownership.** Attach one tab (`latch connect <tabId>`); other tabs, cookies, and logins stay isolated and untouched. |
-| **Repo cleanliness & background focus** | Writes `.playwright-cli/` artifacts into your git repo. | Heavy MCP tool-schema overhead across every client config. | **Zero repo dotfiles + background focus emulation.** Slim 3 KB skill, flat CLI, and state stored under OS app data—no stolen cursor. |
-| **Reviewing what the agent actually saw before writing tests** | Emits assertions immediately; easy to hallucinate expected behavior. | No structured before/after visual QA triage workflow. | **Built-in Exploration Library.** Opt-in `--record` captures before/after PNG filmstrips, ARIA/DOM locator candidates, and checkpoints in a local `127.0.0.1` reviewer. |
-| **Multiple coding agents** | Per-tool setup or MCP config per client. | Separate MCP JSON config in every IDE/CLI. | **One command (`latch agents install`)** wires Antigravity, Claude Code, Codex, and Cursor together. |
+**Where Latch fits:** Latch is built on `playwright-core` to complement Playwright, not replace it. Use Playwright directly for CI suites and fresh headless tests, Chrome DevTools MCP for deep performance/heap profiling, and your IDE's built-in browser for public or localhost previews. Reach for Latch when a coding agent needs safe, auditable access to your real signed-in Chrome.
 
 ## Prerequisites
 

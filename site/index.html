@@ -25,10 +25,10 @@
           <span class="brand-name">Latch</span>
         </a>
         <nav class="site-nav" aria-label="Primary navigation">
-          <a href="#compare">Compare</a>
+          <a href="#why">Why Latch</a>
           <a href="#install">Install</a>
           <a href="#architecture">How it works</a>
-          <a href="#library">Library</a>
+          <a href="#library">Replay</a>
           <a href="#commands">Commands</a>
           <a href="https://github.com/mihaamiharu/Latch" target="_blank" rel="noreferrer">GitHub</a>
         </nav>
@@ -41,11 +41,11 @@
         <div class="container hero-stack">
           <h1 class="hero-stagger">Your signed-in Chrome, ready for coding agents.</h1>
           <p class="hero-copy hero-stagger">
-            Attach Claude Code, Codex, Cursor, or Antigravity to one authenticated tab at a time—no repo dotfiles, no stolen cursor, and optional before/after PNG filmstrips for QA review.
+            Built on playwright-core for Claude Code, Codex, Cursor, and Antigravity. Attach an agent to one authenticated tab at a time—no repo dotfiles, no stolen cursor, and optional before/after PNG filmstrips to verify every click.
           </p>
           <div class="hero-actions hero-stagger">
             <a class="cta-primary" href="#install">Get started</a>
-            <a class="cta-secondary" href="#compare">Why not Playwright?</a>
+            <a class="cta-secondary" href="#why">Why Latch</a>
           </div>
 
           <div class="workbench hero-stagger" aria-label="Interactive Latch CLI and Chrome bridge preview">
@@ -74,51 +74,46 @@
         </div>
       </section>
 
-      <section class="band band-white" id="compare">
+      <section class="band band-white" id="why">
         <div class="container">
-          <h2 data-reveal>Why Latch instead of Playwright or MCP?</h2>
+          <h2 data-reveal>Built for coding agents, not bolted on</h2>
           <p class="section-intro" data-reveal>
-            For unauthenticated public pages or fresh localhost previews, stock Playwright or your IDE's built-in browser is already great. Use Latch when your agent needs to work inside your real SSO/MFA Chrome with guardrails and visual QA proof.
+            Coding agents need safe access to your logged-in staging and internal apps—without exposing your entire browser, cluttering git status, or forcing you to trust "verified" blindly.
           </p>
 
-          <div class="table-wrap" data-reveal>
-            <table class="data-table compare-table">
-              <thead>
-                <tr>
-                  <th scope="col">Pain point</th>
-                  <th scope="col">Playwright / <code>@playwright/cli</code></th>
-                  <th scope="col">Playwright / Chrome DevTools MCP</th>
-                  <th scope="col">Latch</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><strong>SSO / MFA without exposing your whole browser</strong></td>
-                  <td>Isolated profiles by default; extension mode lacks per-tab session locks.</td>
-                  <td><code>chrome-devtools-mcp --autoConnect</code> exposes every tab and cookie in Chrome.</td>
-                  <td><strong>Single-tab ownership.</strong> Attach one tab (<code>latch connect &lt;tabId&gt;</code>); other tabs and logins stay isolated.</td>
-                </tr>
-                <tr>
-                  <td><strong>Clean repos &amp; background focus</strong></td>
-                  <td>Writes <code>.playwright-cli/</code> artifacts into your git repo.</td>
-                  <td>Heavy MCP tool-schema overhead across every client config.</td>
-                  <td><strong>Zero repo dotfiles + background focus emulation.</strong> Slim 3 KB skill, flat CLI, and state stored under OS app data.</td>
-                </tr>
-                <tr>
-                  <td><strong>Visual proof before writing Playwright tests</strong></td>
-                  <td>Emits assertions immediately; easy to hallucinate expected behavior.</td>
-                  <td>No structured before/after visual QA triage workflow.</td>
-                  <td><strong>Built-in Exploration Library.</strong> Opt-in <code>--record</code> captures before/after PNG filmstrips, locator candidates, and checkpoints locally.</td>
-                </tr>
-                <tr>
-                  <td><strong>Multiple coding agents</strong></td>
-                  <td>Per-tool setup or MCP config per client.</td>
-                  <td>Separate MCP JSON config in every IDE/CLI.</td>
-                  <td><strong>One command (<code>latch agents install</code>)</strong> wires Antigravity, Claude Code, Codex, and Cursor together.</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="pillars-grid" data-reveal>
+            <article class="pillar-card">
+              <h3>Single-tab safety</h3>
+              <p>
+                Explicitly attach one tab with <code>latch connect &lt;tabId&gt;</code> and per-session ownership locks. Your email, Slack, and production tabs stay isolated and untouched on disconnect.
+              </p>
+            </article>
+            <article class="pillar-card">
+              <h3>Agent-native ergonomics</h3>
+              <p>
+                Flat CLI commands, a compact 3 KB skill prompt, and background focus emulation so your cursor isn't stolen. Session state and large snapshots live in OS app data—zero dotfiles in your repo.
+              </p>
+            </article>
+            <article class="pillar-card">
+              <h3>Visual proof of work</h3>
+              <p>
+                When an agent runs in a background tab, you didn't watch it click. Pass <code>--record</code> to review before/after PNG screenshots, ARIA snapshots, and checkpoints in seconds.
+              </p>
+            </article>
+            <article class="pillar-card">
+              <h3>One setup across all your agents</h3>
+              <p>
+                Run <code>latch agents install</code> once to link Antigravity, Claude Code, Codex, and Cursor without maintaining separate MCP JSON configs in every client.
+              </p>
+            </article>
           </div>
+
+          <aside class="fit-callout" data-reveal>
+            <h3>Where Latch fits alongside Playwright &amp; DevTools</h3>
+            <p>
+              Latch is built on <code>playwright-core</code> to complement Playwright, not replace it. Use Playwright directly for CI test suites and fresh headless sessions, Chrome DevTools MCP for deep performance or heap profiling, and your IDE's built-in browser for public or localhost previews. Reach for Latch when a coding agent needs safe, auditable access to your signed-in Chrome.
+            </p>
+          </aside>
         </div>
       </section>
 
@@ -264,9 +259,9 @@ latch doctor</pre>
 
       <section class="band band-dark" id="library">
         <div class="container">
-          <h2 data-reveal>Visual filmstrips for human QA review</h2>
+          <h2 data-reveal>Visual replay for every agent click</h2>
           <p class="section-intro section-intro-dark" data-reveal>
-            Pass --record or --objective on open or connect to capture before/after PNG screenshots, ARIA snapshots, and locator candidates—then review what happened before turning it into a Playwright test.
+            When an agent runs in a background tab, don't just trust "verified." Pass --record or --objective on open or connect to capture before/after PNG screenshots, ARIA snapshots, and checkpoints in a local 127.0.0.1 viewer.
           </p>
 
           <div class="library-stage" data-reveal>
@@ -304,9 +299,9 @@ latch doctor</pre>
                 <p id="film-locators"></p>
               </div>
               <div class="note-col">
-                <h3>Local review &amp; storage settings</h3>
+                <h3>Verify runs &amp; manage storage locally</h3>
                 <p>
-                  Click Open Library in the Chrome popup to open the 127.0.0.1 reviewer immediately, triage runs into automate / investigate / report_bug, configure a custom artifacts folder if needed, or clean up finished runs via latch library delete.
+                  Click Open Library in the Chrome popup to open the 127.0.0.1 viewer immediately, inspect what the agent saw, export or annotate runs if you want to turn one into a test later, or clean up finished runs via latch library delete.
                 </p>
               </div>
             </div>

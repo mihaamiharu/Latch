@@ -614,6 +614,50 @@ h3 {
   color: var(--ink-on-dark-muted);
 }
 
+/* Agent-First Pillars & Where Latch Fits */
+.pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.pillar-card {
+  background: var(--bg-light);
+  border: 1px solid var(--line-light);
+  border-radius: 14px;
+  padding: 22px 24px;
+}
+
+.pillar-card h3 {
+  margin: 0 0 8px;
+  color: var(--ink-dark);
+}
+
+.pillar-card p {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.fit-callout {
+  margin-top: 24px;
+  padding: 20px 24px;
+  border-radius: 14px;
+  background: #eef4f1;
+  border: 1px solid var(--line-light);
+  border-left: 4px solid var(--emerald);
+}
+
+.fit-callout h3 {
+  margin: 0 0 6px;
+  color: var(--ink-dark);
+}
+
+.fit-callout p {
+  margin: 0;
+  color: var(--ink-muted);
+  max-width: 78ch;
+}
+
 /* Install Controls & Steps */
 .install-controls {
   display: flex;
@@ -1118,6 +1162,7 @@ button:focus-visible {
 
 @media (max-width: 860px) {
   .workbench-grid,
+  .pillars-grid,
   .benefits-grid,
   .film-compare,
   .library-notes,
