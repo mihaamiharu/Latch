@@ -6,6 +6,7 @@ import {fault} from '../extension/protocol.js';
 import {isSameRegularFile} from './platform.mjs';
 import {
   LIMITS,
+  activeRunIds,
   listRuns,
   loadMeta,
   runPath,
@@ -20,8 +21,12 @@ import {
   replayObservations,
   appendObservation,
   scrub,
+  deleteRun,
+  deleteAllRuns,
 } from './exploration-storage.mjs';
 import {graphOf, writeHandoff} from './exploration-model.mjs';
+
+export {deleteRun, deleteAllRuns};
 
 const escape = value =>
   String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -71,10 +76,16 @@ const style = [
   '.pill{display:inline-block;font-size:12px;background:#e5eee7;color:#28503c;padding:4px 10px;border-radius:20px}',
   '.grid{display:grid;grid-template-columns:2fr 1fr;gap:22px}',
   '.runs{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:18px}',
-  '.runs .card{margin:0;display:block;text-decoration:none;color:inherit}.runs .card:hover{border-color:#2d7b59}',
+  '.runs .card{margin:0}.runs .card:hover{border-color:#2d7b59}',
+  '.card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}',
+  '.card-actions{display:flex;gap:6px;align-items:center}',
+  '.card-link{display:block;text-decoration:none;color:inherit}',
   'button,.button{background:#1b684a;color:white;border:0;border-radius:8px;padding:8px 14px;font:inherit;text-decoration:none;cursor:pointer}',
   'button.secondary{background:#eef2ec;color:#24342e;border:1px solid #c4cec3}',
   'button.secondary.active{background:#173c32;color:#fff;border-color:#173c32}',
+  'button.danger{background:#a83226;color:#fff}',
+  'button.danger-ghost{background:transparent;color:#9b2c2c;border:1px solid #e4c2be;padding:4px 10px;font-size:12px}',
+  'button.compact{padding:4px 10px;font-size:12px}',
   'button:disabled{opacity:.45;cursor:not-allowed}',
   'input,select,textarea{box-sizing:border-box;font:inherit;border:1px solid #c4cec3;border-radius:8px;padding:10px;width:100%;margin:8px 0}',
   'textarea{min-height:110px}',
@@ -114,29 +125,66 @@ function shell(title, body, script = '', nonce = '') {
   ].join('');
 }
 
-async function catalogue(nonce) {
+async function catalogue(token, nonce) {
   const runs = await listRuns();
+  const activeIds = await activeRunIds();
   const cards = runs
     .map(r => {
       const shotCount = r.artifacts?.filter(a => a.type === 'screenshot').length ?? 0;
+      const isActive = activeIds.has(r.id);
+      const actionHtml = isActive
+        ? '<small class="muted">Active</small>'
+        : `<div class="card-actions">` +
+          `<button type="button" class="danger-ghost" data-delete-start="${r.id}">Delete</button>` +
+          `<button type="button" class="danger compact" data-delete-confirm="${r.id}" hidden>Confirm</button>` +
+          `<button type="button" class="secondary compact" data-delete-cancel="${r.id}" hidden>Cancel</button>` +
+          `</div>`;
       return (
-        `<a class="card" data-search="${escape([r.objective, r.workspace, r.status, r.environment].join(' ').toLowerCase())}" href="/run/${r.id}">` +
-        `<span class="pill">${escape(r.status)}</span>` +
+        `<div class="card" data-run-card="${r.id}" data-search="${escape([r.objective, r.workspace, r.status, r.environment].join(' ').toLowerCase())}">` +
+        `<div class="card-head"><span class="pill">${escape(r.status)}</span>${actionHtml}</div>` +
+        `<a class="card-link" href="/run/${r.id}">` +
         `<h2>${escape(r.objective)}</h2>` +
         `<p>${escape(path.basename(r.workspace || ''))} · ${escape(r.environment || 'Environment not specified')}</p>` +
         `<small>${escape(r.createdAt)}<br>${escape(r.states?.length || 0)} states · ${escape(r.actions?.length || 0)} transitions · ${escape(shotCount)} screenshots</small>` +
-        '</a>'
+        `</a>` +
+        `<p class="muted" data-delete-error="${r.id}" hidden style="color:#a83226;margin:8px 0 0;font-size:12px"></p>` +
+        '</div>'
       );
     })
     .join('');
+  const script = [
+    `document.getElementById('search').addEventListener('input',e=>{for(const el of document.querySelectorAll('[data-search]'))el.hidden=!el.dataset.search.includes(e.target.value.toLowerCase())});`,
+    `const grid=document.getElementById('runs-grid');`,
+    `function toggleDelete(id,confirming){`,
+    `  const card=grid.querySelector('[data-run-card="'+id+'"]');if(!card)return;`,
+    `  card.querySelector('[data-delete-start]').hidden=confirming;`,
+    `  card.querySelector('[data-delete-confirm]').hidden=!confirming;`,
+    `  card.querySelector('[data-delete-cancel]').hidden=!confirming;`,
+    `}`,
+    `grid.addEventListener('click',async e=>{`,
+    `  const btn=e.target.closest('button');if(!btn)return;`,
+    `  if(btn.dataset.deleteStart){toggleDelete(btn.dataset.deleteStart,true);return;}`,
+    `  if(btn.dataset.deleteCancel){toggleDelete(btn.dataset.deleteCancel,false);return;}`,
+    `  const id=btn.dataset.deleteConfirm;if(!id)return;`,
+    `  const card=grid.querySelector('[data-run-card="'+id+'"]');`,
+    `  const errEl=card.querySelector('[data-delete-error]');`,
+    `  errEl.hidden=true;errEl.textContent='';btn.disabled=true;`,
+    `  try{`,
+    `    const r=await fetch('/run/'+id,{method:'DELETE',headers:{'X-Latch-Review':${JSON.stringify(token)}}});`,
+    `    if(!r.ok)throw Error(r.status===409?'Cannot delete an active run.':'Could not delete run.');`,
+    `    card.remove();`,
+    `    if(!grid.querySelector('[data-run-card]')){const empty=document.createElement('div');empty.className='card';empty.textContent='No explorations yet. Start one with latch open --record or --objective.';grid.appendChild(empty);}`,
+    `  }catch(err){btn.disabled=false;toggleDelete(id,false);errEl.textContent=err.message||'Could not delete run.';errEl.hidden=false;}`,
+    `});`,
+  ].join('');
   return shell(
     'Library',
     `<p class="muted">EXPLORATION → REVIEW → AUTOMATION</p>` +
       `<h1>Pick up where the agent left off.</h1>` +
       `<p class="muted">Review the before/after screenshot filmstrip, captured states, and locator candidates, then decide what deserves a test.</p>` +
       `<input id="search" aria-label="Search explorations" placeholder="Search project, objective or status">` +
-      `<div class="runs">${cards || '<div class="card">No explorations yet. Start one with latch open --record or --objective.</div>'}</div>`,
-    `document.getElementById('search').addEventListener('input',e=>{for(const el of document.querySelectorAll('[data-search]'))el.hidden=!el.dataset.search.includes(e.target.value.toLowerCase())})`,
+      `<div class="runs" id="runs-grid">${cards || '<div class="card">No explorations yet. Start one with latch open --record or --objective.</div>'}</div>`,
+    script,
     nonce,
   );
 }
@@ -189,6 +237,7 @@ async function runHTML(id, token, nonce) {
   const graph = graphOf(meta);
   const review = await reviewOf(id);
   const integrity = await verifyArtifacts(meta);
+  const isActive = (await activeRunIds()).has(id);
   const link = (relative, label) => `<a href="${artifactURL(id, relative)}">${escape(label || relative)}</a>`;
   const filmItems = buildFilmstripItems(id, meta, graph);
 
@@ -308,7 +357,22 @@ async function runHTML(id, token, nonce) {
     `  renderFilm();`,
     `}`,
     `document.getElementById('review').addEventListener('submit',async e=>{e.preventDefault();const status=document.getElementById('saved');status.textContent='Saving…';try{const r=await fetch('/review/${id}',{method:'POST',headers:{'Content-Type':'application/json','X-Latch-Review':${JSON.stringify(token)}},body:JSON.stringify({decision:document.getElementById('decision').value,note:document.getElementById('note').value})});if(!r.ok)throw Error('Could not save');status.textContent='Review saved on this machine.'}catch{status.textContent='Could not save review. Try again.'}});`,
+    `{const start=document.getElementById('delete-start'),confirm=document.getElementById('delete-confirm'),cancel=document.getElementById('delete-cancel'),st=document.getElementById('delete-status');`,
+    `if(start&&confirm&&cancel){`,
+    `  start.addEventListener('click',()=>{start.hidden=true;confirm.hidden=false;cancel.hidden=false;st.textContent='';});`,
+    `  cancel.addEventListener('click',()=>{start.hidden=false;confirm.hidden=true;cancel.hidden=true;});`,
+    `  confirm.addEventListener('click',async()=>{confirm.disabled=true;st.textContent='Deleting…';try{const r=await fetch('/run/${id}',{method:'DELETE',headers:{'X-Latch-Review':${JSON.stringify(token)}}});if(!r.ok)throw Error(r.status===409?'Cannot delete an active run. Finish or disconnect first.':'Could not delete run.');window.location.href='/';}catch(err){confirm.disabled=false;start.hidden=false;confirm.hidden=true;cancel.hidden=true;st.textContent=err.message||'Could not delete run.';}});`,
+    `}}`,
   ].join('');
+
+  const manageRunHtml = isActive
+    ? `<div class="card"><h2>Manage run</h2><p class="muted">This run is currently active. Run <code>latch finish</code> or <code>latch disconnect</code> before deleting it.</p></div>`
+    : `<div class="card"><h2>Manage run</h2><p class="muted">Permanently remove this run's screenshots, snapshots, and metadata from this machine.</p>` +
+      `<div class="card-actions">` +
+      `<button type="button" class="danger-ghost" id="delete-start">Delete run</button>` +
+      `<button type="button" class="danger" id="delete-confirm" hidden>Confirm delete</button>` +
+      `<button type="button" class="secondary" id="delete-cancel" hidden>Cancel</button>` +
+      `</div><p id="delete-status" role="status"></p></div>`;
 
   return shell(
     meta.objective,
@@ -330,7 +394,7 @@ async function runHTML(id, token, nonce) {
       `<div class="card"><h2>Your next step</h2><form id="review"><label>Decision<select id="decision">${optionsHtml}</select></label>` +
       `<label>Review notes<textarea id="note">${escape(review.note)}</textarea></label><button>Save review</button><p id="saved" role="status"></p></form></div>` +
       `<div class="card"><h2>Checkpoints, findings and gaps</h2>${annotationsHtml}${gapsHtml || '<p>No capture gaps reported.</p>'}` +
-      `<p>Cleanup: ${escape(meta.cleanup?.status || 'unconfirmed')}</p></div></aside></div>`,
+      `<p>Cleanup: ${escape(meta.cleanup?.status || 'unconfirmed')}</p></div>${manageRunHtml}</aside></div>`,
     script,
     nonce,
   );
@@ -352,13 +416,22 @@ export async function startLibraryServer({port = 0} = {}) {
       const url = new URL(req.url, origin);
       if (req.method === 'GET' && url.pathname === '/') {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.end(await catalogue(nonce));
+        res.end(await catalogue(token, nonce));
         return;
       }
       const run = url.pathname.match(/^\/run\/([a-f0-9-]+)$/);
       if (req.method === 'GET' && run) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.end(await runHTML(run[1], token, nonce));
+        return;
+      }
+      if (req.method === 'DELETE' && run) {
+        if (req.headers.origin !== origin || req.headers['x-latch-review'] !== token) {
+          throw fault('FORBIDDEN', 'Delete requires this local library page.');
+        }
+        const result = await deleteRun(run[1]);
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(result));
         return;
       }
       const review = url.pathname.match(/^\/review\/([a-f0-9-]+)$/);
@@ -449,7 +522,14 @@ export async function startLibraryServer({port = 0} = {}) {
         res.destroy();
         return;
       }
-      res.statusCode = e.code === 'FORBIDDEN' ? 403 : e.code === 'NOT_FOUND' || e.code === 'ENOENT' ? 404 : 400;
+      res.statusCode =
+        e.code === 'FORBIDDEN'
+          ? 403
+          : e.code === 'EXPLORATION_BUSY'
+            ? 409
+            : e.code === 'NOT_FOUND' || e.code === 'ENOENT'
+              ? 404
+              : 400;
       res.end(e.code || 'LIBRARY_ERROR');
     }
   });
@@ -523,6 +603,14 @@ export async function libraryCommand(action = 'list', flags = {}) {
     }
     await new Promise(resolve => app.server.once('close', resolve));
     return;
+  }
+  if (action === 'delete') {
+    if (flags.all && flags.run) {
+      throw fault('INVALID_ARGUMENT', 'Specify either --run <id> or --all, not both.');
+    }
+    if (flags.all) return deleteAllRuns();
+    if (!flags.run) throw fault('INVALID_RUN', 'Specify --run <id> or --all.');
+    return deleteRun(flags.run);
   }
   if (!flags.run) throw fault('INVALID_RUN', 'Specify --run from library list.');
   if (action === 'show') {
@@ -606,5 +694,5 @@ export async function libraryCommand(action = 'list', flags = {}) {
       return {repaired: true, replayedActions: 0, runId: meta.id, integrity: await verifyArtifacts(meta)};
     });
   }
-  throw fault('INVALID_COMMAND', 'Use library list, show, serve, review, export or repair.');
+  throw fault('INVALID_COMMAND', 'Use library list, show, serve, review, export, delete or repair.');
 }

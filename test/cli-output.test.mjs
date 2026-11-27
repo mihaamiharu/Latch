@@ -147,6 +147,20 @@ test('parseArgs handles full locked flat CLI surface and global flag positions',
   assert.equal(lib.flags.libraryAction, 'review');
   assert.equal(lib.flags.run, 'r1');
 
+  const libDelFlag = parseArgs(['library', 'delete', '--run', 'r1']);
+  assert.equal(libDelFlag.flags.libraryAction, 'delete');
+  assert.equal(libDelFlag.flags.run, 'r1');
+
+  const libDelPos = parseArgs(['library', 'delete', 'r1']);
+  assert.equal(libDelPos.flags.libraryAction, 'delete');
+  assert.equal(libDelPos.flags.run, 'r1');
+
+  const libDelAll = parseArgs(['library', 'delete', '--all']);
+  assert.equal(libDelAll.flags.libraryAction, 'delete');
+  assert.equal(libDelAll.flags.all, true);
+
+  assert.throws(() => parseArgs(['library', 'list', '--all']), {code: 'INVALID_ARGUMENT'});
+
   const ag = parseArgs(['agents', 'install', '--target', 'antigravity,claude']);
   assert.equal(ag.flags.agentsAction, 'install');
   assert.equal(ag.flags.target, 'antigravity,claude');
@@ -381,6 +395,12 @@ test('screenshot --out, release without tabId, connect --focus-emulation off, an
   assert.match(formatResult('network', {entries: [{kind: 'response', method: 'GET', status: 200, url: 'https://a.test'}], total: 1}), /GET 200/);
   assert.match(formatResult('dialog', {action: 'accept', type: 'confirm', message: 'Sure?'}), /Dialog accept \(confirm\): Sure\?/);
   assert.match(formatResult('help', {usage: 'Latch usage'}), /Latch usage/);
+  assert.equal(formatResult('library', {deleted: true, runId: 'r1'}), 'Deleted exploration r1.');
+  assert.equal(
+    formatResult('library', {deleted: ['r1'], deletedCount: 1, skippedActive: ['r2']}),
+    'Deleted 1 exploration(s). Skipped 1 active run(s).',
+  );
+  assert.equal(formatResult('library', {deleted: [], deletedCount: 0, skippedActive: []}), 'Deleted 0 exploration(s).');
 });
 
 test('CLI executes when invoked through a symlink or junction (npm link)', async t => {

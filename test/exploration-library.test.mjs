@@ -11,6 +11,7 @@ import {
   lockRun,
   verifyArtifacts,
   boundRun,
+  unbind,
   indexArtifact,
   scrub,
   PNG_SIGNATURE,
@@ -277,4 +278,97 @@ test('scrub redacts credentials, tokens, cookies, and nested secrets across arti
   };
   const cleaned = JSON.stringify(scrub(dirty));
   assert.doesNotMatch(cleaned, /secret_jwt_token|super_secret|user:pass|abc123|private_cookie|dXNlcjpwYXNz|secret_q/);
+});
+
+test('libraryCommand delete refuses active/bound runs and deletes inactive runs cleanly', async t => {
+  const f = await fixture(t);
+  await addStates(
+    f.meta,
+    {currentTargetId: 'p', pages: [{targetId: 'p', url: 'http://fixture', title: 'One', snapshot, screenshot: samplePngBase64(), frames: []}]},
+    {step: 'capture', final: true},
+  );
+  await writeHandoff(f.meta);
+
+  const other = await allocateRun(
+    {workspace: f.root + '/other', session: 'agent', profile: 'work'},
+    {objective: 'Other run'},
+  );
+  await unbind(other);
+
+  // Active (bound) run cannot be deleted
+  await assert.rejects(libraryCommand('delete', {run: f.meta.id}), {code: 'EXPLORATION_BUSY'});
+  await assert.rejects(libraryCommand('delete', {run: f.meta.id, all: true}), {code: 'INVALID_ARGUMENT'});
+
+  // --all deletes unbound runs while skipping active ones
+  const bulk = await libraryCommand('delete', {all: true});
+  assert.equal(bulk.deletedCount, 1);
+  assert.deepEqual(bulk.deleted, [other.id]);
+  assert.deepEqual(bulk.skippedActive, [f.meta.id]);
+
+  // After unbind, individual delete succeeds and removes both runDir and meta JSON
+  await unbind(f.meta);
+  const removed = await libraryCommand('delete', {run: f.meta.id});
+  assert.deepEqual(removed, {deleted: true, runId: f.meta.id});
+  assert.equal((await libraryCommand('list', {})).runs.length, 0);
+
+  const root = process.env.LATCH_ARTIFACT_ROOT;
+  await assert.rejects(fs.stat(path.join(root, 'runs', f.meta.id)), {code: 'ENOENT'});
+  await assert.rejects(fs.stat(path.join(root, 'meta', f.meta.id + '.json')), {code: 'ENOENT'});
+  await assert.rejects(libraryCommand('delete', {run: f.meta.id}), {code: 'NOT_FOUND'});
+});
+
+test('local reviewer DELETE /run/:id requires same-origin token, rejects active runs, and deletes inactive runs', async t => {
+  const f = await fixture(t);
+  await addStates(
+    f.meta,
+    {currentTargetId: 'p', pages: [{targetId: 'p', url: 'http://fixture', title: 'Page', snapshot, screenshot: samplePngBase64(), frames: []}]},
+    {step: 'capture', final: true},
+  );
+  await writeHandoff(f.meta);
+
+  const app = await startLibraryServer();
+  t.after(() => app.close());
+
+  const runPageHtml = await (await fetch(app.url + '/run/' + f.meta.id)).text();
+  const tokenMatch = runPageHtml.match(/'X-Latch-Review':"([a-f0-9]+)"/);
+  assert.ok(tokenMatch, 'expected review/delete token in run HTML');
+  const token = tokenMatch[1];
+
+  // Missing token / foreign origin rejected with 403
+  const forbidden = await fetch(app.url + '/run/' + f.meta.id, {
+    method: 'DELETE',
+    headers: {origin: 'https://foreign.test', 'x-latch-review': token},
+  });
+  assert.equal(forbidden.status, 403);
+
+  const noToken = await fetch(app.url + '/run/' + f.meta.id, {
+    method: 'DELETE',
+    headers: {origin: app.url},
+  });
+  assert.equal(noToken.status, 403);
+
+  // Active bound run returns 409
+  const busy = await fetch(app.url + '/run/' + f.meta.id, {
+    method: 'DELETE',
+    headers: {origin: app.url, 'x-latch-review': token},
+  });
+  assert.equal(busy.status, 409);
+
+  // Unbind and delete from catalogue token
+  await unbind(f.meta);
+  const indexHtml = await (await fetch(app.url + '/')).text();
+  const indexTokenMatch = indexHtml.match(/'X-Latch-Review':"([a-f0-9]+)"/);
+  assert.ok(indexTokenMatch);
+
+  const deleted = await fetch(app.url + '/run/' + f.meta.id, {
+    method: 'DELETE',
+    headers: {origin: app.url, 'x-latch-review': indexTokenMatch[1]},
+  });
+  assert.equal(deleted.status, 200);
+  assert.deepEqual(await deleted.json(), {deleted: true, runId: f.meta.id});
+
+  const afterGet = await fetch(app.url + '/run/' + f.meta.id);
+  assert.equal(afterGet.status, 404);
+  const afterIndex = await (await fetch(app.url + '/')).text();
+  assert.doesNotMatch(afterIndex, new RegExp(f.meta.id));
 });

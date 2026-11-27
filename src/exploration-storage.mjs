@@ -502,3 +502,115 @@ export async function verifyArtifacts(meta) {
   }
   return {verified: problems.length === 0, problems};
 }
+
+export async function activeRunIds() {
+  const root = await libraryDirs();
+  const active = new Set();
+  for (const name of await fs.readdir(path.join(root, 'bindings'))) {
+    if (!name.endsWith('.json')) continue;
+    try {
+      const bound = JSON.parse(await regularFile(path.join(root, 'bindings', name), 8192));
+      if (runPattern.test(bound?.id || '')) active.add(bound.id);
+    } catch {}
+  }
+  for (const name of await fs.readdir(path.join(root, 'locks'))) {
+    if (runPattern.test(name)) active.add(name);
+  }
+  return active;
+}
+
+export async function deleteRun(id) {
+  if (!runPattern.test(id || '')) throw fault('INVALID_RUN', 'Use a run ID from library list.');
+  const root = await libraryDirs();
+  const runDir = path.join(root, 'runs', id);
+  const metaFile = path.join(root, 'meta', id + '.json');
+  const lock = path.join(root, 'locks', id);
+  const nonce = crypto.randomUUID();
+  try {
+    await fs.mkdir(lock, {mode: 0o700});
+  } catch (e) {
+    if (e.code === 'EEXIST') {
+      throw fault('EXPLORATION_BUSY', 'Cannot delete an active or locked exploration run.');
+    }
+    throw e;
+  }
+  let owner;
+  try {
+    owner = {pid: process.pid, identity: await processIdentity(process.pid), nonce};
+    if (!owner.identity) throw fault('EXPLORATION_BUSY', 'Capture process identity is unavailable.');
+    await exclusive(path.join(lock, 'owner.json'), JSON.stringify(owner));
+  } catch (e) {
+    await fs.rmdir(lock).catch(() => {});
+    throw e;
+  }
+  try {
+    for (const name of await fs.readdir(path.join(root, 'bindings'))) {
+      if (!name.endsWith('.json')) continue;
+      try {
+        const bound = JSON.parse(await regularFile(path.join(root, 'bindings', name), 8192));
+        if (bound?.id === id) {
+          throw fault('EXPLORATION_BUSY', 'Cannot delete an active exploration run. Run latch finish or disconnect first.');
+        }
+      } catch (e) {
+        if (e.code === 'EXPLORATION_BUSY') throw e;
+      }
+    }
+    let hasMeta = false;
+    try {
+      const stat = await fs.lstat(metaFile);
+      if (!stat.isFile() || stat.isSymbolicLink() || (process.getuid && stat.uid !== process.getuid())) {
+        throw fault('EVIDENCE_FILE_UNSAFE', 'Refusing to delete nonregular metadata file.');
+      }
+      hasMeta = true;
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
+    let hasDir = false;
+    try {
+      await fs.lstat(runDir);
+      await directory(runDir);
+      hasDir = true;
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
+    if (!hasMeta && !hasDir) {
+      throw fault('NOT_FOUND', 'Exploration run was not found.');
+    }
+    if (hasDir) await fs.rm(runDir, {recursive: true, force: true});
+    if (hasMeta) {
+      await fs.unlink(metaFile).catch(e => {
+        if (e.code !== 'ENOENT') throw e;
+      });
+    }
+    return {deleted: true, runId: id};
+  } finally {
+    const actual = JSON.parse(await regularFile(path.join(lock, 'owner.json'), 8192));
+    if (actual.nonce === nonce) {
+      await fs.unlink(path.join(lock, 'owner.json'));
+      await fs.rmdir(lock);
+    }
+  }
+}
+
+export async function deleteAllRuns() {
+  const root = await libraryDirs();
+  const ids = new Set();
+  for (const name of await fs.readdir(path.join(root, 'meta'))) {
+    if (name.endsWith('.json') && runPattern.test(name.slice(0, -5))) ids.add(name.slice(0, -5));
+  }
+  for (const name of await fs.readdir(path.join(root, 'runs'))) {
+    if (runPattern.test(name)) ids.add(name);
+  }
+  const deleted = [];
+  const skippedActive = [];
+  for (const id of ids) {
+    try {
+      await deleteRun(id);
+      deleted.push(id);
+    } catch (e) {
+      if (e.code === 'EXPLORATION_BUSY') skippedActive.push(id);
+      else if (e.code !== 'NOT_FOUND') throw e;
+    }
+  }
+  return {deleted, deletedCount: deleted.length, skippedActive};
+}

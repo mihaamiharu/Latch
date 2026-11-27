@@ -59,7 +59,7 @@ const COMMAND_FLAGS = {
     value: new Set(['annotation-file', 'data-ref', 'note']),
   },
   library: {
-    boolean: new Set([]),
+    boolean: new Set(['all']),
     value: new Set(['run', 'decision', 'note', 'destination', 'port']),
   },
   pair: {
@@ -118,7 +118,7 @@ Actions:
 
 Exploration:
   latch checkpoint <note> [--annotation-file <path>] [--data-ref <ref>]
-  latch library <list|show|serve|review|export> [--run <id>] [--decision <d>] [--note <text>] [--destination <path>] [--port <n>]
+  latch library <list|show|serve|review|export|delete> [--run <id>] [--all] [--decision <d>] [--note <text>] [--destination <path>] [--port <n>]
 
 Setup & Agents:
   latch install
@@ -473,12 +473,30 @@ export function parseArgs(argv = []) {
       break;
     }
     case 'library': {
-      if (args.length > 1) {
-        throw fault('INVALID_ARGUMENT', 'Usage: latch library <list|show|serve|review|export> [flags]');
-      }
       const sub = args[0] || 'list';
-      if (!['list', 'show', 'serve', 'review', 'export', 'repair'].includes(sub)) {
-        throw fault('INVALID_COMMAND', 'Use library list, show, serve, review, or export.');
+      if (!['list', 'show', 'serve', 'review', 'export', 'delete', 'repair'].includes(sub)) {
+        throw fault('INVALID_COMMAND', 'Use library list, show, serve, review, export, delete, or repair.');
+      }
+      if (['list', 'serve'].includes(sub)) {
+        if (args.length > 1) {
+          throw fault('INVALID_ARGUMENT', `Usage: latch library ${sub}${sub === 'serve' ? ' [--port <n>]' : ''}`);
+        }
+      } else {
+        if (args.length > 2) {
+          throw fault('INVALID_ARGUMENT', 'Usage: latch library <list|show|serve|review|export|delete> [runId] [flags]');
+        }
+        if (args[1] !== undefined) {
+          if (flags.run !== undefined) {
+            throw fault('INVALID_ARGUMENT', 'Provide run ID positionally or with --run, not both.');
+          }
+          flags.run = args[1];
+        }
+      }
+      if (flags.all && sub !== 'delete') {
+        throw fault('INVALID_ARGUMENT', 'Use --all only with library delete.');
+      }
+      if (flags.all && flags.run !== undefined) {
+        throw fault('INVALID_ARGUMENT', 'Specify either --run <id> or --all, not both.');
       }
       flags.libraryAction = sub;
       break;
@@ -1153,6 +1171,11 @@ export function formatResult(command, result, {json = false, action = null} = {}
       return `Run ${result.run.id}: ${result.run.status} — ${result.run.objective}\nHandoff: ${result.handoff}\nReview: ${result.review?.decision || 'unreviewed'}`;
     }
     if (result.exported) return `Exported ${result.runId} (${result.files} files) to ${result.directory}`;
+    if (result.deleted === true && result.runId) return `Deleted exploration ${result.runId}.`;
+    if (Array.isArray(result.deleted)) {
+      const skipped = result.skippedActive?.length ? ` Skipped ${result.skippedActive.length} active run(s).` : '';
+      return `Deleted ${result.deletedCount} exploration(s).${skipped}`;
+    }
     if (result.decision) return `Saved review (${result.decision}) for ${result.run_id || ''}.`;
     return JSON.stringify(result, null, 2);
   }
