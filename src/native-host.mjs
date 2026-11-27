@@ -200,6 +200,7 @@ async function start(hello) {
   });
 
   server.on('error', error => stop(error));
+  if (hello.capabilities?.recoveryContract !== 1) ready = true;
   if (isWindowsPipe(address)) {
     await new Promise(resolve => server.listen(address, () => {
       ownsSocket = true;
@@ -226,8 +227,6 @@ async function start(hello) {
       timer: setTimeout(() => void stop(new Error('Controller readiness timed out.')), 5000),
     };
     write({v: 1, type: 'challenge', nonce: hello.nonce, epoch: hello.epoch, hostGeneration});
-  } else {
-    ready = true;
   }
 }
 
