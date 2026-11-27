@@ -32,13 +32,22 @@ In the Latch Chrome extension popup:
 
 ## 1. Install native host & CLI launcher
 
-From your Latch checkout or extracted release kit:
+### From npm (recommended)
+
+```sh
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install -g @mihaamiharu/latch
+latch install
+```
+
+### From an extracted release kit or source checkout
+
+From your extracted `latch-<version>` folder (keep it in a permanent location) or cloned repo:
 
 ```sh
 node src/cli.mjs install
 ```
 
-This creates `<appDataDir>/runtime/bin/latch` (`latch.cmd` on Windows), registers the `com.latch.bridge` native messaging host for extension ID `dlkpkeiejlgggeoibejpoajedoelfcli`, initializes `config.json`, and links the agent skills/plugins. Add `<appDataDir>/runtime/bin` to your `PATH` (or link `npm link` from a checkout) to run `latch` directly from any folder.
+`install` creates `<appDataDir>/runtime/bin/latch` (`latch.cmd` on Windows), registers the `com.latch.bridge` native messaging host for extension ID `dlkpkeiejlgggeoibejpoajedoelfcli`, initializes `config.json`, links the agent skills/plugins, and prints the `Extension:` path to load in Chrome. If you installed from a release kit without npm global install, add `<appDataDir>/runtime/bin` to your `PATH` (or run `npm link` from a checkout).
 
 ## 2. Load the Chrome extension
 

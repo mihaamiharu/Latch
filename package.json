@@ -1,15 +1,51 @@
 {
-  "name": "latch",
+  "name": "@mihaamiharu/latch",
   "version": "1.0.0",
   "description": "Cross-platform Chrome companion extension, native bridge, and flat CLI for AI coding agents",
-  "private": true,
+  "license": "Apache-2.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mihaamiharu/Latch.git"
+  },
+  "homepage": "https://github.com/mihaamiharu/Latch#readme",
+  "bugs": {
+    "url": "https://github.com/mihaamiharu/Latch/issues"
+  },
+  "keywords": [
+    "chrome",
+    "playwright",
+    "ai-agents",
+    "browser-automation",
+    "claude-code",
+    "codex",
+    "antigravity"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=22.0.0"
   },
   "bin": {
     "latch": "src/cli.mjs"
   },
+  "files": [
+    "extension/",
+    "src/",
+    "!src/build.mjs",
+    "skills/latch/",
+    "plugins/antigravity/",
+    ".claude-plugin/",
+    "docs/SUPPORT.md",
+    "docs/EXPLORATION-LIBRARY.md",
+    "docs/DISTRIBUTION.md",
+    "README.md",
+    "SETUP.md",
+    "PRIVACY.md",
+    "THIRD_PARTY_NOTICES.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "test:exploration": "LATCH_EXPLORATION=1 node --test test/exploration-browser.test.mjs",

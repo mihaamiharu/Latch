@@ -11,5 +11,4 @@ The complete Latch kit retains these notices and license files:
 Node and Google Chrome are external prerequisites; their distributions carry
 their own licenses and notices.
 
-Latch's project license is separate from these third-party terms. The notices do
-not choose a project license or grant rights on behalf of the Latch owner.
+Latch itself is licensed under the Apache License, Version 2.0 (see `LICENSE`). These third-party notices govern only their respective components.

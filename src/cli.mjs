@@ -1180,7 +1180,13 @@ export function formatResult(command, result, {json = false, action = null} = {}
     return JSON.stringify(result, null, 2);
   }
   if (command === 'install') {
-    return `Installed Latch (${result.platform}/${result.architecture})\nManifest: ${result.manifestPath}\nCLI: ${result.cli}`;
+    const lines = [
+      `Installed Latch (${result.platform}/${result.architecture})`,
+      `Manifest: ${result.manifestPath}`,
+      `CLI: ${result.cli}`,
+      ...(result.extensionDirectory ? [`Extension: ${result.extensionDirectory}`] : []),
+    ];
+    return lines.join('\n');
   }
   if (command === 'uninstall') {
     return `Uninstalled Latch native host (user data preserved).`;

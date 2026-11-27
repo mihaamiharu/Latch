@@ -112,7 +112,7 @@ export async function build({root = ROOT, out = path.join(root, 'dist')} = {}) {
   await fs.copyFile(path.join(root, 'SETUP.md'), path.join(kit, 'README.md'));
   await fs.copyFile(path.join(root, 'docs/SUPPORT.md'), path.join(kit, 'SUPPORT.md'));
   await fs.copyFile(path.join(root, 'docs/EXPLORATION-LIBRARY.md'), path.join(kit, 'EXPLORATION-LIBRARY.md'));
-  for (const file of ['PRIVACY.md', 'THIRD_PARTY_NOTICES.md']) {
+  for (const file of ['LICENSE', 'PRIVACY.md', 'THIRD_PARTY_NOTICES.md']) {
     await fs.copyFile(path.join(root, file), path.join(kit, file));
   }
   await fs.rm(path.join(kit, 'src/build.mjs'));

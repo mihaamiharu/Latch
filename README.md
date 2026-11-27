@@ -11,28 +11,36 @@ A cross-platform Chrome companion extension, native bridge, and flat `latch` CLI
 
 ## Quick start
 
-1. Install dependencies (skipping Playwright browser downloads):
+### Option A: Install via npm
+
+1. Install the CLI globally (skipping Playwright browser downloads; your existing Chrome is used):
    ```sh
-   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
+   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install -g @mihaamiharu/latch
    ```
    On Windows PowerShell:
    ```powershell
-   $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"; npm ci
+   $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"; npm install -g @mihaamiharu/latch
    ```
-2. Install the native host and `latch` launcher (and optionally `npm link` from a source checkout so `latch` is on your `PATH`), then load `extension/` unpacked in Chrome (`chrome://extensions`, Developer mode, fixed ID `dlkpkeiejlgggeoibejpoajedoelfcli`):
+2. Register the native host and link agent skills/plugins (prints the exact `Extension:` directory to load in Chrome):
    ```sh
-   node src/cli.mjs install
-   npm link   # optional from repo root to expose `latch` globally
+   latch install
    ```
-3. Pair the running extension and verify health:
+3. Load the printed `extension/` folder unpacked in Chrome (`chrome://extensions` → **Developer mode** → **Load unpacked**, fixed ID `dlkpkeiejlgggeoibejpoajedoelfcli`).
+4. Pair the running extension and verify health:
    ```sh
    latch pair
    latch doctor
    ```
-4. Install the native plugin/skill for your coding agents:
+
+### Option B: Install from a GitHub Release kit or source checkout
+
+1. Download `latch-1.0.0-kit.zip` from Releases and extract it to a permanent folder (or clone the repo and run `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci`).
+2. Run setup and optionally link `latch` globally:
    ```sh
-   latch agents install
+   node src/cli.mjs install
+   npm link   # optional from repo root to expose `latch` globally
    ```
+3. Load `extension/` unpacked in Chrome (`chrome://extensions`, Developer mode, fixed ID `dlkpkeiejlgggeoibejpoajedoelfcli`), then run `latch pair`, `latch doctor`, and `latch agents install`.
 
 See [SETUP.md](SETUP.md) for full Windows, macOS, and Linux installation details.
 
@@ -120,3 +128,8 @@ npm test
 - [PRIVACY.md](PRIVACY.md) — local transport, redaction, and retention details
 - [docs/SUPPORT.md](docs/SUPPORT.md) — supported OS/Node/Chrome matrix
 - [docs/EXPLORATION-LIBRARY.md](docs/EXPLORATION-LIBRARY.md) — exploration handoff and local review server
+- [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) — GitHub Releases, npm (`@mihaamiharu/latch`), and Chrome Web Store publishing
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled third-party dependencies (`playwright-core`, `ws`).
