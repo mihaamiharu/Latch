@@ -1,17 +1,12 @@
 # Native transport: normal session workflow (Phase 2)
 
-This document records the Phase 2 checkpoint. The popup-capable source now uses
-schema 3 and one starting tab plus verified descendants; see
-[Phase 3 status](PHASE-3-COMPATIBILITY-PLAN.md) and the canonical shared skill's
-`references/operations.md` for current selection and release behavior.
-
-Implemented on `feat/latch-native-transport`, October 28, 2026. This is an opt-in
-preview in source, verified in a disposable Chrome profile. The installed Work
-build has not been upgraded and the official adapter remains the default.
+This document records the earlier Phase 2 design checkpoint (now superseded by
+Latch 1.0.0 native-only schema 4; see `skills/latch/references/operations.md`
+for current selection and release behavior).
 
 ## What changed
 
-The normal shared-skill helper and `qa-browser` CLI now route native sessions
+The normal shared-skill helper and `latch` CLI now route native sessions
 through the existing profile alias, canonical workspace, per-session lock and
 JSON result contract. A session key is derived from the canonical workspace and
 name. Multiple workspaces can use the same name without sharing a CLI registry
@@ -71,10 +66,10 @@ for `setFocusEmulationEnabled`.
 
 ## State and cleanup
 
-Native state is version 2 and includes transport, profile identity/epoch,
+Native state includes transport, profile identity/epoch,
 workspace, session, selected tab, verified target ID, focus choice and status.
 Files remain private (0600); Latch records and reports omit endpoint credentials.
-Legacy official records remain readable. Unknown schemas and stale epochs fail
+Unknown schemas and stale epochs fail
 explicitly instead of being reinterpreted or silently removed.
 
 Connecting reserves the tab, bootstraps a relay through native messaging, attaches
@@ -112,11 +107,6 @@ cross-target rejection, foreign-session unit checks, tab ownership conflicts,
 transport mismatch, explicit one-tab limits, injected CLI attach failure and
 lease rollback, idempotent reconnection, releasing one task while its peer keeps
 working, separate console evidence, and preserved tabs/groups/windows/active-tab
-selection plus synthetic sign-in state after cleanup. The persisted extension
-inventory confirms that the official extension was absent.
+selection plus synthetic sign-in state after cleanup.
 
-Phase 3 now has frame/worker/popup, file and large-evidence acceptance suites.
-See `PHASE-3-COMPATIBILITY-PLAN.md` for measured support and remaining baseline
-limitations. Browser/host restart recovery, abandoned-lock reconciliation,
-installer/permission cutover and installed Work-profile native verification
-remain separate gates. The native preview is not yet the daily default.
+See `skills/latch/references/operations.md` for current Latch 1.0.0 schema-4 behavior.

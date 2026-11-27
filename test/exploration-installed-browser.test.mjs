@@ -7,18 +7,18 @@ import {attachmentFixture} from './helpers/attachment-fixture.mjs';
 import {evidenceApp} from './fixtures/evidence-app.mjs';
 import {inspectSetup,activateSetup,verifySetup} from '../src/setup.mjs';
 
-async function envOf(env,fn){const keys=['QA_BROWSER_CONFIG','QA_BROWSER_RUNTIME_DIR','PWTEST_DAEMON_SESSION_DIR'],old=Object.fromEntries(keys.map(k=>[k,process.env[k]]));for(const k of keys)process.env[k]=env[k];try{return await fn()}finally{for(const k of keys)old[k]===undefined?delete process.env[k]:process.env[k]=old[k];}}
+async function envOf(env,fn){const keys=['LATCH_CONFIG','LATCH_RUNTIME_DIR','PWTEST_DAEMON_SESSION_DIR'],old=Object.fromEntries(keys.map(k=>[k,process.env[k]]));for(const k of keys)process.env[k]=env[k];try{return await fn()}finally{for(const k of keys)old[k]===undefined?delete process.env[k]:process.env[k]=old[k];}}
 test('exact installed candidate creates a central video/YAML bundle, exports it and preserves the browser on finish',{
  skip:process.env.LATCH_EXPLORATION_INSTALLED!=='1'||process.platform!=='darwin',timeout:180000,
 },async t=>{
  const app=await evidenceApp();app.installed=true;app.minimalHostPath=true;app.artifactExtension=path.join(CANDIDATE_KIT,'extension');let f,setup;
  app.install=async({temp,profile,env})=>{
   app.installedRoot=path.join(temp,'installed runtime');setup={kit:CANDIDATE_KIT,root:app.installedRoot,registrationRoot:path.join(profile,'NativeMessagingHosts'),tasksDrained:true,extensionUnloaded:true};
-  await fs.writeFile(env.QA_BROWSER_CONFIG,'{"v":1,"profiles":{}}');
+  await fs.writeFile(env.LATCH_CONFIG,'{"v":1,"profiles":{}}');
   await envOf(env,async()=>{const plan=await inspectSetup(setup);await activateSetup({...setup,expect:plan.planToken});});
  };
  t.after(async()=>{await f?.close();await app.close();});f=await attachmentFixture(t,app,'native');f.env.LATCH_CAPTURE='on';f.env.LATCH_ARTIFACT_ROOT=path.join(f.temp,'library');
- const opened=await f.latch(0,['open','--transport','native','--focus-emulation','on','--video','foreground','--session','agent','--url',app.origin+'/root#'+encodeURIComponent(f.run+':installed'),'--objective','Installed exploration handoff']);
+ const opened=await f.latch(0,['open','--focus-emulation','on','--video','foreground','--session','agent','--url',app.origin+'/root#'+encodeURIComponent(f.run+':installed'),'--objective','Installed exploration handoff']);
  assert.equal(opened.created,true);assert.ok(opened.library.runId);
  await f.latch(0,['pw','--session','agent','--data-ref','seeded-input','--','fill','#value','installed-proof']);
  await f.latch(0,['pw','--session','agent','--','click','#save']);

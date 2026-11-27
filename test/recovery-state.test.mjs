@@ -10,9 +10,9 @@ import {NativeRecovery, recoveryInspection} from '../src/native-recovery.mjs';
 import {sessionKey} from '../src/playwright.mjs';
 
 async function fixture(t) {
- const dir=await fs.mkdtemp(path.join(os.tmpdir(),'latch-recovery-unit-'));const original={config:process.env.QA_BROWSER_CONFIG,runtime:process.env.QA_BROWSER_RUNTIME_DIR};
- process.env.QA_BROWSER_CONFIG=path.join(dir,'config.json');process.env.QA_BROWSER_RUNTIME_DIR=path.join(dir,'runtime');await fs.mkdir(process.env.QA_BROWSER_RUNTIME_DIR);
- t.after(async()=>{for(const [key,value] of [['QA_BROWSER_CONFIG',original.config],['QA_BROWSER_RUNTIME_DIR',original.runtime]])value===undefined?delete process.env[key]:process.env[key]=value;await fs.rm(dir,{recursive:true,force:true})});
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'latch-recovery-unit-'));const original={config:process.env.LATCH_CONFIG,runtime:process.env.LATCH_RUNTIME_DIR};
+ process.env.LATCH_CONFIG=path.join(dir,'config.json');process.env.LATCH_RUNTIME_DIR=path.join(dir,'runtime');await fs.mkdir(process.env.LATCH_RUNTIME_DIR);
+ t.after(async()=>{for(const [key,value] of [['LATCH_CONFIG',original.config],['LATCH_RUNTIME_DIR',original.runtime]])value===undefined?delete process.env[key]:process.env[key]=value;await fs.rm(dir,{recursive:true,force:true})});
  const workspace=await fs.realpath(dir),key=sessionKey(workspace,'agent'),identity={instanceId:crypto.randomUUID(),epoch:crypto.randomUUID(),hostGeneration:crypto.randomUUID()};
  const store=new RecoveryStore(identity.instanceId),sessions={sessions:new Map(),handle:async()=>{throw new Error('Unexpected browser mutation')}};
  const broker=new NativeRecovery(identity,sessions,async()=>{}, {store});const meta={...identity,sessionKey:key,workspace,session:'agent'};
@@ -39,10 +39,6 @@ test('reconciliation is read-only offline, guarded/idempotent online, and cannot
  assert.equal((await send('apply',{expect:plan.planToken})).reconciled,true);assert.equal((await send('apply',{expect:plan.planToken})).alreadyReconciled,true);await f.broker.finish(g);
  const successor=await f.store.write(f.key,{...f.record,leaseId:crypto.randomUUID(),status:'attached'});f.sessions.sessions.set(f.key,{leaseId:successor.leaseId,relay:{status:()=>({stopped:false})}});
  const g2=await f.broker.begin(f.meta,{});await assert.rejects(f.broker.step(g2,g2.owner,{nonce:g2.nonce,action:'apply',expect:plan.planToken}),{code:'RECOVERY_PLAN_CHANGED'});assert.equal((await f.store.read(f.key)).leaseId,successor.leaseId);assert.equal((await f.broker.inspect(f.key)).healthy,true);await f.broker.finish(g2);
-});
-test('legacy locks remain blockers regardless of PID reuse and timestamp age',async t=>{
- const f=await fixture(t);const lock=path.join(process.env.QA_BROWSER_RUNTIME_DIR,f.key+'.lock');await fs.mkdir(lock);const file=path.join(lock,'owner.json'),body=JSON.stringify({pid:process.pid,startedAt:'1970-01-01'});await fs.writeFile(file,body);
- const plan=await f.broker.inspect(f.key);assert.ok(plan.blockers.includes('LEGACY_LOCK_PRESENT'));await assert.rejects(f.broker.begin(f.meta,{}),{code:'LEGACY_STATE_BLOCKED'});assert.equal(await fs.readFile(file,'utf8'),body);
 });
 test('operation EOF fences late commits while normal agent exit preserves healthy persistent leases',async t=>{
  const f=await fixture(t);const r=await f.store.write(f.key,{...f.record,status:'attached'});f.sessions.sessions.set(f.key,{leaseId:r.leaseId,relay:{status:()=>({stopped:false})}});

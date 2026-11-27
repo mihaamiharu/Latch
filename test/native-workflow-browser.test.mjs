@@ -9,7 +9,6 @@ import {fileURLToPath} from 'node:url';
 import {chromePath, eventually, command, stopBrowser, HEADLESS_ARGS} from './helpers/native-browser.mjs';
 import {request} from '../src/local.mjs';
 import {sessionKey} from '../src/playwright.mjs';
-import {OFFICIAL_ID} from '../extension/protocol.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const enabled = process.env.LATCH_NATIVE_WORKFLOW === '1' && process.platform === 'darwin';
@@ -22,8 +21,8 @@ test('normal Latch CLI: concurrent native workspaces, exact same-URL tabs, isola
   await fs.mkdir(base, {recursive: true});
   const temp = await fs.mkdtemp(path.join(base, 'run-'));
   const runtime = `/tmp/latch-multi-${crypto.randomBytes(5).toString('hex')}`;
-  const oldRuntime = process.env.QA_BROWSER_RUNTIME_DIR;
-  process.env.QA_BROWSER_RUNTIME_DIR = runtime;
+  const oldRuntime = process.env.LATCH_RUNTIME_DIR;
+  process.env.LATCH_RUNTIME_DIR = runtime;
   const projectA = path.join(temp, 'project-a'), projectB = path.join(temp, 'project-b'), projectC = path.join(temp, 'project-c');
   for (const p of [projectA, projectB, projectC]) await fs.mkdir(p);
   const evidence = path.join(temp, 'evidence'); await fs.mkdir(evidence);
@@ -35,9 +34,9 @@ test('normal Latch CLI: concurrent native workspaces, exact same-URL tabs, isola
   const extensionId = [...crypto.createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest().subarray(0, 16)]
     .map(b => String.fromCharCode(97 + (b >> 4), 97 + (b & 15))).join('');
   const hostName = `com.latch.multi_${crypto.randomBytes(6).toString('hex')}`;
-  const protocol = (await fs.readFile(path.join(extension, 'protocol.js'), 'utf8')).replace("'com.qa_browser.bridge'", JSON.stringify(hostName));
+  const protocol = (await fs.readFile(path.join(extension, 'protocol.js'), 'utf8')).replace("'com.latch.bridge'", JSON.stringify(hostName));
   await fs.writeFile(path.join(extension, 'protocol.js'), protocol);
-  const env = {...process.env, QA_BROWSER_CONFIG: path.join(temp, 'config.json'),
+  const env = {...process.env, LATCH_CONFIG: path.join(temp, 'config.json'),
     PWTEST_DAEMON_SESSION_DIR: path.join(temp, 'daemon'), NO_UPDATE_NOTIFIER: '1'};
   let browser, identity, seed, registration;
   const telemetry = new Map();
@@ -70,7 +69,7 @@ test('normal Latch CLI: concurrent native workspaces, exact same-URL tabs, isola
   await fs.writeFile(path.join(extension, 'fixture-seed.js'), seedScript);
   await fs.appendFile(path.join(extension, 'background.js'), "\nimport './fixture-seed.js';\n");
   const launcher = path.join(temp, 'native-host');
-  await fs.writeFile(launcher, `#!/bin/sh\nexport QA_BROWSER_RUNTIME_DIR=${quote(runtime)}\nexport QA_BROWSER_CONFIG=${quote(env.QA_BROWSER_CONFIG)}\nexport PWTEST_DAEMON_SESSION_DIR=${quote(env.PWTEST_DAEMON_SESSION_DIR)}\nexec ${quote(process.execPath)} ${quote(path.join(root, 'src/native-host.mjs'))} "$@" 2>>${quote(path.join(temp,'native.stderr.log'))}\n`, {mode: 0o700});
+  await fs.writeFile(launcher, `#!/bin/sh\nexport LATCH_RUNTIME_DIR=${quote(runtime)}\nexport LATCH_CONFIG=${quote(env.LATCH_CONFIG)}\nexport PWTEST_DAEMON_SESSION_DIR=${quote(env.PWTEST_DAEMON_SESSION_DIR)}\nexec ${quote(process.execPath)} ${quote(path.join(root, 'src/native-host.mjs'))} "$@" 2>>${quote(path.join(temp,'native.stderr.log'))}\n`, {mode: 0o700});
   const hosts = path.join(temp, 'profile/NativeMessagingHosts'); await fs.mkdir(hosts, {recursive: true});
   const hostManifest = path.join(hosts, hostName+'.json');
   registration = JSON.stringify({name: hostName, description: 'Latch workflow fixture', type: 'stdio', path: launcher,
@@ -103,7 +102,7 @@ test('normal Latch CLI: concurrent native workspaces, exact same-URL tabs, isola
     if (await fs.readFile(hostManifest, 'utf8').catch(() => '') === registration) await fs.unlink(hostManifest);
     await new Promise(resolve => fixture.close(resolve));
     await fs.rm(runtime, {recursive: true, force: true});
-    if (oldRuntime === undefined) delete process.env.QA_BROWSER_RUNTIME_DIR; else process.env.QA_BROWSER_RUNTIME_DIR = oldRuntime;
+    if (oldRuntime === undefined) delete process.env.LATCH_RUNTIME_DIR; else process.env.LATCH_RUNTIME_DIR = oldRuntime;
   });
   const args = [...HEADLESS_ARGS, `--user-data-dir=${path.join(temp,'profile')}`, '--profile-directory=Default', '--no-first-run',
     '--no-default-browser-check', '--enable-logging=stderr', '--use-mock-keychain', '--password-store=basic',
@@ -121,8 +120,8 @@ test('normal Latch CLI: concurrent native workspaces, exact same-URL tabs, isola
   assert.equal(a.url, b.url);
   assert.ok(b.groupId >= 0);
   const [connectedA, connectedB] = await Promise.all([
-    wrapper(projectA, ['connect', '--transport', 'native', '--focus-emulation', 'on', '--session', 'agent', '--tab', String(a.tabId)]),
-    wrapper(projectB, ['connect', '--transport', 'native', '--focus-emulation', 'on', '--session', 'agent', '--tab', String(b.tabId)]),
+    wrapper(projectA, ['connect', '--focus-emulation', 'on', '--session', 'agent', '--tab', String(a.tabId)]),
+    wrapper(projectB, ['connect', '--focus-emulation', 'on', '--session', 'agent', '--tab', String(b.tabId)]),
   ]);
   console.log('Both normal CLI sessions connected.');
   assert.notEqual(connectedA.page.targetId, connectedB.page.targetId);
@@ -136,16 +135,14 @@ test('normal Latch CLI: concurrent native workspaces, exact same-URL tabs, isola
   assert.equal(valueOf(actionA), 'Saved Alpha'); assert.equal(valueOf(actionB), 'Saved Beta');
   const isolation = valueOf(await pw(projectA, ['run-code', `async(page)=>{const browser=await page.context().browser().newBrowserCDPSession();try{const own=await browser.send('Target.getTargets');let rejected=false;try{await browser.send('Target.attachToTarget',{targetId:${JSON.stringify(connectedB.page.targetId)},flatten:true})}catch{rejected=true}return {targets:own.targetInfos.map(t=>t.targetId),rejected}}finally{await browser.detach()}}`]));
   assert.deepEqual(isolation.targets, [connectedA.page.targetId]); assert.equal(isolation.rejected, true);
-  const conflict = await wrapper(projectC, ['connect', '--transport', 'native', '--session', 'agent', '--tab', String(a.tabId)], {fail: true});
+  const conflict = await wrapper(projectC, ['connect', '--session', 'agent', '--tab', String(a.tabId)], {fail: true});
   assert.equal(conflict.error.code, 'TAB_OWNED');
   const limited = await wrapper(projectA, ['connect', '--session', 'agent', '--tab', String(c.tabId)], {fail: true});
   assert.equal(limited.error.code, 'SESSION_TAB_LIMIT');
-  const switched = await wrapper(projectA, ['connect', '--transport', 'official', '--session', 'agent', '--tab', String(a.tabId)], {fail: true});
-  assert.equal(switched.error.code, 'TRANSPORT_MISMATCH');
   await assert.rejects(request(identity.instanceId, 'native-connect', {...identity, epoch: crypto.randomUUID(), sessionKey: sessionKey(projectC, 'agent'), tabId: c.tabId, expectedUrl:c.url}), {code:'OPERATION_GRANT_REQUIRED'});
   const failingCLI = path.join(temp, 'failing-cli');
   await fs.writeFile(failingCLI, `#!${process.execPath}\nconst a=process.argv.slice(2);if(a.includes('--version'))console.log(JSON.stringify({version:'0.1.20'}));else if(a.includes('list'))console.log(JSON.stringify({browsers:[]}));else if(a.includes('attach')){console.log(JSON.stringify({isError:true,error:'Injected attach failure'}));process.exitCode=1}else console.log('{}');\n`, {mode:0o700});
-  const rollback = await wrapper(projectC, ['connect', '--transport','native','--session','agent','--tab',String(c.tabId)], {fail:true,overrides:{QA_BROWSER_PLAYWRIGHT_CLI:failingCLI}});
+  const rollback = await wrapper(projectC, ['connect', '--session','agent','--tab',String(c.tabId)], {fail:true,overrides:{LATCH_PLAYWRIGHT_CLI:failingCLI}});
   assert.equal(rollback.error.code,'PLAYWRIGHT_ERROR');
   const during = await wrapper(projectA, ['tabs']);
   assert.equal(during.tabs.find(t=>t.tabId===c.tabId).owner,null);
@@ -194,14 +191,14 @@ test('normal Latch CLI: concurrent native workspaces, exact same-URL tabs, isola
     const d=JSON.parse(await fs.readFile(path.join(temp,'profile/Default',name)).catch(()=>'{}'));
     Object.assign(settings,d.extensions?.settings||{});
   }
-  assert.ok(settings[extensionId]); assert.ok(!settings[OFFICIAL_ID]);
+  assert.ok(settings[extensionId]);
   const report={outcome:'passed',cliVersion:(await command('playwright-cli',['--version'])).out.trim(),
-    chromeVersion:(await command(chrome,['--version'])).out.trim(), officialExtensionInstalled:false, remoteDebuggingFlags:false,
+    chromeVersion:(await command(chrome,['--version'])).out.trim(), remoteDebuggingFlags:false,
     sameURL:observedA.url,selectedMarkers:[observedA.marker,observedB.marker],
     targetIds:[connectedA.page.targetId,connectedB.page.targetId],isolation,
     sharedSessionName:'agent',separateWorkspaces:true,focusEmulation:true,conflictCode:conflict.error.code,rollbackCode:rollback.error.code,
     releasePreservedPeer:true,groupsWindowsAndStatePreserved:true,activeNativeSessionsAfterCleanup:0,
-    limitations:['one tab per session','official mode remains default','Work installation unchanged','advanced browser features and restart recovery not covered']};
+    limitations:['one tab per session','Work installation unchanged','advanced browser features and restart recovery not covered']};
   await fs.writeFile(path.join(evidence,'report.json'),JSON.stringify(report,null,2));
   console.log(`Multi-agent workflow passed; evidence: ${evidence}`);
 });

@@ -14,17 +14,20 @@ async function fixture(t) {
   const work = await fs.mkdtemp(path.join(parent, 'case-'));
   const runtime = `/tmp/latch-diag-${crypto.randomBytes(5).toString('hex')}`;
   await fs.mkdir(runtime, {mode: 0o700});
-  const previous = {runtime: process.env.QA_BROWSER_RUNTIME_DIR, config: process.env.QA_BROWSER_CONFIG};
-  process.env.QA_BROWSER_RUNTIME_DIR = runtime;
-  process.env.QA_BROWSER_CONFIG = path.join(work, 'config.json');
+  const previous = {runtime: process.env.LATCH_RUNTIME_DIR, config: process.env.LATCH_CONFIG};
+  process.env.LATCH_RUNTIME_DIR = runtime;
+  process.env.LATCH_CONFIG = path.join(work, 'config.json');
   t.after(async () => {
-    for (const [name, value] of [['QA_BROWSER_RUNTIME_DIR', previous.runtime], ['QA_BROWSER_CONFIG', previous.config]])
-      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    for (const [name, value] of [['LATCH_RUNTIME_DIR', previous.runtime], ['LATCH_CONFIG', previous.config]]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
     await fs.rm(runtime, {recursive: true, force: true});
     await fs.rm(work, {recursive: true, force: true});
   });
-  return {runtime, config: process.env.QA_BROWSER_CONFIG, instanceId: crypto.randomUUID()};
+  return {runtime, config: process.env.LATCH_CONFIG, instanceId: crypto.randomUUID()};
 }
+
 test('configured pairing with an absent socket remains paired and retains ENOENT', async t => {
   const f = await fixture(t);
   await fs.writeFile(f.config, JSON.stringify({v: 1, profiles: {work: {instanceId: f.instanceId, chromeProfileDir: 'Default'}}}));
@@ -38,12 +41,14 @@ test('configured pairing with an absent socket remains paired and retains ENOENT
   assert.equal(result.paths.configuration, f.config);
   assert.equal(result.execution.platform, process.platform);
 });
+
 test('a missing alias is distinguished from an unreachable paired socket', async t => {
   await fixture(t);
   const result = await diagnose('work');
   assert.equal(result.configuration.paired, false);
   assert.equal(result.connection.error.code, 'PROFILE_UNPAIRED');
 });
+
 test('discovery preserves unreachable socket failures as diagnostics', async t => {
   const f = await fixture(t);
   await fs.writeFile(socketPath(f.instanceId), 'not a listening socket');
@@ -54,11 +59,15 @@ test('discovery preserves unreachable socket failures as diagnostics', async t =
   assert.match(result.warnings[0].message, /ECONNREFUSED|ENOTSOCK/);
   assert.equal(result.runtimeDirectory, f.runtime);
 });
+
 test('Unix socket access denial is not reported as missing pairing', {skip: process.getuid?.() === 0}, async t => {
   const f = await fixture(t);
   const address = socketPath(f.instanceId);
   const server = net.createServer(socket => socket.destroy());
-  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(address, resolve); });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(address, resolve);
+  });
   t.after(async () => {
     await fs.chmod(address, 0o600).catch(() => {});
     await new Promise(resolve => server.close(resolve));
@@ -70,8 +79,4 @@ test('Unix socket access denial is not reported as missing pairing', {skip: proc
     assert.ok(error.message.includes(address));
     return true;
   });
-});
-
-test('invalid transport preference preserves readable pairing and separate bridge health',async t=>{
- const f=await fixture(t);await fs.writeFile(f.config,JSON.stringify({profiles:{work:{instanceId:f.instanceId,chromeProfileDir:'Default',defaultTransport:'future'}}}));const server=net.createServer(socket=>{let body='';socket.on('data',b=>{body+=b;if(!body.includes('\n'))return;const m=JSON.parse(body);socket.end(JSON.stringify({v:1,id:m.id,ok:true,result:{instanceId:f.instanceId,capabilities:{nativeTransport:false}}})+'\n')})});await new Promise(r=>server.listen(socketPath(f.instanceId),r));t.after(()=>new Promise(r=>server.close(r)));const result=await diagnose('work');assert.equal(result.configuration.readable,true);assert.equal(result.configuration.paired,true);assert.equal(result.bridgeHealthy,true);assert.equal(result.healthy,false);assert.equal(result.transport.error.code,'INVALID_TRANSPORT_DEFAULT');
 });

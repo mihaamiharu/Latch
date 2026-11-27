@@ -37,10 +37,10 @@ Default locations retain the historical directory name for upgrade compatibility
 
 | Data | Default location / purpose |
 | --- | --- |
-| Pairing and profile preferences | `~/Library/Application Support/Work Browser Bridge/config.json` |
-| Owned runtime, receipts and retained releases | `~/Library/Application Support/Work Browser Bridge/runtime/` |
+| Pairing and profile preferences | `~/Library/Application Support/Latch/config.json` |
+| Owned runtime, receipts and retained releases | `~/Library/Application Support/Latch/runtime/` |
 | Native recovery journals | `native-v4/` beside the selected configuration; bounded lease/cleanup metadata |
-| Per-user socket directory | `/tmp/qa-browser-<uid>/` |
+| Per-user socket directory | `/tmp/latch-<uid>/` |
 | Task evidence | Explicit recorder directories, or candidate central runs under `artifacts/` beside config |
 | Playwright daemon state | External CLI cache, normally `~/Library/Caches/ms-playwright/daemon/` |
 

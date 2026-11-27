@@ -4,12 +4,9 @@ Recorded October 28, 2026. Experimental implementation on
 `feat/latch-native-transport`, based on checkpoint
 `ad4819827f0fc994a1df39aed930a2bab8f44972`.
 
-This records Phase 1's compatibility scope, not a public production protocol.
-Phase 2 subsequently graduated its relay/model into `src/` and added an opt-in
-native path to the normal helper/controller. See `NATIVE-SESSION-WORKFLOW.md` for
-current behavior. The installed Work manifest still lacks debugger permission
-and the official adapter remains the default; this source update does not grant
-new browser permissions.
+This records Phase 1's initial compatibility scope (superseded by Latch 1.0.0
+native-only schema 4). See `NATIVE-SESSION-WORKFLOW.md` and
+`skills/latch/references/operations.md` for current behavior.
 
 ## Versions and transport
 
@@ -22,8 +19,8 @@ new browser permissions.
   adaptation provenance under `third_party/playwright/`.
 
 The fixture launcher supplies no Chrome remote-debugging flag. A custom
-user-data directory contains only the test extension plus Chrome's built-in
-extensions. The official Playwright extension is not installed.
+user-data directory contains only the Latch extension plus Chrome's built-in
+extensions.
 
 Chrome starts the actual native host through `connectNative()`. The host's
 origin argument and the registered extension ID must match. Its private Unix

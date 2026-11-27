@@ -8,7 +8,8 @@ import {eventually} from './helpers/native-browser.mjs';
 import {meta,upload,chooserUpload,downloadProbe,received} from './helpers/file-workflow.mjs';
 
 const enabled=process.env.LATCH_FILES==='1'&&process.platform==='darwin';
-for(const transport of ['official','native'])test(`headless file comparison: ${transport}`,{skip:!enabled,timeout:240000},async t=>{
+test('headless file comparison: native',{skip:!enabled,timeout:240000},async t=>{
+ const transport='native';
  const app=await fileApp();let f;
  t.after(async()=>{await f?.close();await app.close()});
  f=await attachmentFixture(t,app,transport);await f.connect(0,f.tabs[0]);
