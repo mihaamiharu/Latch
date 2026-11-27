@@ -1,60 +1,109 @@
-# Latch 1.0.0 local setup
+# Latch v1.0 Setup Guide
 
-This release includes the native extension, host/CLI, shared skill, `ws` 8.22.0, and third-party licenses. Node **>=22.0.0** and Playwright CLI **0.1.20** are external prerequisites. Chrome **>=125** is required (`minimum_chrome_version: "125"`).
+Latch connects coding agents to tabs in your real Google Chrome profile across **Windows**, **macOS**, and **Linux**.
 
-Open a fresh tab with:
+## Prerequisites
+
+- **Node.js `>= 22.0.0`**
+- **Google Chrome `>= 125`**
+- No external `playwright-cli` or `ffmpeg` needed — `playwright-core` is bundled inside `native-host`.
+
+### Platform data directories
+
+| Platform | Default `<appDataDir>` | Native host registration |
+| --- | --- | --- |
+| Windows | `%LOCALAPPDATA%\Latch` | `%LOCALAPPDATA%\Latch\NativeMessagingHosts\com.latch.bridge.json` + `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.latch.bridge` |
+| macOS | `~/Library/Application Support/Latch` | `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.latch.bridge.json` |
+| Linux | `$XDG_CONFIG_HOME/latch` (or `~/.config/latch`) | `$XDG_CONFIG_HOME/google-chrome/NativeMessagingHosts/com.latch.bridge.json` |
+
+Environment overrides: `LATCH_CONFIG`, `LATCH_RUNTIME_DIR`, `LATCH_ARTIFACT_ROOT`, `LATCH_HOME`.
+
+## 1. Install native host & CLI launcher
+
+From your Latch checkout or extracted release kit:
 
 ```sh
-latch open --profile work --session fresh-qa \
-  --workspace /absolute/project --focus-emulation on --url https://staging.example.com
-latch pw --profile work --session fresh-qa --workspace /absolute/project -- snapshot
-latch disconnect --profile work --session fresh-qa --workspace /absolute/project
+node src/cli.mjs install
 ```
 
-## Inspect and stage
+This creates `<appDataDir>/runtime/bin/latch` (`latch.cmd` on Windows), registers the `com.latch.bridge` native messaging host for extension ID `dlkpkeiejlgggeoibejpoajedoelfcli`, initializes `config.json`, and links the agent skills/plugins. Add `<appDataDir>/runtime/bin` to your `PATH` (or link `npm link` from a checkout) to run `latch` directly from any folder.
 
-```bash
-LATCH_KIT='/absolute/path/to/latch-1.0.0'
-node "$LATCH_KIT/src/install.mjs" inspect --kit "$LATCH_KIT"
-node "$LATCH_KIT/src/install.mjs" stage --kit "$LATCH_KIT"
+## 2. Load the Chrome extension
+
+1. Open `chrome://extensions` in the Chrome profile you want agents to use.
+2. Enable **Developer mode**.
+3. Click **Load unpacked** and select the `extension/` folder from Latch.
+4. Confirm the extension ID is `dlkpkeiejlgggeoibejpoajedoelfcli` and keep it enabled.
+
+## 3. Pair and verify
+
+With Chrome running and the extension enabled:
+
+```sh
+latch pair
+latch doctor
 ```
 
-The default runtime is `~/Library/Application Support/Latch/runtime`. `releases/` contains complete hashed payloads, `current` selects the local host/CLI, and `extension/` is a stable physical directory.
+- `latch pair` auto-discovers a single live unpaired extension instance and binds it to the default `work` profile alias (pass `--profile <alias>` to add another profile, or `--instance <uuid> --chrome-profile-dir "Profile 1"` when multiple instances are running).
+- `latch doctor` checks OS, Node version, native messaging registration, and live bridge connectivity. Pass `latch doctor --fix` to repair missing registration or stale workspace bindings.
+- If you ever reinstall the extension and its instance UUID changes:
+  ```sh
+  latch pair --profile work --instance <new-uuid> --chrome-profile-dir Default --replace --expect-old <old-uuid>
+  ```
 
-## Activate once, then verify
+## 4. Install agent plugins & skills
 
-```bash
-node "$LATCH_KIT/src/install.mjs" inspect --kit "$LATCH_KIT"
-node "$LATCH_KIT/src/install.mjs" activate --kit "$LATCH_KIT" \
-  --expect '<planToken from this inspection>' --tasks-drained --extension-unloaded
+Install Latch into Antigravity, Claude Code, and Codex/Cursor (or select specific targets):
+
+```sh
+latch agents install
+latch agents install --target antigravity,claude
+latch agents status
 ```
 
-Load unpacked `extensionDirectory` in Chrome (`dlkpkeiejlgggeoibejpoajedoelfcli`), enable the extension, then verify:
+Target paths:
+- **Antigravity:** `~/.gemini/config/plugins/latch` (plugin bundle with `plugin.json`, `rules/AGENTS.md`, `skills/latch/SKILL.md`)
+- **Claude Code:** `~/.claude/skills/latch` (plus repo `.claude-plugin/plugin.json`)
+- **Codex / Cursor:** `~/.agents/skills/latch`
 
-```bash
-LATCH_RUNTIME="$HOME/Library/Application Support/Latch/runtime"
-"$LATCH_RUNTIME/bin/latch" diagnose --profile work
-node "$LATCH_KIT/src/install.mjs" verify --profile work
+Existing user-owned skills or plugins are never overwritten (`conflict` status).
+
+## 5. Daily workflow
+
+Quick inspection:
+
+```sh
+latch tabs
+latch open https://staging.example.com
+latch snapshot
+latch click e3
+latch fill e5 "synthetic input"
+latch screenshot --out result.png
+latch disconnect
 ```
 
-If `verify` refuses because the instance changed, use `latch pair --replace`:
+Recorded exploration with before/after screenshot filmstrips:
 
-```bash
-latch pair --profile work --instance <new uuid from popup> \
-  --chrome-profile-dir <same directory as before> --replace --expect-old <old uuid>
+```sh
+latch connect 12345 --record --objective "Verify settings save flow" --environment staging
+latch snapshot
+latch click e7
+latch checkpoint "Save button updates banner without page reload"
+latch finish
+latch library serve
 ```
 
-## Shared skill and daily use
+- `--profile`, `--workspace`, and `-s`/`--session` have smart defaults (active sessions are bound per workspace under `<appDataDir>/sessions/` with zero repo dotfiles).
+- Pass `--focus-emulation off` on `open`/`connect` only when testing real window focus or visibility events.
+- Pass `--json` to any command for structured JSON output.
 
-```bash
-node "$LATCH_KIT/src/install.mjs" skills
-"$LATCH_RUNTIME/bin/latch" preflight --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE"
-"$LATCH_RUNTIME/bin/latch" pw --profile work --session "$LATCH_SESSION" --workspace "$LATCH_WORKSPACE" -- snapshot
+## 6. Uninstall
+
+Disconnect active sessions first, then remove agent links and native registration:
+
+```sh
+latch agents uninstall
+latch uninstall
 ```
 
-## Rollback and uninstall
-
-```bash
-node "$LATCH_KIT/src/install.mjs" rollback --tasks-drained --extension-unloaded
-node "$LATCH_KIT/src/install.mjs" uninstall --tasks-drained --extension-unloaded
-```
+`latch uninstall` removes the native host registration and launchers while preserving your `config.json` and `artifacts/` exploration library.

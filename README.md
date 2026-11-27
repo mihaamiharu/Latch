@@ -1,79 +1,112 @@
 # Latch
 
-A Chrome companion extension and local CLI for connecting existing browser tabs to coding agents. Run `npm ci` after cloning/updating this repository.
+A cross-platform Chrome companion extension, native bridge, and flat `latch` CLI that connects AI coding agents to your signed-in Chrome tabs—with bundled `playwright-core` and built-in exploration filmstrips.
 
-## Build the extension
+## Prerequisites
 
-```bash
-npm run build
-```
+- **OS:** Windows, macOS, or Linux
+- **Node.js:** `>= 22.0.0`
+- **Google Chrome:** `>= 125`
+- No external `playwright-cli` or `ffmpeg` required (`playwright-core` is bundled inside `native-host` over an in-process CDP relay).
 
-This builds `dist/latch/`, its extension ZIP, and the complete `dist/latch-1.0.0/` kit plus kit ZIP. It validates the fixed identity (`dlkpkeiejlgggeoibejpoajedoelfcli`), module inventory, permissions, dependency/licenses, and file hashes.
+## Quick start
 
-## What it does
+1. Install dependencies (skipping Playwright browser downloads):
+   ```sh
+   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
+   ```
+   On Windows PowerShell:
+   ```powershell
+   $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"; npm ci
+   ```
+2. Install the native host and `latch` launcher, then load `extension/` unpacked in Chrome (`chrome://extensions`, Developer mode, fixed ID `dlkpkeiejlgggeoibejpoajedoelfcli`):
+   ```sh
+   node src/cli.mjs install
+   ```
+3. Pair the running extension and verify health:
+   ```sh
+   latch pair
+   latch doctor
+   ```
+4. Install the native plugin/skill for your coding agents:
+   ```sh
+   latch agents install
+   ```
 
-`latch tabs` discovers ordinary tabs across the paired Chrome profile. `latch connect` attaches the selected existing tab and verified popup descendants via Chrome's `debugger` API (native schema 4), preserving existing windows, tab groups, and signed-in state. `latch open` creates a fresh tab in an existing window and navigates to a URL. `latch release` releases one owned tab; `latch disconnect` releases the session while preserving website tabs.
+See [SETUP.md](SETUP.md) for full Windows, macOS, and Linux installation details.
 
-The extension (`extension/manifest.json`) declares `tabs`, `tabGroups`, `storage`, `nativeMessaging`, `alarms`, and `debugger` permissions, with `minimum_chrome_version: "125"`. It has no website host permissions, content scripts, or external-message endpoint.
+## Flat CLI overview
 
-## Files to review
+All commands support global flags `--json`, `-s` / `--session <name>`, `--profile <alias>`, and `--workspace <path>`. `--profile` defaults to the sole/default paired profile, `--workspace` defaults to `cwd`, and active workspace sessions bind cleanly under `<appDataDir>/sessions/` with zero dotfiles added to your repository.
 
-| File | Purpose |
-| --- | --- |
-| `extension/manifest.json` | Permissions (`debugger`, `alarms`, etc.) and fixed public extension identity |
-| `extension/controller.js` | Tab discovery, native session reservation, and ownership |
-| `extension/background.js` | Chrome-native transport and scoped extension-page messages |
-| `src/native-host.mjs` | Native message framing and per-profile IPC socket |
-| `src/playwright.mjs` | CLI subprocesses and verification |
-| `src/cli.mjs` | User-facing `latch` commands |
-| `src/install.mjs`, `src/setup.mjs` | Inspect/stage/activate/verify/rollback/uninstall owned setup |
-| `test/` | Protocol, conflict, identity, and browser compatibility tests |
-
-## One-time setup
-
-Follow [SETUP.md](SETUP.md) for inspect/stage/activate/verify and managed skill installation. Setup validates Node `>=22.0.0` and Playwright CLI `0.1.20`.
-
-`node src/install.mjs prepare` writes an unregistered development preview under `dist/setup-preview/`. Managed installations use `<runtime>/bin/latch`.
-
-Pairing stores configuration in `~/Library/Application Support/Latch/config.json` (overridable via `LATCH_CONFIG`). The native messaging host is `com.latch.bridge`.
-
-## Open a URL in a fresh tab
+### Session lifecycle & browser actions
 
 ```sh
-latch open --profile work --session checkout-qa \
-  --workspace /absolute/project --focus-emulation on --url https://staging.example.com
-latch pw --profile work --session checkout-qa --workspace /absolute/project -- snapshot
-latch disconnect --profile work --session checkout-qa --workspace /absolute/project
+latch tabs
+latch open https://staging.example.com
+latch snapshot
+latch click e3
+latch fill e5 "synthetic input"
+latch screenshot --out result.png
+latch disconnect
 ```
 
-## Terminal workflow
+- **Lifecycle:** `latch tabs`, `latch open <url> [--record] [--objective <text>] [--environment <text>] [--focus-emulation on|off]`, `latch connect <tabId> [...]`, `latch sessions`, `latch release [tabId]`, `latch disconnect`, `latch finish`
+- **Actions:** `latch snapshot`, `latch click <ref|selector>`, `latch fill <ref|selector> <value>`, `latch type [ref|selector] <text>`, `latch press <key>`, `latch hover <ref|selector>`, `latch select <ref|selector> <value>`, `latch check <ref|selector>`, `latch uncheck <ref|selector>`, `latch upload <ref|selector> <path...>`, `latch screenshot [--out <path>]`, `latch goto <url>`, `latch back`, `latch forward`, `latch reload`, `latch eval <expr>`, `latch run-code <fn>`, `latch console`, `latch network`, `latch dialog <accept|dismiss> [promptText]`
 
-For a managed release installation, use `node src/install.mjs skills` from its kit after verification. For checkout-based development, run `npm run skills:install` once to link `skills/latch/` into `.agents/skills/latch` and `.claude/skills/latch`.
+### Recorded explorations
 
-```bash
-latch tabs --profile work
-latch connect --profile work --session checkout --tab 123 --workspace /absolute/path/to/project
-latch pw --profile work --session checkout --workspace /absolute/path/to/project -- snapshot
-latch release --profile work --session checkout --tab 123 --workspace /absolute/path/to/project
-latch disconnect --profile work --session checkout --workspace /absolute/path/to/project
+Pass `--record` or `--objective "<goal>"` on `open` or `connect` to capture before/after PNG screenshot filmstrips, ARIA snapshots, and DOM locator candidates:
+
+```sh
+latch open https://staging.example.com/checkout --record --objective "Verify checkout validation"
+latch snapshot
+latch click e4
+latch checkpoint "Submitting empty form shows required-field errors"
+latch finish
+latch library serve
 ```
 
-## Tests
+- `latch checkpoint <note> [--annotation-file <path>]`
+- `latch library <list|show|serve|review|export> [--run <id>]`
 
-```bash
+## Agent plugins & skills
+
+`latch agents <install|status|uninstall> [--target antigravity,claude,codex,cursor]` links Latch into your agent toolchains using directory junctions (Windows) or symlinks (macOS/Linux), never overwriting unrelated user customizations:
+
+| Client | Target path | Source in repo |
+| --- | --- | --- |
+| Antigravity | `~/.gemini/config/plugins/latch` | `plugins/antigravity/` |
+| Claude Code | `~/.claude/skills/latch` | `skills/latch/` (and `.claude-plugin/plugin.json`) |
+| Codex / Cursor | `~/.agents/skills/latch` | `skills/latch/` |
+
+## Architecture & key files
+
+| Path | Purpose |
+| --- | --- |
+| `extension/` | MV3 Chrome extension (`tabs`, `tabGroups`, `storage`, `nativeMessaging`, `alarms`, `debugger`; no website host permissions) |
+| `src/native-host.mjs` | Native messaging host, IPC listener, and in-process CDP relay |
+| `src/browser-engine.mjs` | Bundled `playwright-core` (`chromium.connectOverCDP`) session & ARIA ref engine |
+| `src/platform.mjs` | Cross-platform paths, named pipes / Unix sockets, launchers, and registry/manifest helpers |
+| `src/cli.mjs` | Flat `latch` CLI with smart defaults and `--json` output |
+| `src/exploration*.mjs` | Unified Exploration Library, before/after screenshot filmstrip, and local review UI |
+| `src/agents.mjs` | Native agent plugin & skill installer (`latch agents`) |
+| `plugins/antigravity/` | Native Antigravity plugin bundle (`plugin.json`, `rules/AGENTS.md`, `skills/latch/SKILL.md`, `assets/logo.png`) |
+| `.claude-plugin/plugin.json` | Claude Code plugin manifest pointing to `skills/` |
+| `skills/latch/` | Slim cross-agent `SKILL.md` and `agents/openai.yaml` |
+
+## Build & tests
+
+```sh
+npm run build
 npm test
 ```
 
-All browser tests run headless with disposable profiles and test-only launch flags (see `AGENTS.md`).
+`npm run build` produces `dist/latch/`, `dist/latch-1.0.0/`, and deterministic release archives in `dist/`. Browser integration tests run headless with disposable profiles per [AGENTS.md](AGENTS.md).
 
-## Uninstall
+## More documentation
 
-Disconnect managed sessions first, then run:
-
-```bash
-node src/install.mjs uninstall
-```
-
-## Exploration library
-
-See [docs/EXPLORATION-LIBRARY.md](docs/EXPLORATION-LIBRARY.md) for the local review library and structured YAML handoff, [docs/NATIVE-SESSION-WORKFLOW.md](docs/NATIVE-SESSION-WORKFLOW.md), [docs/NATIVE-TRANSPORT-CONTRACT.md](docs/NATIVE-TRANSPORT-CONTRACT.md), and [docs/SUPPORT.md](docs/SUPPORT.md).
+- [SETUP.md](SETUP.md) — cross-platform installation, pairing, and troubleshooting
+- [PRIVACY.md](PRIVACY.md) — local transport, redaction, and retention details
+- [docs/SUPPORT.md](docs/SUPPORT.md) — supported OS/Node/Chrome matrix
+- [docs/EXPLORATION-LIBRARY.md](docs/EXPLORATION-LIBRARY.md) — exploration handoff and local review server
