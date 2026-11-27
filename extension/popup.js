@@ -130,6 +130,7 @@ function renderLibrary(library) {
   storageSection.hidden = false;
 
   const input = $('artifacts-dir');
+  const chooseBtn = $('choose-folder');
   const saveBtn = $('save-artifacts');
   const resetBtn = $('reset-artifacts');
   const meta = $('storage-meta');
@@ -142,6 +143,7 @@ function renderLibrary(library) {
     meta.textContent = `Using default folder (${count} saved ${count === 1 ? 'run' : 'runs'}).`;
   }
   input.disabled = !!library.envOverride || busy;
+  chooseBtn.disabled = !!library.envOverride || busy;
   saveBtn.disabled = !!library.envOverride || busy;
   resetBtn.disabled = !!library.envOverride || library.source === 'default' || busy;
 }
@@ -223,6 +225,23 @@ $('open-library').onclick = async () => {
   } finally {
     busy = false;
     $('open-library').disabled = false;
+  }
+};
+$('choose-folder').onclick = async () => {
+  if (busy) return;
+  busy = true;
+  $('choose-folder').disabled = true;
+  $('notice').textContent = 'Select a folder in the dialog…';
+  try {
+    const res = await ui('choose-folder');
+    $('notice').textContent = res.cancelled
+      ? 'Folder selection cancelled.'
+      : `Artifacts folder saved: ${res.path}`;
+  } catch (e) {
+    $('notice').textContent = `${e.message} (${e.code})`;
+  } finally {
+    busy = false;
+    await refresh();
   }
 };
 $('save-artifacts').onclick = async () => {

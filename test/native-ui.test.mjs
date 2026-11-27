@@ -8,7 +8,7 @@ import {NativeUI} from '../src/native-ui.mjs';
 import {NativeSessions} from '../src/native-sessions.mjs';
 import {sessionKey} from '../src/redact.mjs';
 
-async function fixture(t) {
+async function fixture(t, uiOptions = {}) {
   const dir = await fs.mkdtemp(path.join(ROOT, 'work/ui-'));
   const before = process.env.LATCH_CONFIG;
   process.env.LATCH_CONFIG = path.join(dir, 'config.json');
@@ -30,7 +30,7 @@ async function fixture(t) {
   );
   const browser = async op => (op === 'status' ? {sessions: []} : [{tabId: 1, title: 'Fixture', url: 'https://fixture.test/', owner: key}]);
   const sessions = new NativeSessions(identity, browser);
-  const ui = new NativeUI(identity, sessions, browser);
+  const ui = new NativeUI(identity, sessions, browser, uiOptions);
   const leaseId = crypto.randomUUID();
   sessions.sessions.set(key, {
     leaseId,
@@ -91,9 +91,18 @@ test('profile labels and status remain bounded, and host shutdown fences UI auth
   await assert.rejects(f.ui.status(), {code: 'BRIDGE_DISCONNECTED'});
 });
 
-test('popup UI exposes library status, lazily opens loopback library server, and updates artifactsDir', async t => {
-  const f = await fixture(t);
+test('popup UI exposes library status, lazily opens loopback library server, chooses artifacts folder, and updates artifactsDir', async t => {
+  const pickerCalls = [];
+  let pickerResult = null;
+  let pickerImpl = async initial => {
+    pickerCalls.push(initial);
+    return typeof pickerResult === 'function' ? pickerResult(initial) : pickerResult;
+  };
+  const f = await fixture(t, {
+    pickDirectory: initial => pickerImpl(initial),
+  });
   const customArtifacts = path.join(f.dir, 'custom-artifacts');
+  const pickedArtifacts = path.join(f.dir, 'picked-artifacts');
   const beforeArt = process.env.LATCH_ARTIFACT_ROOT;
   delete process.env.LATCH_ARTIFACT_ROOT;
   t.after(async () => {
@@ -115,6 +124,34 @@ test('popup UI exposes library status, lazily opens loopback library server, and
   assert.equal(saved.reset, false);
   assert.equal(saved.library.source, 'config');
   assert.equal(saved.library.path, path.resolve(customArtifacts));
+
+  // Cancelling folder picker leaves config unchanged
+  pickerResult = null;
+  const cancelled = await f.ui.chooseFolder();
+  assert.deepEqual(cancelled, {cancelled: true, updated: false});
+  assert.equal(pickerCalls.at(-1), path.resolve(customArtifacts));
+
+  // Selecting a folder persists it immediately
+  pickerResult = pickedArtifacts;
+  const picked = await f.ui.chooseFolder();
+  assert.equal(picked.cancelled, false);
+  assert.equal(picked.updated, true);
+  assert.equal(picked.library.source, 'config');
+  assert.equal(picked.library.path, path.resolve(pickedArtifacts));
+  assert.equal(pickerCalls.at(-1), path.resolve(customArtifacts));
+
+  // Concurrent picker calls are rejected with UI_BUSY
+  let releasePicker;
+  pickerResult = () => new Promise(resolve => (releasePicker = resolve));
+  const pendingPick = f.ui.chooseFolder();
+  await assert.rejects(f.ui.chooseFolder(), {code: 'UI_BUSY'});
+  releasePicker(null);
+  assert.deepEqual(await pendingPick, {cancelled: true, updated: false});
+
+  // LATCH_ARTIFACT_ROOT locks chooseFolder
+  process.env.LATCH_ARTIFACT_ROOT = customArtifacts;
+  await assert.rejects(f.ui.chooseFolder(), {code: 'CONFIG_LOCKED'});
+  delete process.env.LATCH_ARTIFACT_ROOT;
 
   const {allocateRun} = await import('../src/exploration-storage.mjs');
   const run = await allocateRun(
@@ -141,4 +178,5 @@ test('popup UI exposes library status, lazily opens loopback library server, and
 
   f.ui.stop();
   await assert.rejects(f.ui.openLibrary(), {code: 'BRIDGE_DISCONNECTED'});
+  await assert.rejects(f.ui.chooseFolder(), {code: 'BRIDGE_DISCONNECTED'});
 });
