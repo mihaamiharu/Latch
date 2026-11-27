@@ -2,6 +2,8 @@
 
 A cross-platform Chrome companion extension, native bridge, and flat `latch` CLI that connects AI coding agents to your signed-in Chrome tabs—with bundled `playwright-core` and built-in exploration filmstrips.
 
+**Docs & Showcase:** https://mihaamiharu.github.io/Latch/ · **npm:** `@mihaamiharu/latch` · **Releases:** [v1.0.0](https://github.com/mihaamiharu/Latch/releases/tag/v1.0.0)
+
 ## Prerequisites
 
 - **OS:** Windows, macOS, or Linux

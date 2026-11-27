@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Latch · Connect AI coding agents to your signed-in Chrome</title>
+    <meta
+      name="description"
+      content="Cross-platform Chrome companion extension, native bridge, and flat latch CLI for Antigravity, Claude Code, Codex, and Cursor."
+    />
+    <link rel="icon" type="image/png" href="assets/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header" id="top-header">
+      <div class="container header-inner">
+        <a class="brand" href="#top" aria-label="Latch home">
+          <img src="assets/latch-128.png" width="32" height="32" alt="" />
+          <span class="brand-name">Latch</span>
+        </a>
+        <nav class="site-nav" aria-label="Primary navigation">
+          <a href="#install">Install</a>
+          <a href="#architecture">How it works</a>
+          <a href="#library">Library</a>
+          <a href="#commands">Commands</a>
+          <a href="https://github.com/mihaamiharu/Latch" target="_blank" rel="noreferrer">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="container hero-stack">
+          <h1>Your signed-in Chrome, ready for coding agents.</h1>
+          <p class="hero-copy">
+            Drive existing authenticated Chrome tabs with bundled playwright-core, flat CLI commands, and local filmstrip recordings across Windows, macOS, and Linux.
+          </p>
+          <a class="cta-primary" href="#install">Get started</a>
+
+          <div class="workbench" aria-label="Interactive Latch CLI and Chrome bridge preview">
+            <div class="workbench-bar">
+              <div class="segmented" role="tablist" aria-label="Workflow preview">
+                <button type="button" role="tab" aria-selected="true" data-mode="inspect">Inspect tab</button>
+                <button type="button" role="tab" aria-selected="false" data-mode="record">Record filmstrip</button>
+                <button type="button" role="tab" aria-selected="false" data-mode="review">Review &amp; clean up</button>
+              </div>
+              <p class="workbench-caption" id="wb-caption">Focus-emulated session over Named Pipe / Unix socket</p>
+            </div>
+
+            <div class="workbench-grid">
+              <div class="pane-terminal">
+                <pre class="cli-output" id="wb-terminal" aria-live="polite"></pre>
+              </div>
+              <div class="pane-browser">
+                <div class="browser-chrome">
+                  <span class="browser-tab" id="wb-tab-title"></span>
+                  <span class="browser-origin" id="wb-tab-url"></span>
+                </div>
+                <div class="browser-body" id="wb-browser-body"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band band-light" id="install">
+        <div class="container">
+          <h2>Install in four steps</h2>
+          <p class="section-intro">
+            Requires Node.js 22 or newer and Google Chrome 125 or newer. External Playwright downloads and ffmpeg are never needed.
+          </p>
+
+          <div class="install-controls">
+            <div class="control-group">
+              <span class="control-label">Package source</span>
+              <div class="segmented segmented-light" role="tablist" aria-label="Install method">
+                <button type="button" role="tab" aria-selected="true" data-source="npm">npm global</button>
+                <button type="button" role="tab" aria-selected="false" data-source="kit">GitHub Release kit</button>
+                <button type="button" role="tab" aria-selected="false" data-source="git">From source</button>
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="control-label">Shell</span>
+              <div class="segmented segmented-light" role="tablist" aria-label="Operating system shell">
+                <button type="button" role="tab" aria-selected="true" data-os="win">Windows PowerShell</button>
+                <button type="button" role="tab" aria-selected="false" data-os="unix">macOS / Linux</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="steps-list">
+            <article class="step-row">
+              <h3>Step 1. Install the bridge and register the native host</h3>
+              <p id="step1-note">Install @mihaamiharu/latch globally and register com.latch.bridge plus agent integrations.</p>
+              <div class="code-box">
+                <pre id="step1-cmd"></pre>
+                <button type="button" class="copy-btn" data-copy-target="step1-cmd">Copy</button>
+              </div>
+            </article>
+
+            <article class="step-row">
+              <h3>Step 2. Load the Chrome extension</h3>
+              <p>
+                Open chrome://extensions in Chrome, turn on Developer mode, click Load unpacked, and select the Extension path printed by Step 1. Confirm the ID is dlkpkeiejlgggeoibejpoajedoelfcli.
+              </p>
+            </article>
+
+            <article class="step-row">
+              <h3>Step 3. Pair Chrome and verify connectivity</h3>
+              <p>With Chrome open, auto-discover the running extension instance and check bridge health.</p>
+              <div class="code-box">
+                <pre id="step3-cmd">latch pair
+latch doctor</pre>
+                <button type="button" class="copy-btn" data-copy-target="step3-cmd">Copy</button>
+              </div>
+            </article>
+
+            <article class="step-row">
+              <h3>Step 4. Verify your agent plugins</h3>
+              <p>Check that Antigravity, Claude Code, Codex, and Cursor links are active, then ask your agent to inspect a tab.</p>
+              <div class="code-box">
+                <pre id="step4-cmd">latch agents status</pre>
+                <button type="button" class="copy-btn" data-copy-target="step4-cmd">Copy</button>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="band band-white" id="architecture">
+        <div class="container">
+          <h2>How Latch connects without leaking credentials</h2>
+          <p class="section-intro">
+            Your agent runs short CLI commands against a local socket. Everything sensitive stays inside Chrome and the loopback native host.
+          </p>
+
+          <figure class="arch-diagram" aria-label="Latch architecture diagram">
+            <svg viewBox="0 0 960 220" role="img" aria-labelledby="arch-title">
+              <title id="arch-title">Agent CLI communicates over local IPC to native-host and Chrome debugger transport</title>
+              <rect x="10" y="34" width="205" height="148" rx="12" fill="#F6F8F5" stroke="#11252D" stroke-width="2" />
+              <text x="112" y="74" text-anchor="middle" class="svg-title">AI Coding Agent</text>
+              <text x="112" y="102" text-anchor="middle" class="svg-sub">Antigravity, Claude,</text>
+              <text x="112" y="122" text-anchor="middle" class="svg-sub">Codex, Cursor</text>
+              <text x="112" y="152" text-anchor="middle" class="svg-mono">latch &lt;command&gt;</text>
+
+              <line x1="215" y1="108" x2="275" y2="108" stroke="#136F50" stroke-width="2.5" />
+              <polygon points="275,102 287,108 275,114" fill="#136F50" />
+              <text x="250" y="92" text-anchor="middle" class="svg-edge">IPC</text>
+
+              <rect x="287" y="22" width="386" height="172" rx="12" fill="#11252D" />
+              <text x="480" y="60" text-anchor="middle" class="svg-title-dark">native-host (Node.js)</text>
+              <text x="480" y="88" text-anchor="middle" class="svg-sub-dark">Named Pipe (Win) / Unix Socket (macOS, Linux)</text>
+              <rect x="315" y="108" width="155" height="64" rx="8" fill="#17313B" stroke="#56E3B0" stroke-width="1.5" />
+              <text x="392" y="136" text-anchor="middle" class="svg-sub-mint">playwright-core</text>
+              <text x="392" y="156" text-anchor="middle" class="svg-mono-dark">connectOverCDP</text>
+              <rect x="490" y="108" width="155" height="64" rx="8" fill="#17313B" stroke="#FF865C" stroke-width="1.5" />
+              <text x="567" y="136" text-anchor="middle" class="svg-sub-coral">Exploration Library</text>
+              <text x="567" y="156" text-anchor="middle" class="svg-mono-dark">127.0.0.1 reviewer</text>
+
+              <line x1="673" y1="108" x2="733" y2="108" stroke="#136F50" stroke-width="2.5" />
+              <polygon points="733,102 745,108 733,114" fill="#136F50" />
+              <text x="708" y="92" text-anchor="middle" class="svg-edge">CDP</text>
+
+              <rect x="745" y="34" width="205" height="148" rx="12" fill="#F6F8F5" stroke="#11252D" stroke-width="2" />
+              <text x="847" y="74" text-anchor="middle" class="svg-title">Chrome MV3</text>
+              <text x="847" y="102" text-anchor="middle" class="svg-sub">Explicit tab ownership</text>
+              <text x="847" y="122" text-anchor="middle" class="svg-sub">No host_permissions</text>
+              <text x="847" y="152" text-anchor="middle" class="svg-mono">chrome.debugger</text>
+            </svg>
+          </figure>
+
+          <div class="benefits-grid">
+            <div class="benefit-item">
+              <h3>Keep your logins and open tabs</h3>
+              <p>Attach directly to corporate SSO, staging apps, and authenticated sessions already open in Chrome. Disconnecting leaves every tab intact.</p>
+            </div>
+            <div class="benefit-item">
+              <h3>Zero external binaries to babysit</h3>
+              <p>Playwright Core runs inside the native messaging host over a private loopback CDP relay. No browser downloads or ffmpeg required.</p>
+            </div>
+            <div class="benefit-item">
+              <h3>Clean repositories and smart defaults</h3>
+              <p>Active workspace sessions bind under your local app data directory, never writing dotfiles into your codebase. Profile and session flags default automatically.</p>
+            </div>
+            <div class="benefit-item">
+              <h3>Built for modern AI toolchains</h3>
+              <p>Works out of the box with Antigravity plugins, Claude Code skills, Codex, and Cursor using a compact 3 KB skill prompt and flat CLI output.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band band-dark" id="library">
+        <div class="container">
+          <h2>Visual filmstrips and one-click storage control</h2>
+          <p class="section-intro section-intro-dark">
+            Pass --record or --objective on open or connect to capture before and after PNG screenshots, ARIA snapshots, and locator candidates for local QA review.
+          </p>
+
+          <div class="library-stage">
+            <div class="library-top">
+              <div class="segmented" role="tablist" aria-label="Filmstrip step scrubber">
+                <button type="button" role="tab" aria-selected="true" data-film="0">1. Open checkout</button>
+                <button type="button" role="tab" aria-selected="false" data-film="1">2. Fill email</button>
+                <button type="button" role="tab" aria-selected="false" data-film="2">3. Checkpoint &amp; finish</button>
+              </div>
+              <p class="film-meta" id="film-meta"></p>
+            </div>
+
+            <div class="film-compare">
+              <div class="shot-card">
+                <h3>Before action</h3>
+                <div class="shot-preview" id="film-before"></div>
+              </div>
+              <div class="shot-card">
+                <h3>After action</h3>
+                <div class="shot-preview" id="film-after"></div>
+              </div>
+            </div>
+
+            <div class="library-notes">
+              <div class="note-col">
+                <h3>Observed locator candidates</h3>
+                <p id="film-locators"></p>
+              </div>
+              <div class="note-col">
+                <h3>Popup controls and run cleanup</h3>
+                <p>
+                  Click Open Library in the Chrome popup to launch the 127.0.0.1 viewer immediately, use Choose folder… to pick your storage directory in Explorer or Finder, and remove finished runs safely via the UI or latch library delete.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band band-light" id="commands">
+        <div class="container">
+          <h2>Command reference and support matrix</h2>
+          <p class="section-intro">
+            All commands support --json for structured automation output, -s for explicit multi-agent session isolation, --profile, and --workspace.
+          </p>
+
+          <div class="segmented segmented-light" role="tablist" aria-label="CLI command category">
+            <button type="button" role="tab" aria-selected="true" data-cmdcat="lifecycle">Lifecycle</button>
+            <button type="button" role="tab" aria-selected="false" data-cmdcat="actions">Browser actions</button>
+            <button type="button" role="tab" aria-selected="false" data-cmdcat="library">Library &amp; config</button>
+            <button type="button" role="tab" aria-selected="false" data-cmdcat="setup">Setup &amp; agents</button>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Command</th>
+                  <th scope="col">Purpose</th>
+                </tr>
+              </thead>
+              <tbody id="cmd-tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="matrices-grid">
+            <div>
+              <h3>Agent integrations</h3>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Client</th>
+                      <th scope="col">Installed path</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Antigravity</td>
+                      <td><code>~/.gemini/config/plugins/latch</code></td>
+                    </tr>
+                    <tr>
+                      <td>Claude Code</td>
+                      <td><code>~/.claude/skills/latch</code></td>
+                    </tr>
+                    <tr>
+                      <td>Codex / Cursor</td>
+                      <td><code>~/.agents/skills/latch</code></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <h3>Platform requirements</h3>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Platform / Runtime</th>
+                      <th scope="col">Support detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Windows 10 / 11</td>
+                      <td>Named Pipes (<code>\\.\pipe\latch-*</code>), HKCU Native Messaging, Explorer folder picker</td>
+                    </tr>
+                    <tr>
+                      <td>macOS &amp; Linux</td>
+                      <td>Unix domain sockets, standard NativeMessagingHosts, Finder / zenity picker</td>
+                    </tr>
+                    <tr>
+                      <td>Node.js &amp; Chrome</td>
+                      <td>Node.js <code>&gt;= 22.0.0</code>, Google Chrome <code>&gt;= 125</code></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band band-white" id="privacy">
+        <div class="container privacy-strip">
+          <div>
+            <h2>Local-first security guarantees</h2>
+            <p>
+              Latch never installs persistent website content scripts or telemetry. Known credentials, tokens, cookies, and internal CDP endpoints are redacted automatically, and uninstalling leaves your configuration and saved library intact until you delete them.
+            </p>
+          </div>
+          <div class="privacy-links">
+            <a href="https://github.com/mihaamiharu/Latch/blob/main/PRIVACY.md" target="_blank" rel="noreferrer">Read data handling</a>
+            <a href="https://github.com/mihaamiharu/Latch/blob/main/docs/EXPLORATION-LIBRARY.md" target="_blank" rel="noreferrer">Exploration Library spec</a>
+            <a href="https://github.com/mihaamiharu/Latch/blob/main/LICENSE" target="_blank" rel="noreferrer">Apache-2.0 License</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>Latch v1.0.0 · Apache License 2.0 · Published on GitHub and npm as @mihaamiharu/latch</p>
+        <div class="footer-links">
+          <a href="https://github.com/mihaamiharu/Latch" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/mihaamiharu/Latch/releases/tag/v1.0.0" target="_blank" rel="noreferrer">Releases</a>
+          <a href="https://www.npmjs.com/package/@mihaamiharu/latch" target="_blank" rel="noreferrer">npm</a>
+          <a href="https://github.com/mihaamiharu/Latch/blob/main/SETUP.md" target="_blank" rel="noreferrer">Setup guide</a>
+        </div>
+      </div>
+    </footer>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
