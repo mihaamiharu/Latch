@@ -4,7 +4,7 @@
 
 An Apache-2.0 QA browser workbench built for engineers running multiple coding agents from the terminal (**Claude Code**, **Codex**, **Antigravity**, **Cursor**) where there is no built-in IDE browser. Powered by `playwright-core`, Latch drives one authenticated Chrome tab at a time—with zero repo dotfiles, background focus emulation, and a local Exploration Library of before/after PNG filmstrips, observed locators, and triage notes before anything becomes a Playwright test.
 
-**Docs & Showcase:** https://mihaamiharu.github.io/Latch/ · **npm:** `@mihaamiharu/latch` · **Releases:** [v1.1.0](https://github.com/mihaamiharu/Latch/releases/tag/v1.1.0)
+**Docs & Showcase:** https://mihaamiharu.github.io/Latch/ · **npm:** `@mihaamiharu/latch` · **Releases:** [v1.1.1](https://github.com/mihaamiharu/Latch/releases/tag/v1.1.1)
 
 ![Latch Exploration Library showing a before/after PNG filmstrip, observed locators, and local QA triage](site/assets/library-filmstrip.png)
 
@@ -47,7 +47,7 @@ An Apache-2.0 QA browser workbench built for engineers running multiple coding a
 
 ### Option B: Install from a GitHub Release kit or source checkout
 
-1. Download `latch-1.1.0-kit.zip` from Releases and extract it to a permanent folder (or clone the repo and run `npm ci`).
+1. Download `latch-1.1.1-kit.zip` from Releases and extract it to a permanent folder (or clone the repo and run `npm ci`).
 2. Run setup and optionally link `latch` globally:
    ```sh
    node src/cli.mjs install
@@ -73,7 +73,7 @@ latch screenshot --out result.png
 latch disconnect
 ```
 
-- **Lifecycle:** `latch tabs`, `latch open <url> [--record] [--objective <text>] [--environment <text>] [--focus-emulation on|off]` (automatically creates a per-session `Latch · <session>` Chrome tab group for the agent and its popups), `latch connect [tabId] [...]`, `latch sessions`, `latch release [tabId]`, `latch disconnect`, `latch finish`
+- **Lifecycle:** `latch tabs`, `latch open <url> [--record] [--objective <text>] [--environment <text>] [--focus-emulation on|off]` (automatically creates a per-session `Latch · <session>` Chrome tab group for the agent and its popups), `latch connect [tabId] [...]`, `latch sessions`, `latch release [tabId]`, `latch disconnect [--close-tabs]`, `latch finish [--close-tabs]` (`--close-tabs` closes only tabs Latch opened via `latch open` and their tracked popups; connected user tabs are never closed)
 - **Actions:** `latch snapshot`, `latch click <ref|selector>`, `latch fill <ref|selector> <value>`, `latch type [ref|selector] <text>`, `latch press <key>`, `latch hover <ref|selector>`, `latch select <ref|selector> <value>`, `latch check <ref|selector>`, `latch uncheck <ref|selector>`, `latch upload <ref|selector> <path...>`, `latch screenshot [--out <path>]`, `latch goto <url>`, `latch back`, `latch forward`, `latch reload`, `latch eval <expr>`, `latch run-code <fn>`, `latch console`, `latch network`, `latch dialog <accept|dismiss> [promptText]`
 
 ### Recorded explorations
@@ -98,6 +98,7 @@ latch library serve
 Click the Latch toolbar icon in Chrome to inspect and control your bridge:
 
 - **Add tab to Latch / Remove from Latch:** Optional 1-click toggle to move an existing tab into or out of a **Latch** Chrome tab group. (`latch open` automatically creates a per-session `Latch · <session>` tab group with no manual step; dragging any attached tab out of its session's group immediately detaches automation while keeping the tab and login open.)
+- **Settings → On session finish:** Choose what happens to a finished session's tab group: **Collapse group** (default), **Keep expanded**, **Ungroup tabs**, or **Close Latch-opened tabs**. Tabs you attached with `latch connect` or added to a group yourself are never closed, and a lost bridge connection never closes tabs.
 - **Open Library (`N`):** Lazily starts the local `127.0.0.1` Exploration Library viewer and opens it in a Chrome tab.
 - **Agent sessions:** Shows active sessions with attached tab count, **View run** (jumps directly to an active recording in the Library), and **Stop session** (preserves all website tabs and logins).
 - **Library & storage:** Collapsible panel showing the active artifacts path, **Choose folder…** (native OS Explorer/Finder/zenity/kdialog folder picker), **Save path**, and **Reset default**.
@@ -134,7 +135,7 @@ npm run build
 npm test
 ```
 
-`npm run build` produces `dist/latch/`, `dist/latch-1.1.0/`, and deterministic release archives in `dist/`. Browser integration tests run headless with disposable profiles per [AGENTS.md](AGENTS.md).
+`npm run build` produces `dist/latch/`, `dist/latch-1.1.1/`, and deterministic release archives in `dist/`. Browser integration tests run headless with disposable profiles per [AGENTS.md](AGENTS.md).
 
 ## More documentation
 
