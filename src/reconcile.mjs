@@ -1,23 +1,77 @@
 import {readConfig, request} from './local.mjs';
 import {fault, safeError} from '../extension/protocol.js';
-import {recoveryInspection} from './native-recovery.mjs';
-import {nativeChannel} from './native-channel.mjs';
+import {readWorkspaceBinding, removeWorkspaceBinding} from './recovery-state.mjs';
 
-export async function reconcile({alias, workspace, session, key, apply = false, expect}) {
+/**
+ * Simplified session inspection and cleanup.
+ * With playwright-core running inside native-host, recovery reduces to
+ * inspecting live/bound sessions and disconnecting or cleaning stale bindings.
+ */
+export async function reconcile({alias = 'work', workspace, session, key, apply = false}) {
   const profile = (await readConfig()).profiles?.[alias];
   if (!profile) throw fault('PROFILE_UNPAIRED', 'No paired profile is configured.');
-  let identity, connectionError;
-  try { identity = await request(profile.instanceId, 'status', {}, 2500); }
-  catch(e) { connectionError = safeError(e); }
-  const metadata = {workspace, session, sessionKey: key};
-  if (!identity || identity.capabilities?.nativeSessionSchema !== 4) {
-    const plan = await recoveryInspection({instanceId: profile.instanceId, key, offlineError: connectionError || {code: 'RECOVERY_UNSUPPORTED'}});
-    if (apply) throw fault(connectionError?.code || 'RECOVERY_UNSUPPORTED', 'Recovery apply needs a verified schema-4 native bridge. State was preserved.');
-    return {profile: alias, session, workspace, ...plan};
+
+  let identity;
+  let connectionError;
+  try {
+    identity = await request(profile.instanceId, 'status', {}, 2500);
+  } catch (e) {
+    connectionError = safeError(e);
   }
-  if (!apply) return {profile: alias, session, workspace, ...await request(profile.instanceId, 'native-reconcile', {instanceId: identity.instanceId, epoch: identity.epoch, hostGeneration: identity.hostGeneration, ...metadata}, 12000)};
-  if (!/^[a-f0-9]{64}$/.test(expect || '')) throw fault('RECOVERY_EXPECT_REQUIRED', 'Apply requires --expect from the current read-only recovery plan.');
-  const channel = await nativeChannel(identity, metadata);
-  try { return {profile: alias, session, workspace, ...await channel.send('apply', {expect})}; }
-  finally { await channel.close().catch(() => {}); }
+
+  const binding = await readWorkspaceBinding(workspace).catch(() => null);
+  const bound = binding?.sessions?.[session] || null;
+
+  if (!identity) {
+    if (apply) {
+      await removeWorkspaceBinding(workspace, session || key).catch(() => {});
+      return {profile: alias, session, workspace, disconnected: false, bindingCleared: !!bound, online: false};
+    }
+    return {
+      profile: alias,
+      session,
+      workspace,
+      sessionKey: key,
+      online: false,
+      healthy: false,
+      status: bound ? 'interrupted' : 'absent',
+      binding: bound,
+      connectionError,
+    };
+  }
+
+  const list = await request(profile.instanceId, 'session-list', {
+    instanceId: identity.instanceId,
+    epoch: identity.epoch,
+  });
+  const live = (list.sessions || []).find(s => s.sessionKey === key);
+  const healthy = !!live && !live.stopped;
+
+  if (apply) {
+    if (live) {
+      const disconnected = await request(profile.instanceId, 'session-disconnect', {
+        instanceId: identity.instanceId,
+        epoch: identity.epoch,
+        hostGeneration: identity.hostGeneration,
+        sessionKey: key,
+        workspace,
+        session,
+      });
+      return {profile: alias, session, workspace, ...disconnected};
+    }
+    await removeWorkspaceBinding(workspace, session || key).catch(() => {});
+    return {profile: alias, session, workspace, disconnected: true, alreadyDisconnected: true, preservedUserTabs: true};
+  }
+
+  return {
+    profile: alias,
+    session,
+    workspace,
+    sessionKey: key,
+    online: true,
+    healthy,
+    status: healthy ? 'healthy' : bound || live ? 'interrupted' : 'absent',
+    live: live || null,
+    binding: bound,
+  };
 }

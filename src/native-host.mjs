@@ -8,7 +8,6 @@ import {rootDir, socketPath, privateDirectory, uuid} from './local.mjs';
 import {isWindowsPipe} from './platform.mjs';
 import {checkRequest, safeError} from '../extension/protocol.js';
 import {NativeSessions} from './native-sessions.mjs';
-import {NativeRecovery} from './native-recovery.mjs';
 import {NativeUI} from './native-ui.mjs';
 import {ROOT} from './release.mjs';
 
@@ -19,7 +18,6 @@ let starting = false;
 let ownsSocket = false;
 let stopping = false;
 let nativeSessions;
-let recovery;
 let ui;
 let controlNonce;
 const uiPending = new Set();
@@ -29,7 +27,6 @@ let ready = false;
 const hostGeneration = crypto.randomUUID();
 const pending = new Map();
 const sockets = new Set();
-const operationDrains = new Map();
 
 function reply(socket, data) {
   if (!socket.destroyed) socket.end(JSON.stringify(data) + '\n');
@@ -120,10 +117,7 @@ async function start(hello) {
     },
   };
   nativeSessions = new NativeSessions(identity, browser);
-  if (nativeAvailable && identity.capabilities.nativeSessionSchema === 4) {
-    recovery = new NativeRecovery(identity, nativeSessions, browser);
-  }
-  ui = new NativeUI(identity, nativeSessions, recovery, browser);
+  ui = new NativeUI(identity, nativeSessions, browser);
 
   server = net.createServer(socket => {
     if (sockets.size >= 128) {
@@ -133,124 +127,31 @@ async function start(hello) {
     sockets.add(socket);
     let data = '';
     let received = false;
-    let persistent = false;
-    let grant;
-    let grantTimer;
-    let closed = false;
-    let finishPromise;
-    let queued = 0;
-    let sequence = Promise.resolve();
 
-    const send = value => {
-      if (!socket.destroyed) socket.write(JSON.stringify(value) + '\n');
-    };
-    const finishGrant = () => {
-      if (closed) return finishPromise;
-      closed = true;
-      clearTimeout(grantTimer);
-      if (grant) recovery?.fence(grant);
-      finishPromise = sequence.finally(() => recovery?.finish(grant, {interrupted: true}));
-      void finishPromise.finally(() => operationDrains.delete(socket)).catch(() => {});
-      return finishPromise;
-    };
-    operationDrains.set(socket, finishGrant);
-    socket.on('close', finishGrant);
-
-    const operation = async request => {
-      try {
-        if (!recovery || !ready) {
-          throw Object.assign(new Error('Native recovery is unavailable.'), {code: 'NATIVE_TRANSPORT_UNAVAILABLE'});
-        }
-        const p = request.payload;
-        let result;
-        if (p.action === 'begin') {
-          if (grant || closed) {
-            throw Object.assign(new Error('Operation already opened or connection ended.'), {code: 'OPERATION_FENCED'});
-          }
-          grant = await recovery.begin(p, socket);
-          if (closed) {
-            await recovery.finish(grant, {interrupted: true});
-            return;
-          }
-          grantTimer = setTimeout(() => {
-            recovery.fence(grant);
-            socket.end(
-              JSON.stringify(
-                failure(
-                  request.id,
-                  Object.assign(new Error('Native operation expired; inspect its outcome.'), {code: 'OPERATION_FENCED'}),
-                ),
-              ) + '\n',
-            );
-          }, 60000);
-          result = {nonce: grant.nonce};
-        } else if (p.action === 'end') {
-          recovery.check(grant, socket, p.nonce);
-          clearTimeout(grantTimer);
-          await recovery.finish(grant);
-          grant = undefined;
-          result = {ended: true};
-        } else {
-          result = await recovery.step(grant, socket, p);
-        }
-        send({v: 1, id: request.id, ok: true, result});
-      } catch (error) {
-        send(failure(request.id, error));
-      }
-    };
-
-    socket.setTimeout(15000, () => socket.destroy());
+    socket.setTimeout(65000, () => socket.destroy());
     socket.on('error', () => {});
     socket.on('close', () => sockets.delete(socket));
     socket.on('data', chunk => {
-      if (received && !persistent) return;
+      if (received) return;
       data += chunk.toString();
-      if (Buffer.byteLength(data) > 65536) return socket.destroy();
+      if (Buffer.byteLength(data) > 1024 * 1024) return socket.destroy();
       if (!data.includes('\n')) return;
-      if (!received) {
-        try {
-          persistent = JSON.parse(data.slice(0, data.indexOf('\n'))).op === 'native-operation';
-        } catch {}
-      }
-      if (persistent) {
-        socket.setTimeout(65000, () => socket.destroy());
-        while (data.includes('\n')) {
-          const line = data.slice(0, data.indexOf('\n'));
-          data = data.slice(data.indexOf('\n') + 1);
-          let request;
-          try {
-            request = checkRequest(JSON.parse(line));
-            if (request.op !== 'native-operation') throw new Error('Mixed operation channel.');
-          } catch (error) {
-            send(failure(request?.id, error));
-            socket.end();
-            return;
-          }
-          if (queued) {
-            send(
-              failure(
-                request.id,
-                Object.assign(new Error('Only one recovery request may be outstanding.'), {code: 'BRIDGE_BUSY'}),
-              ),
-            );
-            socket.end();
-            return;
-          }
-          queued++;
-          sequence = sequence.then(() => operation(request)).finally(() => {
-            queued--;
-          });
-        }
-        received = true;
-        return;
-      }
       received = true;
       let request;
+      let parsed;
       try {
-        request = checkRequest(JSON.parse(data.slice(0, data.indexOf('\n'))));
-        // Discovery can ask for status before it knows the current instance epoch.
-        if (!ready) throw Object.assign(new Error('Controller readiness is not verified.'), {code: 'BRIDGE_NOT_READY'});
-        if (request.op === 'status' && !request.payload.instanceId) {
+        parsed = JSON.parse(data.slice(0, data.indexOf('\n')));
+        request = checkRequest(parsed);
+        if (!ready) {
+          throw Object.assign(new Error('Controller readiness is not verified.'), {code: 'BRIDGE_NOT_READY'});
+        }
+        if (request.op === 'status') {
+          if (request.payload.instanceId && request.payload.instanceId !== identity.instanceId) {
+            throw Object.assign(new Error('The paired browser instance changed.'), {code: 'PROFILE_MISMATCH'});
+          }
+          if (request.payload.epoch && request.payload.epoch !== identity.epoch) {
+            throw Object.assign(new Error('The paired browser instance changed.'), {code: 'PROFILE_MISMATCH'});
+          }
           browser('status', {instanceId: identity.instanceId, epoch: identity.epoch}).then(
             result =>
               reply(socket, {
@@ -261,55 +162,39 @@ async function start(hello) {
                   ...identity,
                   readiness: {verified: true, verifiedAt: Date.now()},
                   controllerSessions: result.sessions?.length,
+                  activeSessions: nativeSessions.sessions.size,
                 },
               }),
             error => reply(socket, failure(request.id, error)),
           );
           return;
         }
-        if (request.op === 'native-reconcile') {
-          if (!recovery) {
-            throw Object.assign(new Error('Native recovery is unavailable.'), {code: 'NATIVE_TRANSPORT_UNAVAILABLE'});
+        if (request.op === 'tabs') {
+          if (pending.size >= 128) {
+            throw Object.assign(new Error('Too many pending requests.'), {code: 'BRIDGE_BUSY'});
           }
-          recovery
-            .metadata(request.payload)
-            .then(() => recovery.inspect(request.payload.sessionKey))
-            .then(
-              result => reply(socket, {v: 1, id: request.id, ok: true, result}),
-              error => reply(socket, failure(request.id, error)),
+          if (pending.has(request.id)) throw new Error('Duplicate request ID.');
+          const timer = setTimeout(() => {
+            pending.delete(request.id);
+            reply(
+              socket,
+              failure(request.id, Object.assign(new Error('Browser request timed out.'), {code: 'BROWSER_TIMEOUT'})),
             );
+          }, 10000);
+          pending.set(request.id, {socket, timer});
+          write({
+            ...request,
+            payload: {instanceId: identity.instanceId, epoch: identity.epoch, ...request.payload},
+            type: 'request',
+          });
           return;
         }
-        if (recovery && ['native-connect', 'native-verify', 'native-disconnect', 'native-targets', 'native-release-tab'].includes(request.op)) {
-          throw Object.assign(new Error('Use a connection-bound native operation grant.'), {code: 'OPERATION_GRANT_REQUIRED'});
-        }
-        if (
-          ['native-connect', 'native-verify', 'native-disconnect', 'native-status', 'native-targets', 'native-release-tab', 'native-trace'].includes(
-            request.op,
-          )
-        ) {
-          socket.setTimeout(40000, () => socket.destroy());
-          nativeSessions.handle(request.op, request.payload).then(
-            result => reply(socket, {v: 1, id: request.id, ok: true, result}),
-            error => reply(socket, failure(request.id, error)),
-          );
-          return;
-        }
-        // Bootstrap endpoints are minted only by the host. A local caller may
-        // not inject an extension endpoint through an internal operation.
-        if (request.op.startsWith('native-')) {
-          throw Object.assign(new Error('Internal browser operation.'), {code: 'INVALID_REQUEST'});
-        }
-        if (pending.size >= 128) throw Object.assign(new Error('Too many pending requests.'), {code: 'BRIDGE_BUSY'});
-        if (pending.has(request.id)) throw new Error('Duplicate request ID.');
-        const timer = setTimeout(() => {
-          pending.delete(request.id);
-          reply(socket, failure(request.id, Object.assign(new Error('Browser request timed out.'), {code: 'BROWSER_TIMEOUT'})));
-        }, 10000);
-        pending.set(request.id, {socket, timer});
-        write({...request, type: 'request'});
+        nativeSessions.handle(request.op, request.payload).then(
+          result => reply(socket, {v: 1, id: request.id, ok: true, result}),
+          error => reply(socket, failure(request.id, error)),
+        );
       } catch (error) {
-        reply(socket, failure(request?.id, error));
+        reply(socket, failure(request?.id ?? parsed?.id, error));
       }
     });
   });
@@ -352,7 +237,6 @@ async function stop(error) {
   ready = false;
   clearTimeout(handshake?.timer);
   ui?.stop();
-  const drains = [...operationDrains.values()].map(drain => drain());
   for (const socket of sockets) socket.destroy();
   if (error) process.stderr.write(`Latch: ${error.message}\n`);
   for (const {socket, timer, reject} of pending.values()) {
@@ -362,10 +246,7 @@ async function stop(error) {
   }
   pending.clear();
   await nativeSessions?.stop();
-  await Promise.allSettled([...drains, ...uiTasks]);
-  // Keep the old listening inode occupied until all journal tails settle.
-  // Unlink while still listening, then close; there is no later unlink which
-  // could erase a successor's newly bound socket.
+  await Promise.allSettled([...uiTasks]);
   if (address && ownsSocket && !isWindowsPipe(address)) await fs.unlink(address).catch(() => {});
   server?.close();
   process.exit(error ? 1 : 0);
@@ -444,6 +325,7 @@ const consume = decoder(message => {
       : entry.reject(
           Object.assign(new Error(message.error?.message || 'Browser operation failed.'), {
             code: message.error?.code || 'BROWSER_ERROR',
+            ...(message.error?.hint ? {hint: message.error.hint} : {}),
           }),
         );
   } else {

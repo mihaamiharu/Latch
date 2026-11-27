@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {fault} from '../extension/protocol.js';
-import {redact} from './playwright.mjs';
+import {redact} from './redact.mjs';
 import {isSameRegularFile} from './platform.mjs';
 
 export const LIMITS = Object.freeze({

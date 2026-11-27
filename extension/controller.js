@@ -207,7 +207,7 @@ export function createController(api, identity, {nativeTransport, nativeRecovery
 
   async function run(request) {
     try {
-      checkRequest(request);
+      checkRequest(request, {internal: true});
       const p = request.payload;
       if (p.instanceId !== identity.instanceId || p.epoch !== identity.epoch) {
         throw fault('PROFILE_MISMATCH', 'The paired browser instance changed. Rediscover before acting.');

@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import {ledger, LIMITS} from './evidence-storage.mjs';
 import {recordEvidence} from './evidence.mjs';
 import {executeEvidenceAction} from './evidence-action.mjs';
-import {resultValue} from './playwright.mjs';
+import {resultValue} from './redact.mjs';
 import {fault} from '../extension/protocol.js';
 import {
   regularFile,

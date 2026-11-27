@@ -1,6 +1,6 @@
 import {fork} from 'node:child_process';
 import {fault} from '../extension/protocol.js';
-import {CLI_META, redact} from './playwright.mjs';
+import {CLI_META, redact} from './redact.mjs';
 
 export const ACTION_META = Symbol('observed-action-process');
 

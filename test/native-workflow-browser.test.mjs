@@ -8,7 +8,7 @@ import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {chromePath, eventually, command, stopBrowser, HEADLESS_ARGS} from './helpers/native-browser.mjs';
 import {request} from '../src/local.mjs';
-import {sessionKey} from '../src/playwright.mjs';
+import {sessionKey} from '../src/redact.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const enabled = process.env.LATCH_NATIVE_WORKFLOW === '1' && process.platform === 'darwin';

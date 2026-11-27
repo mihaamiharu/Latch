@@ -7,7 +7,6 @@ export const SUPPORT = Object.freeze({
   platforms: ['win32', 'darwin', 'linux'],
   minimumChrome: MINIMUM_CHROME_VERSION,
   node: `>=${MINIMUM_NODE_VERSION}`,
-  playwrightCLI: '0.1.20',
 });
 
 export function atLeast(actual, minimum) {

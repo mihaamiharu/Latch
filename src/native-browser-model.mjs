@@ -2,7 +2,7 @@
  * Adapted from Microsoft Playwright browserModel.ts and cdpRelayV2.ts,
  * revision f9a841f968dd9a4e315df2ec2930da1952971667.
  * Copyright (c) Microsoft Corporation. Licensed under Apache-2.0.
- * See third_party/playwright/LICENSE and SOURCES.md.
+ * See node_modules/playwright-core/LICENSE.
  * Latch changes: explicit root/attributed-child ownership, scoped inspection,
  * per-target lifecycle and no browser-wide command fallback.
  */

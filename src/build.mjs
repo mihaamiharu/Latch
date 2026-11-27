@@ -95,7 +95,7 @@ export async function build({root = ROOT, out = path.join(root, 'dist')} = {}) {
   await fs.mkdir(out, {recursive: true});
   for (const p of [kit, extension]) await fs.rm(p, {recursive: true, force: true});
   await fs.mkdir(kit);
-  for (const folder of ['extension', 'src', 'skills/latch', 'third_party/playwright', 'node_modules/ws']) {
+  for (const folder of ['extension', 'src', 'skills/latch', 'node_modules/playwright-core', 'node_modules/ws']) {
     await fs.cp(path.join(root, folder), path.join(kit, folder), {recursive: true});
   }
   for (const file of ['package.json', 'package-lock.json']) {
@@ -122,7 +122,7 @@ export async function build({root = ROOT, out = path.join(root, 'dist')} = {}) {
     extensionId: EXTENSION_ID,
     hostName: HOST_NAME,
     nodeVersion: SUPPORT.node,
-    cliVersion: SUPPORT.playwrightCLI,
+    playwrightCoreVersion: pkg.dependencies?.['playwright-core'],
     nativeSchema: 4,
     uiControl: 1,
     support: SUPPORT,

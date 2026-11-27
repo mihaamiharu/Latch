@@ -5,7 +5,7 @@ import {spawn} from 'node:child_process';
 import http from 'node:http';
 import {fileURLToPath} from 'node:url';
 import {chromePath, eventually, command, stopBrowser, control, HEADLESS_ARGS} from './native-browser.mjs';
-import {redact, sessionKey} from '../../src/playwright.mjs';
+import {redact, sessionKey} from '../../src/redact.mjs';
 import {installedControl} from './installed-control.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));

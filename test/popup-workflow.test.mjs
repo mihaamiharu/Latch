@@ -5,7 +5,7 @@ import path from 'node:path';
 import {popupApp} from './fixtures/popup-app.mjs';
 import {attachmentFixture,valueOf} from './helpers/attachment-fixture.mjs';
 import {eventually} from './helpers/native-browser.mjs';
-import {sessionKey} from '../src/playwright.mjs';
+import {sessionKey} from '../src/redact.mjs';
 
 const enabled=process.env.LATCH_POPUP_WORKFLOW==='1'&&process.platform==='darwin';
 const identify=`const c=await child.context().newCDPSession(child);let targetId;try{targetId=(await c.send('Target.getTargetInfo')).targetInfo.targetId}finally{await c.detach()}`;
