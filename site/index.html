@@ -32,18 +32,19 @@
           <a href="https://github.com/mihaamiharu/Latch" target="_blank" rel="noreferrer">GitHub</a>
         </nav>
       </div>
+      <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
     </header>
 
     <main id="top">
-      <section class="hero">
+      <section class="hero" id="hero-section">
         <div class="container hero-stack">
-          <h1>Your signed-in Chrome, ready for coding agents.</h1>
-          <p class="hero-copy">
+          <h1 class="hero-stagger">Your signed-in Chrome, ready for coding agents.</h1>
+          <p class="hero-copy hero-stagger">
             Drive existing authenticated Chrome tabs with bundled playwright-core, flat CLI commands, and local filmstrip recordings across Windows, macOS, and Linux.
           </p>
-          <a class="cta-primary" href="#install">Get started</a>
+          <a class="cta-primary hero-stagger" href="#install">Get started</a>
 
-          <div class="workbench" aria-label="Interactive Latch CLI and Chrome bridge preview">
+          <div class="workbench hero-stagger" aria-label="Interactive Latch CLI and Chrome bridge preview">
             <div class="workbench-bar">
               <div class="segmented" role="tablist" aria-label="Workflow preview">
                 <button type="button" role="tab" aria-selected="true" data-mode="inspect">Inspect tab</button>
@@ -71,12 +72,12 @@
 
       <section class="band band-light" id="install">
         <div class="container">
-          <h2>Install in four steps</h2>
-          <p class="section-intro">
+          <h2 data-reveal>Install in four steps</h2>
+          <p class="section-intro" data-reveal>
             Requires Node.js 22 or newer and Google Chrome 125 or newer. External Playwright downloads and ffmpeg are never needed.
           </p>
 
-          <div class="install-controls">
+          <div class="install-controls" data-reveal>
             <div class="control-group">
               <span class="control-label">Package source</span>
               <div class="segmented segmented-light" role="tablist" aria-label="Install method">
@@ -95,7 +96,7 @@
           </div>
 
           <div class="steps-list">
-            <article class="step-row">
+            <article class="step-row" data-reveal>
               <h3>Step 1. Install the bridge and register the native host</h3>
               <p id="step1-note">Install @mihaamiharu/latch globally and register com.latch.bridge plus agent integrations.</p>
               <div class="code-box">
@@ -104,14 +105,14 @@
               </div>
             </article>
 
-            <article class="step-row">
+            <article class="step-row" data-reveal>
               <h3>Step 2. Load the Chrome extension</h3>
               <p>
                 Open chrome://extensions in Chrome, turn on Developer mode, click Load unpacked, and select the Extension path printed by Step 1. Confirm the ID is dlkpkeiejlgggeoibejpoajedoelfcli.
               </p>
             </article>
 
-            <article class="step-row">
+            <article class="step-row" data-reveal>
               <h3>Step 3. Pair Chrome and verify connectivity</h3>
               <p>With Chrome open, auto-discover the running extension instance and check bridge health.</p>
               <div class="code-box">
@@ -121,7 +122,7 @@ latch doctor</pre>
               </div>
             </article>
 
-            <article class="step-row">
+            <article class="step-row" data-reveal>
               <h3>Step 4. Verify your agent plugins</h3>
               <p>Check that Antigravity, Claude Code, Codex, and Cursor links are active, then ask your agent to inspect a tab.</p>
               <div class="code-box">
@@ -135,60 +136,73 @@ latch doctor</pre>
 
       <section class="band band-white" id="architecture">
         <div class="container">
-          <h2>How Latch connects without leaking credentials</h2>
-          <p class="section-intro">
+          <h2 data-reveal>How Latch connects without leaking credentials</h2>
+          <p class="section-intro" data-reveal>
             Your agent runs short CLI commands against a local socket. Everything sensitive stays inside Chrome and the loopback native host.
           </p>
 
-          <figure class="arch-diagram" aria-label="Latch architecture diagram">
+          <figure class="arch-diagram" data-reveal aria-label="Latch architecture diagram">
             <svg viewBox="0 0 960 220" role="img" aria-labelledby="arch-title">
               <title id="arch-title">Agent CLI communicates over local IPC to native-host and Chrome debugger transport</title>
-              <rect x="10" y="34" width="205" height="148" rx="12" fill="#F6F8F5" stroke="#11252D" stroke-width="2" />
-              <text x="112" y="74" text-anchor="middle" class="svg-title">AI Coding Agent</text>
-              <text x="112" y="102" text-anchor="middle" class="svg-sub">Antigravity, Claude,</text>
-              <text x="112" y="122" text-anchor="middle" class="svg-sub">Codex, Cursor</text>
-              <text x="112" y="152" text-anchor="middle" class="svg-mono">latch &lt;command&gt;</text>
 
-              <line x1="215" y1="108" x2="275" y2="108" stroke="#136F50" stroke-width="2.5" />
+              <g class="arch-node">
+                <rect x="10" y="34" width="205" height="148" rx="12" fill="#F6F8F5" stroke="#11252D" stroke-width="2" />
+                <text x="112" y="74" text-anchor="middle" class="svg-title">AI Coding Agent</text>
+                <text x="112" y="102" text-anchor="middle" class="svg-sub">Antigravity, Claude,</text>
+                <text x="112" y="122" text-anchor="middle" class="svg-sub">Codex, Cursor</text>
+                <text x="112" y="152" text-anchor="middle" class="svg-mono">latch &lt;command&gt;</text>
+              </g>
+
+              <path id="path-ipc-fwd" class="flow-line" d="M 215 108 L 275 108" fill="none" stroke="#136F50" stroke-width="2.5" />
               <polygon points="275,102 287,108 275,114" fill="#136F50" />
-              <text x="250" y="92" text-anchor="middle" class="svg-edge">IPC</text>
+              <text x="250" y="90" text-anchor="middle" class="svg-edge">IPC</text>
+              <circle class="svg-pulse" r="4.5" fill="#56E3B0" stroke="#11252D" stroke-width="1.5">
+                <animateMotion dur="2s" repeatCount="indefinite" path="M 215 108 L 281 108" />
+              </circle>
 
-              <rect x="287" y="22" width="386" height="172" rx="12" fill="#11252D" />
-              <text x="480" y="60" text-anchor="middle" class="svg-title-dark">native-host (Node.js)</text>
-              <text x="480" y="88" text-anchor="middle" class="svg-sub-dark">Named Pipe (Win) / Unix Socket (macOS, Linux)</text>
-              <rect x="315" y="108" width="155" height="64" rx="8" fill="#17313B" stroke="#56E3B0" stroke-width="1.5" />
-              <text x="392" y="136" text-anchor="middle" class="svg-sub-mint">playwright-core</text>
-              <text x="392" y="156" text-anchor="middle" class="svg-mono-dark">connectOverCDP</text>
-              <rect x="490" y="108" width="155" height="64" rx="8" fill="#17313B" stroke="#FF865C" stroke-width="1.5" />
-              <text x="567" y="136" text-anchor="middle" class="svg-sub-coral">Exploration Library</text>
-              <text x="567" y="156" text-anchor="middle" class="svg-mono-dark">127.0.0.1 reviewer</text>
+              <g class="arch-node">
+                <rect x="287" y="22" width="386" height="172" rx="12" fill="#11252D" />
+                <text x="480" y="60" text-anchor="middle" class="svg-title-dark">native-host (Node.js)</text>
+                <text x="480" y="88" text-anchor="middle" class="svg-sub-dark">Named Pipe (Win) / Unix Socket (macOS, Linux)</text>
+                <rect x="315" y="108" width="155" height="64" rx="8" fill="#17313B" stroke="#56E3B0" stroke-width="1.5" />
+                <text x="392" y="136" text-anchor="middle" class="svg-sub-mint">playwright-core</text>
+                <text x="392" y="156" text-anchor="middle" class="svg-mono-dark">connectOverCDP</text>
+                <rect x="490" y="108" width="155" height="64" rx="8" fill="#17313B" stroke="#FF865C" stroke-width="1.5" />
+                <text x="567" y="136" text-anchor="middle" class="svg-sub-coral">Exploration Library</text>
+                <text x="567" y="156" text-anchor="middle" class="svg-mono-dark">127.0.0.1 reviewer</text>
+              </g>
 
-              <line x1="673" y1="108" x2="733" y2="108" stroke="#136F50" stroke-width="2.5" />
+              <path id="path-cdp-fwd" class="flow-line flow-line-coral" d="M 673 108 L 733 108" fill="none" stroke="#136F50" stroke-width="2.5" />
               <polygon points="733,102 745,108 733,114" fill="#136F50" />
-              <text x="708" y="92" text-anchor="middle" class="svg-edge">CDP</text>
+              <text x="708" y="90" text-anchor="middle" class="svg-edge">CDP</text>
+              <circle class="svg-pulse" r="4.5" fill="#FF865C" stroke="#11252D" stroke-width="1.5">
+                <animateMotion dur="2s" begin="0.65s" repeatCount="indefinite" path="M 673 108 L 739 108" />
+              </circle>
 
-              <rect x="745" y="34" width="205" height="148" rx="12" fill="#F6F8F5" stroke="#11252D" stroke-width="2" />
-              <text x="847" y="74" text-anchor="middle" class="svg-title">Chrome MV3</text>
-              <text x="847" y="102" text-anchor="middle" class="svg-sub">Explicit tab ownership</text>
-              <text x="847" y="122" text-anchor="middle" class="svg-sub">No host_permissions</text>
-              <text x="847" y="152" text-anchor="middle" class="svg-mono">chrome.debugger</text>
+              <g class="arch-node">
+                <rect x="745" y="34" width="205" height="148" rx="12" fill="#F6F8F5" stroke="#11252D" stroke-width="2" />
+                <text x="847" y="74" text-anchor="middle" class="svg-title">Chrome MV3</text>
+                <text x="847" y="102" text-anchor="middle" class="svg-sub">Explicit tab ownership</text>
+                <text x="847" y="122" text-anchor="middle" class="svg-sub">No host_permissions</text>
+                <text x="847" y="152" text-anchor="middle" class="svg-mono">chrome.debugger</text>
+              </g>
             </svg>
           </figure>
 
           <div class="benefits-grid">
-            <div class="benefit-item">
+            <div class="benefit-item" data-reveal>
               <h3>Keep your logins and open tabs</h3>
               <p>Attach directly to corporate SSO, staging apps, and authenticated sessions already open in Chrome. Disconnecting leaves every tab intact.</p>
             </div>
-            <div class="benefit-item">
+            <div class="benefit-item" data-reveal>
               <h3>Zero external binaries to babysit</h3>
               <p>Playwright Core runs inside the native messaging host over a private loopback CDP relay. No browser downloads or ffmpeg required.</p>
             </div>
-            <div class="benefit-item">
+            <div class="benefit-item" data-reveal>
               <h3>Clean repositories and smart defaults</h3>
               <p>Active workspace sessions bind under your local app data directory, never writing dotfiles into your codebase. Profile and session flags default automatically.</p>
             </div>
-            <div class="benefit-item">
+            <div class="benefit-item" data-reveal>
               <h3>Built for modern AI toolchains</h3>
               <p>Works out of the box with Antigravity plugins, Claude Code skills, Codex, and Cursor using a compact 3 KB skill prompt and flat CLI output.</p>
             </div>
@@ -198,12 +212,12 @@ latch doctor</pre>
 
       <section class="band band-dark" id="library">
         <div class="container">
-          <h2>Visual filmstrips and one-click storage control</h2>
-          <p class="section-intro section-intro-dark">
+          <h2 data-reveal>Visual filmstrips and one-click storage control</h2>
+          <p class="section-intro section-intro-dark" data-reveal>
             Pass --record or --objective on open or connect to capture before and after PNG screenshots, ARIA snapshots, and locator candidates for local QA review.
           </p>
 
-          <div class="library-stage">
+          <div class="library-stage" data-reveal>
             <div class="library-top">
               <div class="segmented" role="tablist" aria-label="Filmstrip step scrubber">
                 <button type="button" role="tab" aria-selected="true" data-film="0">1. Open checkout</button>
@@ -213,7 +227,7 @@ latch doctor</pre>
               <p class="film-meta" id="film-meta"></p>
             </div>
 
-            <div class="film-compare">
+            <div class="film-compare" id="film-compare">
               <div class="shot-card">
                 <h3>Before action</h3>
                 <div class="shot-preview" id="film-before"></div>
@@ -242,19 +256,19 @@ latch doctor</pre>
 
       <section class="band band-light" id="commands">
         <div class="container">
-          <h2>Command reference and support matrix</h2>
-          <p class="section-intro">
+          <h2 data-reveal>Command reference and support matrix</h2>
+          <p class="section-intro" data-reveal>
             All commands support --json for structured automation output, -s for explicit multi-agent session isolation, --profile, and --workspace.
           </p>
 
-          <div class="segmented segmented-light" role="tablist" aria-label="CLI command category">
+          <div class="segmented segmented-light" role="tablist" aria-label="CLI command category" data-reveal>
             <button type="button" role="tab" aria-selected="true" data-cmdcat="lifecycle">Lifecycle</button>
             <button type="button" role="tab" aria-selected="false" data-cmdcat="actions">Browser actions</button>
             <button type="button" role="tab" aria-selected="false" data-cmdcat="library">Library &amp; config</button>
             <button type="button" role="tab" aria-selected="false" data-cmdcat="setup">Setup &amp; agents</button>
           </div>
 
-          <div class="table-wrap">
+          <div class="table-wrap" data-reveal>
             <table class="data-table">
               <thead>
                 <tr>
@@ -267,7 +281,7 @@ latch doctor</pre>
           </div>
 
           <div class="matrices-grid">
-            <div>
+            <div data-reveal>
               <h3>Agent integrations</h3>
               <div class="table-wrap">
                 <table class="data-table">
@@ -295,7 +309,7 @@ latch doctor</pre>
               </div>
             </div>
 
-            <div>
+            <div data-reveal>
               <h3>Platform requirements</h3>
               <div class="table-wrap">
                 <table class="data-table">
@@ -327,7 +341,7 @@ latch doctor</pre>
       </section>
 
       <section class="band band-white" id="privacy">
-        <div class="container privacy-strip">
+        <div class="container privacy-strip" data-reveal>
           <div>
             <h2>Local-first security guarantees</h2>
             <p>

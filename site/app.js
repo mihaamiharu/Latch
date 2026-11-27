@@ -109,26 +109,67 @@ const INSTALL_MATRIX = {
 const FILMSTRIP_STEPS = [
   {
     meta: 'Step 1 of 3 · goto /checkout · 2 PNG states',
-    beforeTitle: 'New tab (about:blank)',
-    beforeDesc: 'Session s-81f04d initialized with focus emulation enabled.',
-    afterTitle: 'Checkout form loaded',
-    afterDesc: 'Captured state-00001.png and initial 42-ref ARIA tree before inputs.',
+    before: {
+      title: 'New tab (about:blank)',
+      desc: 'Session s-81f04d initialized with focus emulation enabled.',
+      bar: 'about:blank',
+      field: 'Waiting for navigation…',
+      filled: false,
+      btn: 'Pending',
+      ready: false,
+    },
+    after: {
+      title: 'Checkout form loaded',
+      desc: 'Captured state-00001.png and initial 42-ref ARIA tree before inputs.',
+      bar: 'https://staging.example.com/checkout',
+      field: 'Email: (empty)',
+      filled: false,
+      btn: 'Pay now',
+      ready: false,
+    },
     locators: 'textbox "Email" (id="email"), checkbox "Terms", button "Pay now" (data-testid="submit-order")',
   },
   {
     meta: 'Step 2 of 3 · fill e2 "qa@example.com" · succeeded',
-    beforeTitle: 'Empty Email field (state-00001.png)',
-    beforeDesc: 'Email input empty; Submit disabled state captured in before snapshot.',
-    afterTitle: 'Email populated (state-00002.png)',
-    afterDesc: 'Synthetic test input typed cleanly in background tab without stealing focus.',
+    before: {
+      title: 'Empty Email field (state-00001.png)',
+      desc: 'Email input empty before running latch fill e2.',
+      bar: 'https://staging.example.com/checkout',
+      field: 'Email: (empty)',
+      filled: false,
+      btn: 'Pay now',
+      ready: false,
+    },
+    after: {
+      title: 'Email populated (state-00002.png)',
+      desc: 'Synthetic input typed cleanly in background tab without stealing focus.',
+      bar: 'https://staging.example.com/checkout',
+      field: 'Email: qa@example.com',
+      filled: true,
+      btn: 'Pay now (ready)',
+      ready: true,
+    },
     locators: 'getByRole("textbox", { name: "Email" }) confirmed unique on main frame',
   },
   {
     meta: 'Step 3 of 3 · click e3 + checkpoint · finished',
-    beforeTitle: 'Ready to submit (state-00002.png)',
-    beforeDesc: 'Form state immediately before triggering click e3.',
-    afterTitle: 'Validation banner visible (state-00003.png)',
-    afterDesc: 'Checkpoint saved finding; exploration.yaml and exploration.json verified by SHA-256.',
+    before: {
+      title: 'Ready to submit (state-00002.png)',
+      desc: 'Form state immediately before triggering click e3.',
+      bar: 'https://staging.example.com/checkout',
+      field: 'Email: qa@example.com',
+      filled: true,
+      btn: 'Pay now (clicked)',
+      ready: true,
+    },
+    after: {
+      title: 'Validation banner visible (state-00003.png)',
+      desc: 'Checkpoint saved finding; exploration.yaml and exploration.json verified by SHA-256.',
+      bar: 'https://staging.example.com/checkout',
+      alert: 'Card number is required before submitting order',
+      btn: 'Pay now',
+      ready: false,
+    },
     locators: 'role="alert" text="Card number is required", button "Pay now" remains enabled',
   },
 ];
@@ -172,24 +213,44 @@ const COMMAND_GROUPS = {
   ],
 };
 
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let currentSource = 'npm';
 let currentOs = navigator.platform?.toLowerCase().includes('win') ? 'win' : 'unix';
 
 function renderWorkbench(modeKey) {
   const mode = WORKBENCH_MODES[modeKey] || WORKBENCH_MODES.inspect;
   document.getElementById('wb-caption').textContent = mode.caption;
-  document.getElementById('wb-terminal').textContent = mode.terminal;
   document.getElementById('wb-tab-title').textContent = mode.tabTitle;
   document.getElementById('wb-tab-url').textContent = mode.tabUrl;
 
+  const terminalEl = document.getElementById('wb-terminal');
+  const lines = mode.terminal.split('\n');
+  const termFrag = document.createDocumentFragment();
+  lines.forEach((line, idx) => {
+    const span = document.createElement('span');
+    span.className = line.startsWith('$ ') ? 'cli-line is-cmd' : 'cli-line';
+    span.style.setProperty('--line-delay', `${Math.min(idx * 28, 280)}ms`);
+    span.textContent = line;
+    if (idx === lines.length - 1) {
+      const cursor = document.createElement('span');
+      cursor.className = 'cli-cursor';
+      cursor.setAttribute('aria-hidden', 'true');
+      span.append(cursor);
+    }
+    termFrag.append(span);
+  });
+  terminalEl.replaceChildren(termFrag);
+
   const ul = document.createElement('ul');
-  for (const item of mode.browserItems) {
+  mode.browserItems.forEach((item, idx) => {
     const li = document.createElement('li');
+    li.className = 'wb-item';
+    li.style.setProperty('--line-delay', `${idx * 60 + 40}ms`);
     const strong = document.createElement('strong');
     strong.textContent = item.label + ': ';
     li.append(strong, document.createTextNode(item.detail));
     ul.append(li);
-  }
+  });
   document.getElementById('wb-browser-body').replaceChildren(ul);
 }
 
@@ -199,20 +260,50 @@ function renderInstall() {
   document.getElementById('step1-cmd').textContent = entry.cmd;
 }
 
+function buildShotPreview(el, shot) {
+  const clone = el.cloneNode(false);
+  const title = document.createElement('strong');
+  title.textContent = shot.title;
+
+  const desc = document.createElement('p');
+  desc.className = 'shot-caption';
+  desc.textContent = shot.desc;
+
+  const ui = document.createElement('div');
+  ui.className = 'shot-ui';
+
+  const bar = document.createElement('div');
+  bar.className = 'shot-ui-bar';
+  bar.textContent = shot.bar;
+  ui.append(bar);
+
+  if (shot.alert) {
+    const alert = document.createElement('div');
+    alert.className = 'shot-ui-alert';
+    alert.textContent = shot.alert;
+    ui.append(alert);
+  } else {
+    const field = document.createElement('div');
+    field.className = shot.filled ? 'shot-ui-field is-filled' : 'shot-ui-field';
+    field.textContent = shot.field;
+    ui.append(field);
+  }
+
+  const btn = document.createElement('div');
+  btn.className = shot.ready ? 'shot-ui-btn is-ready' : 'shot-ui-btn';
+  btn.textContent = shot.btn;
+  ui.append(btn);
+
+  clone.append(title, desc, ui);
+  el.replaceWith(clone);
+}
+
 function renderFilmstep(index) {
   const step = FILMSTRIP_STEPS[index] || FILMSTRIP_STEPS[0];
   document.getElementById('film-meta').textContent = step.meta;
   document.getElementById('film-locators').textContent = step.locators;
-
-  const before = document.getElementById('film-before');
-  const bTitle = document.createElement('strong');
-  bTitle.textContent = step.beforeTitle;
-  before.replaceChildren(bTitle, document.createTextNode(step.beforeDesc));
-
-  const after = document.getElementById('film-after');
-  const aTitle = document.createElement('strong');
-  aTitle.textContent = step.afterTitle;
-  after.replaceChildren(aTitle, document.createTextNode(step.afterDesc));
+  buildShotPreview(document.getElementById('film-before'), step.before);
+  buildShotPreview(document.getElementById('film-after'), step.after);
 }
 
 function renderCommandGroup(groupKey) {
@@ -235,19 +326,51 @@ function renderCommandGroup(groupKey) {
 
 function wireTabGroup(selector, initialKey, onSelect) {
   const buttons = Array.from(document.querySelectorAll(selector));
+  const container = buttons[0]?.closest('.segmented');
+  let indicator = null;
+  if (container && !reducedMotion) {
+    indicator = document.createElement('span');
+    indicator.className = 'seg-indicator';
+    indicator.setAttribute('aria-hidden', 'true');
+    container.prepend(indicator);
+  } else if (container) {
+    container.classList.add('no-indicator');
+  }
+
+  const positionIndicator = () => {
+    if (!indicator) return;
+    const active = buttons.find(b => b.getAttribute('aria-selected') === 'true');
+    if (!active || active.offsetWidth === 0) return;
+    indicator.style.width = `${active.offsetWidth}px`;
+    indicator.style.height = `${active.offsetHeight}px`;
+    indicator.style.transform = `translate3d(${active.offsetLeft}px, ${active.offsetTop}px, 0)`;
+  };
+
   const activate = key => {
     for (const btn of buttons) {
       const value = btn.dataset.mode || btn.dataset.source || btn.dataset.os || btn.dataset.film || btn.dataset.cmdcat;
       btn.setAttribute('aria-selected', String(value === String(key)));
     }
     onSelect(key);
+    requestAnimationFrame(positionIndicator);
   };
+
   for (const btn of buttons) {
     btn.addEventListener('click', () => {
       const value = btn.dataset.mode || btn.dataset.source || btn.dataset.os || btn.dataset.film || btn.dataset.cmdcat;
       activate(value);
     });
   }
+
+  if (container && indicator && 'ResizeObserver' in window) {
+    new ResizeObserver(positionIndicator).observe(container);
+  } else {
+    window.addEventListener('resize', positionIndicator, {passive: true});
+  }
+  if (document.fonts?.ready) {
+    void document.fonts.ready.then(positionIndicator);
+  }
+
   activate(initialKey);
 }
 
@@ -280,7 +403,95 @@ for (const btn of document.querySelectorAll('[data-copy-target]')) {
   });
 }
 
+// Header elevation + scroll progress bar + catch-up reveals for anchor jumps
 const header = document.getElementById('top-header');
-const updateHeader = () => header.classList.toggle('scrolled', window.scrollY > 16);
-window.addEventListener('scroll', updateHeader, {passive: true});
-updateHeader();
+const revealEls = Array.from(document.querySelectorAll('[data-reveal]'));
+let revealObserver = null;
+let scrollScheduled = false;
+
+function revealVisibleAndAbove() {
+  if (!document.documentElement.classList.contains('js-motion')) return;
+  let batch = 0;
+  for (const el of revealEls) {
+    if (el.classList.contains('is-visible')) continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight * 0.96) {
+      el.style.setProperty('--reveal-delay', `${Math.min(batch * 55, 220)}ms`);
+      el.classList.add('is-visible');
+      revealObserver?.unobserve(el);
+      batch++;
+    }
+  }
+}
+
+function syncScrollUI() {
+  scrollScheduled = false;
+  const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+  const progress = Math.min(1, Math.max(0, window.scrollY / maxScroll));
+  header.classList.toggle('scrolled', window.scrollY > 16);
+  document.documentElement.style.setProperty('--scroll-progress', progress.toFixed(4));
+  revealVisibleAndAbove();
+}
+window.addEventListener(
+  'scroll',
+  () => {
+    if (!scrollScheduled) {
+      scrollScheduled = true;
+      requestAnimationFrame(syncScrollUI);
+    }
+  },
+  {passive: true},
+);
+
+// Progressive scroll-reveal choreography
+if (!reducedMotion && 'IntersectionObserver' in window && revealEls.length) {
+  document.documentElement.classList.add('js-motion');
+  revealObserver = new IntersectionObserver(
+    entries => {
+      let batch = 0;
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        entry.target.style.setProperty('--reveal-delay', `${Math.min(batch * 55, 220)}ms`);
+        entry.target.classList.add('is-visible');
+        revealObserver.unobserve(entry.target);
+        batch++;
+      }
+    },
+    {threshold: 0.08, rootMargin: '0px 0px -30px 0px'},
+  );
+  for (const el of revealEls) {
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight * 0.92) {
+      el.classList.add('is-visible');
+    } else {
+      revealObserver.observe(el);
+    }
+  }
+}
+syncScrollUI();
+
+// Subtle pointer spotlight on hero
+const hero = document.getElementById('hero-section');
+if (hero && !reducedMotion) {
+  let glowScheduled = false;
+  let px = '50%';
+  let py = '28%';
+  hero.addEventListener(
+    'pointermove',
+    e => {
+      if (e.pointerType !== 'mouse') return;
+      const rect = hero.getBoundingClientRect();
+      px = `${(((e.clientX - rect.left) / Math.max(1, rect.width)) * 100).toFixed(1)}%`;
+      py = `${(((e.clientY - rect.top) / Math.max(1, rect.height)) * 100).toFixed(1)}%`;
+      if (!glowScheduled) {
+        glowScheduled = true;
+        requestAnimationFrame(() => {
+          glowScheduled = false;
+          hero.style.setProperty('--mx', px);
+          hero.style.setProperty('--my', py);
+        });
+      }
+    },
+    {passive: true},
+  );
+}
