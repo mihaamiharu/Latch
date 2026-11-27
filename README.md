@@ -4,7 +4,7 @@
 
 An Apache-2.0 QA browser workbench built for engineers running multiple coding agents from the terminal (**Claude Code**, **Codex**, **Antigravity**, **Cursor**) where there is no built-in IDE browser. Powered by `playwright-core`, Latch drives one authenticated Chrome tab at a time—with zero repo dotfiles, background focus emulation, and a local Exploration Library of before/after PNG filmstrips, observed locators, and triage notes before anything becomes a Playwright test.
 
-**Docs & Showcase:** https://mihaamiharu.github.io/Latch/ · **npm:** `@mihaamiharu/latch` · **Releases:** [v1.0.0](https://github.com/mihaamiharu/Latch/releases/tag/v1.0.0)
+**Docs & Showcase:** https://mihaamiharu.github.io/Latch/ · **npm:** `@mihaamiharu/latch` · **Releases:** [v1.1.0](https://github.com/mihaamiharu/Latch/releases/tag/v1.1.0)
 
 ![Latch Exploration Library showing a before/after PNG filmstrip, observed locators, and local QA triage](site/assets/library-filmstrip.png)
 
@@ -47,7 +47,7 @@ An Apache-2.0 QA browser workbench built for engineers running multiple coding a
 
 ### Option B: Install from a GitHub Release kit or source checkout
 
-1. Download `latch-1.0.0-kit.zip` from Releases and extract it to a permanent folder (or clone the repo and run `npm ci`).
+1. Download `latch-1.1.0-kit.zip` from Releases and extract it to a permanent folder (or clone the repo and run `npm ci`).
 2. Run setup and optionally link `latch` globally:
    ```sh
    node src/cli.mjs install
@@ -134,7 +134,7 @@ npm run build
 npm test
 ```
 
-`npm run build` produces `dist/latch/`, `dist/latch-1.0.0/`, and deterministic release archives in `dist/`. Browser integration tests run headless with disposable profiles per [AGENTS.md](AGENTS.md).
+`npm run build` produces `dist/latch/`, `dist/latch-1.1.0/`, and deterministic release archives in `dist/`. Browser integration tests run headless with disposable profiles per [AGENTS.md](AGENTS.md).
 
 ## More documentation
 
