@@ -13,7 +13,7 @@ async function fixture(t) {
   const instanceId = crypto.randomUUID(), socket = path.join(runtime, instanceId + '.sock'), config = path.join(dir, 'config.json');
   await fs.writeFile(config, JSON.stringify({profiles: {work: {instanceId, chromeProfileDir: 'Default', defaultTransport: 'native'}}, keep: 'untouched'}));
   const cli = path.join(dir, 'cli'); await fs.writeFile(cli, '#!/bin/sh\nprintf \'{"version":"0.1.20"}\'\n', {mode: 0o700});
-  const env = {QA_BROWSER_CONFIG: config, QA_BROWSER_RUNTIME_DIR: runtime, PWTEST_DAEMON_SESSION_DIR: path.join(dir, 'daemon'), QA_BROWSER_PLAYWRIGHT_CLI: cli};
+  const env = {LATCH_CONFIG: config, LATCH_RUNTIME_DIR: runtime, PWTEST_DAEMON_SESSION_DIR: path.join(dir, 'daemon'), LATCH_PLAYWRIGHT_CLI: cli};
   const before = Object.fromEntries(Object.keys(env).map(k => [k, process.env[k]])); Object.assign(process.env, env);
   const calls = []; let cap = {nativeTransport: true, nativeSessionSchema: 4, recoveryContract: 1};
   const server = net.createServer(s => { let data = ''; s.on('data', chunk => {

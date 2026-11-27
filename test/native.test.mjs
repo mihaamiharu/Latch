@@ -26,9 +26,9 @@ test('native host routes real socket requests, restricts permissions and cleans 
   const root = await fs.mkdtemp(path.join(work, 'native-'));
   const instanceId = crypto.randomUUID(), epoch = crypto.randomUUID();
   // macOS Unix sockets have a small path limit; keep only the socket directory in /tmp.
-  const runtime = `/tmp/qab-test-${crypto.randomBytes(5).toString('hex')}`;
-  const oldRoot = process.env.QA_BROWSER_RUNTIME_DIR;
-  process.env.QA_BROWSER_RUNTIME_DIR = runtime;
+  const runtime = `/tmp/latch-test-${crypto.randomBytes(5).toString('hex')}`;
+  const oldRoot = process.env.LATCH_RUNTIME_DIR;
+  process.env.LATCH_RUNTIME_DIR = runtime;
   const child = spawn(process.execPath, [fileURLToPath(new URL('../src/native-host.mjs', import.meta.url))], {
     env: {...process.env}, stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -40,7 +40,7 @@ test('native host routes real socket requests, restricts permissions and cleans 
   t.after(async () => {
     if (child.exitCode === null) child.kill();
     await exited;
-    if (oldRoot === undefined) delete process.env.QA_BROWSER_RUNTIME_DIR; else process.env.QA_BROWSER_RUNTIME_DIR = oldRoot;
+    if (oldRoot === undefined) delete process.env.LATCH_RUNTIME_DIR; else process.env.LATCH_RUNTIME_DIR = oldRoot;
     await fs.rm(runtime, {recursive: true, force: true});
     await fs.rm(root, {recursive: true, force: true});
   });

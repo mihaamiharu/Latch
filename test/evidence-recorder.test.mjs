@@ -122,8 +122,8 @@ test('unsafe captures fail without modifying the linked file and leave a truthfu
   assert.equal(actions,1);assert.equal(await fs.readFile(privateFile,'utf8'),'private unchanged');assert.equal((await inspectEvidence(f.dir)).checks[0].status,'unknown');
 });
 test('report failure retains the actually observed action-helper exit independently of recording failure',async t=>{
-  const f=await fixture(t),previous=process.env.QA_BROWSER_CONFIG;process.env.QA_BROWSER_CONFIG=path.join(f.workspace,'missing-config.json');
-  t.after(()=>{previous===undefined?delete process.env.QA_BROWSER_CONFIG:process.env.QA_BROWSER_CONFIG=previous});
+  const f=await fixture(t),previous=process.env.LATCH_CONFIG;process.env.LATCH_CONFIG=path.join(f.workspace,'missing-config.json');
+  t.after(()=>{previous===undefined?delete process.env.LATCH_CONFIG:process.env.LATCH_CONFIG=previous});
   const rename=fs.rename.bind(fs);let injected=false;
   const mock=t.mock.method(fs,'rename',async(a,b)=>{if(b===path.join(f.dir,'result.json')&&!injected){injected=true;throw Object.assign(new Error('disk full after helper exit'),{code:'ENOSPC'})}return rename(a,b)});
   await assert.rejects(f.run('diagnose','observed-exit',executeEvidenceAction),e=>e.code==='EVIDENCE_WRITE_FAILED'&&e.reporting.operationOutcome==='succeeded');

@@ -8,7 +8,7 @@ async function chromePath() {
   const pins = JSON.parse(await fs.readFile(new URL('../browser-versions.json', import.meta.url), 'utf8'));
   const lane = process.env.LATCH_BROWSER_LANE || 'current', pin = pins[lane];
   if (!['floor', 'current'].includes(lane) || !pin) throw new Error('Use LATCH_BROWSER_LANE=floor|current.');
-  const executable = process.env.LATCH_SPIKE_BROWSER || process.env.QA_BROWSER_CHROME ||
+  const executable = process.env.LATCH_SPIKE_BROWSER || process.env.LATCH_CHROME ||
     path.join(os.homedir(), 'Library/Caches/ms-playwright', 'chromium-' + pin.cacheRevision,
       'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing');
   const actual = await command(executable, ['--version']);

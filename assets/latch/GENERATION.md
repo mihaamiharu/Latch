@@ -11,4 +11,4 @@ Use case: logo-brand. Asset type: finished app icon for Latch, a browser extensi
 - `icon-source.png`: original generated master, preserved in the project.
 - `../../extension/icons/latch-{16,32,48,128}.png`: Chrome sizes exported with macOS sips, preserving transparency.
 
-The TabPilot concept remains archived under `../tabpilot/`. The extension's name is now Latch; its ID, native host registration name, configuration location and CLI command remain compatible.
+The extension's name is Latch, with fixed extension ID `dlkpkeiejlgggeoibejpoajedoelfcli`, native host registration name `com.latch.bridge`, configuration location `~/.config/Latch/`, and CLI command `latch`.

@@ -1,15 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Latch",
-  "version": "0.1.2",
-  "minimum_chrome_version": "120",
-  "description": "Connect selected existing Work-profile tabs to Playwright CLI from your terminal.",
+  "version": "1.0.0",
+  "minimum_chrome_version": "125",
+  "description": "Connect selected existing browser tabs to your coding agent from your terminal.",
   "permissions": [
     "tabs",
     "tabGroups",
     "storage",
     "nativeMessaging",
-    "alarms"
+    "alarms",
+    "debugger"
   ],
   "background": {
     "service_worker": "background.js",

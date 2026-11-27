@@ -9,8 +9,8 @@ stop dependent browser work; do not repeatedly retry the same socket.
 Latch needs the paired Unix socket, task writes, the exact per-workspace
 Playwright daemon-cache directory and caller loopback networking. `diagnose`
 reports the socket; `preflight` reports the other paths/checks. A socket-only
-grant does not establish browser readiness. Native attachment still needs these
-permissions even though the official extension is unused.
+grant does not establish browser readiness. Native attachment needs these
+permissions without any external extension.
 
 ## Controlled qualification, Codex 0.166.0
 

@@ -10,7 +10,7 @@ import {hash,pixels,row,MiB} from '../fixtures/evidence-app.mjs';
 // The pinned CLI already bundles pngjs; no runtime dependency or copied decoder.
 export async function pngDecoder(){
  const which=await command('which',['playwright-cli']);const executable=await fs.realpath(which.out.trim());
- const module=process.env.QA_BROWSER_PLAYWRIGHT_MODULE||path.join(path.dirname(executable),'node_modules/playwright-core/index.mjs');
+ const module=process.env.LATCH_PLAYWRIGHT_MODULE||path.join(path.dirname(executable),'node_modules/playwright-core/index.mjs');
  return createRequire(import.meta.url)(path.join(path.dirname(module),'lib/utilsBundle.js')).PNG;
 }
 export async function captureCLI(f,index,args,{name='command',limit=64*MiB,timeout=65000,fail=false}={}){

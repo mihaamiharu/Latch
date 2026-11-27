@@ -11,16 +11,16 @@ YAML state capture. Repeated short CLI invocations find the session's bound run;
 you do not need to repeat an evidence directory on each command.
 
 ```sh
-qa-browser open --profile work --transport native --session checkout \
+latch open --profile work --session checkout \
   --workspace /absolute/project --focus-emulation on \
   --objective 'Explore checkout validation' --environment staging \
   --url https://staging.example.test/checkout
-qa-browser pw --profile work --session checkout --workspace /absolute/project -- snapshot
-qa-browser pw --profile work --session checkout --workspace /absolute/project \
+latch pw --profile work --session checkout --workspace /absolute/project -- snapshot
+latch pw --profile work --session checkout --workspace /absolute/project \
   --data-ref seeded-customer -- fill e5 'synthetic test input'
-qa-browser checkpoint --profile work --session checkout --workspace /absolute/project \
+latch checkpoint --profile work --session checkout --workspace /absolute/project \
   --note 'Submitting an empty form exposed required-field messages; expected business behavior needs QA review.'
-qa-browser finish --profile work --session checkout --workspace /absolute/project
+latch finish --profile work --session checkout --workspace /absolute/project
 ```
 
 Use fresh snapshot refs or semantic selectors; refs from a previous page state are
@@ -75,12 +75,12 @@ code and automatic test generation are outside this feature.
 ## Review locally
 
 ```sh
-qa-browser library list
-qa-browser library serve
+latch library list
+latch library serve
 # Open the printed http://127.0.0.1:PORT URL on this machine.
-qa-browser library show --run RUN_ID
-qa-browser library review --run RUN_ID --decision automate --note 'Cover required fields'
-qa-browser library export --run RUN_ID --destination /absolute/new-handoff-folder
+latch library show --run RUN_ID
+latch library review --run RUN_ID --decision automate --note 'Cover required fields'
+latch library export --run RUN_ID --destination /absolute/new-handoff-folder
 ```
 
 The local viewer searches runs across projects, plays recorded clips, lists states
@@ -97,7 +97,7 @@ command data, manifest and a snapshot of QA review notes.
 The default root is `artifacts/` next to the configured Latch config, normally:
 
 ```text
-~/Library/Application Support/Work Browser Bridge/artifacts/
+~/Library/Application Support/Latch/artifacts/
 ```
 
 `LATCH_ARTIFACT_ROOT` selects a different absolute root. Runs use UUIDs, with
