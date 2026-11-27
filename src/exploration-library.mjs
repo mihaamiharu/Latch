@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import {fault} from '../extension/protocol.js';
 import {isSameRegularFile} from './platform.mjs';
 import {
+  LIMITS,
   listRuns,
   loadMeta,
   runPath,
@@ -20,10 +21,11 @@ import {
   appendObservation,
   scrub,
 } from './exploration-storage.mjs';
-import {writeHandoff} from './exploration-model.mjs';
+import {graphOf, writeHandoff} from './exploration-model.mjs';
 
 const escape = value =>
   String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const safeJson = value => JSON.stringify(value).replace(/</g, '\\u003c');
 const decisions = new Set(['unreviewed', 'automate', 'investigate', 'report_bug', 'closed']);
 
 export async function saveReview(id, {decision, note = ''}) {
@@ -57,7 +59,47 @@ async function reviewOf(id) {
 
 const artifactURL = (id, relative) => `/artifact/${id}/${relative.split('/').map(encodeURIComponent).join('/')}`;
 
-const style = `:root{color-scheme:light;font-family:Inter,ui-sans-serif,system-ui;background:#f4f4f0;color:#24342e}body{margin:0}[hidden]{display:none!important}header{padding:22px 5%;background:#173c32;color:#fff;display:flex;justify-content:space-between;align-items:center}header a{color:white;text-decoration:none;font-weight:700;font-size:22px}main{max-width:1160px;margin:32px auto;padding:0 24px}h1{font-size:32px;margin:12px 0}h2{font-size:21px}p{line-height:1.6}.muted,small{color:#66766d}.card{background:#fff;border:1px solid #d9dfd7;border-radius:14px;padding:22px;margin:16px 0}.pill{display:inline-block;font-size:12px;background:#e5eee7;color:#28503c;padding:5px 10px;border-radius:20px}.grid{display:grid;grid-template-columns:2fr 1fr;gap:22px}.runs{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:18px}.runs .card{margin:0;display:block;text-decoration:none;color:inherit}.runs .card:hover{border-color:#2d7b59}button,.button{background:#1b684a;color:white;border:0;border-radius:8px;padding:10px 16px;font:inherit;text-decoration:none;cursor:pointer}input,select,textarea{box-sizing:border-box;font:inherit;border:1px solid #c4cec3;border-radius:8px;padding:10px;width:100%;margin:8px 0}textarea{min-height:110px}video{width:100%;max-height:480px;background:#101d18;border-radius:10px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:#eef2ec;padding:12px;border-radius:6px}details{margin:10px 0;padding:8px 0;border-bottom:1px solid #e1e5de}a{color:#17643f}label{display:block}table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;padding:10px;border-bottom:1px solid #e1e5de}nav{margin:18px 0}.warning{background:#fff2da;border-left:4px solid #bd8d25;padding:12px}#saved{font-size:13px;min-height:22px}footer{padding:24px 0;color:#66766d;font-size:12px}@media(max-width:760px){.grid{grid-template-columns:1fr}}`;
+const style = [
+  ':root{color-scheme:light;font-family:Inter,ui-sans-serif,system-ui;background:#f4f4f0;color:#24342e}',
+  'body{margin:0}[hidden]{display:none!important}',
+  'header{padding:22px 5%;background:#173c32;color:#fff;display:flex;justify-content:space-between;align-items:center}',
+  'header a{color:white;text-decoration:none;font-weight:700;font-size:22px}',
+  'main{max-width:1240px;margin:32px auto;padding:0 24px}',
+  'h1{font-size:32px;margin:12px 0}h2{font-size:20px;margin:0 0 12px}p{line-height:1.6}',
+  '.muted,small{color:#66766d}',
+  '.card{background:#fff;border:1px solid #d9dfd7;border-radius:14px;padding:22px;margin:16px 0}',
+  '.pill{display:inline-block;font-size:12px;background:#e5eee7;color:#28503c;padding:4px 10px;border-radius:20px}',
+  '.grid{display:grid;grid-template-columns:2fr 1fr;gap:22px}',
+  '.runs{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:18px}',
+  '.runs .card{margin:0;display:block;text-decoration:none;color:inherit}.runs .card:hover{border-color:#2d7b59}',
+  'button,.button{background:#1b684a;color:white;border:0;border-radius:8px;padding:8px 14px;font:inherit;text-decoration:none;cursor:pointer}',
+  'button.secondary{background:#eef2ec;color:#24342e;border:1px solid #c4cec3}',
+  'button.secondary.active{background:#173c32;color:#fff;border-color:#173c32}',
+  'button:disabled{opacity:.45;cursor:not-allowed}',
+  'input,select,textarea{box-sizing:border-box;font:inherit;border:1px solid #c4cec3;border-radius:8px;padding:10px;width:100%;margin:8px 0}',
+  'textarea{min-height:110px}',
+  'pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:#eef2ec;padding:12px;border-radius:6px}',
+  'details{margin:10px 0;padding:8px 0;border-bottom:1px solid #e1e5de}',
+  'a{color:#17643f}label{display:block}nav{margin:18px 0}',
+  '.warning{background:#fff2da;border-left:4px solid #bd8d25;padding:12px;border-radius:4px}',
+  '#saved{font-size:13px;min-height:22px}',
+  'footer{padding:24px 0;color:#66766d;font-size:12px}',
+  '.film-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:14px}',
+  '.film-stage{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}',
+  '.film-stage.single{grid-template-columns:1fr}',
+  '.shot-pane{border:1px solid #d9dfd7;border-radius:10px;padding:10px;background:#f8faf7}',
+  '.shot-pane h3{font-size:13px;margin:0 0 8px;display:flex;justify-content:space-between;color:#28503c}',
+  '.shot-pane img{width:100%;max-height:360px;object-fit:contain;background:#101d18;border-radius:6px;display:block}',
+  '.shot-empty{padding:48px 16px;text-align:center;color:#66766d;background:#eef2ec;border-radius:6px;font-size:13px}',
+  '.film-strip{display:flex;gap:10px;overflow-x:auto;padding:8px 2px}',
+  '.film-item{min-width:170px;max-width:190px;text-align:left;background:#f8faf7;color:#24342e;border:2px solid #d9dfd7;border-radius:10px;padding:8px;flex-shrink:0}',
+  '.film-item.active{border-color:#1b684a;background:#edf5f0}',
+  '.film-thumbs{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px}',
+  '.film-thumbs img{width:100%;height:52px;object-fit:cover;border-radius:4px;background:#101d18}',
+  '.thumb-gap{height:52px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#66766d;background:#e4e9e2;border-radius:4px}',
+  '.locator-badge{display:inline-block;font-size:11px;background:#eef2ec;padding:2px 7px;border-radius:12px;margin:2px 4px 2px 0}',
+  '@media(max-width:760px){.grid,.film-stage{grid-template-columns:1fr}}',
+].join('');
 
 function shell(title, body, script = '', nonce = '') {
   return [
@@ -75,85 +117,221 @@ function shell(title, body, script = '', nonce = '') {
 async function catalogue(nonce) {
   const runs = await listRuns();
   const cards = runs
-    .map(
-      r =>
+    .map(r => {
+      const shotCount = r.artifacts?.filter(a => a.type === 'screenshot').length ?? 0;
+      return (
         `<a class="card" data-search="${escape([r.objective, r.workspace, r.status, r.environment].join(' ').toLowerCase())}" href="/run/${r.id}">` +
         `<span class="pill">${escape(r.status)}</span>` +
         `<h2>${escape(r.objective)}</h2>` +
         `<p>${escape(path.basename(r.workspace || ''))} · ${escape(r.environment || 'Environment not specified')}</p>` +
-        `<small>${escape(r.createdAt)}<br>${escape(r.states?.length || 0)} captured states · ${escape(r.actions?.length || 0)} transitions</small>` +
-        '</a>',
-    )
+        `<small>${escape(r.createdAt)}<br>${escape(r.states?.length || 0)} states · ${escape(r.actions?.length || 0)} transitions · ${escape(shotCount)} screenshots</small>` +
+        '</a>'
+      );
+    })
     .join('');
   return shell(
     'Library',
     `<p class="muted">EXPLORATION → REVIEW → AUTOMATION</p>` +
       `<h1>Pick up where the agent left off.</h1>` +
-      `<p class="muted">Review the video and captured behavior, then decide what deserves a test.</p>` +
+      `<p class="muted">Review the before/after screenshot filmstrip, captured states, and locator candidates, then decide what deserves a test.</p>` +
       `<input id="search" aria-label="Search explorations" placeholder="Search project, objective or status">` +
-      `<div class="runs">${cards || '<div class="card">No explorations yet. Start one with Latch open or connect.</div>'}</div>`,
+      `<div class="runs">${cards || '<div class="card">No explorations yet. Start one with latch open --record or --objective.</div>'}</div>`,
     `document.getElementById('search').addEventListener('input',e=>{for(const el of document.querySelectorAll('[data-search]'))el.hidden=!el.dataset.search.includes(e.target.value.toLowerCase())})`,
     nonce,
   );
 }
 
+function buildFilmstripItems(id, meta, graph) {
+  const stateMap = new Map(meta.states.map(s => [s.id, s]));
+  if (graph.filmstrip.length) {
+    return graph.filmstrip.map((frame, index) => {
+      const beforeState = frame.before_state ? stateMap.get(frame.before_state) : null;
+      const afterState = frame.after_state ? stateMap.get(frame.after_state) : null;
+      const action = meta.actions.find(a => a.id === frame.transition_id);
+      return {
+        index,
+        label: `${index + 1}. ${frame.command}`,
+        outcome: frame.outcome,
+        startedAt: frame.started_at || '',
+        beforeUrl: frame.before ? artifactURL(id, frame.before) : null,
+        afterUrl: frame.after ? artifactURL(id, frame.after) : null,
+        beforeStateId: frame.before_state || null,
+        afterStateId: frame.after_state || null,
+        beforePageUrl: beforeState?.url || null,
+        afterPageUrl: afterState?.url || null,
+        beforeSnapshotUrl: beforeState?.snapshot ? artifactURL(id, beforeState.snapshot) : null,
+        afterSnapshotUrl: afterState?.snapshot ? artifactURL(id, afterState.snapshot) : null,
+        target: action?.action?.target?.locator_candidate || action?.action?.target?.supplied_selector || null,
+      };
+    });
+  }
+  return meta.states
+    .filter(s => s.frame?.id === 'main')
+    .map((s, index) => ({
+      index,
+      label: `${index + 1}. ${s.id}`,
+      outcome: 'captured',
+      startedAt: s.captured_at,
+      beforeUrl: null,
+      afterUrl: s.screenshot ? artifactURL(id, s.screenshot) : null,
+      beforeStateId: null,
+      afterStateId: s.id,
+      beforePageUrl: null,
+      afterPageUrl: s.url,
+      beforeSnapshotUrl: null,
+      afterSnapshotUrl: artifactURL(id, s.snapshot),
+      target: null,
+    }));
+}
+
 async function runHTML(id, token, nonce) {
   const meta = await loadMeta(id);
+  const graph = graphOf(meta);
   const review = await reviewOf(id);
   const integrity = await verifyArtifacts(meta);
   const link = (relative, label) => `<a href="${artifactURL(id, relative)}">${escape(label || relative)}</a>`;
-  const clips = (meta.video.clips || [])
-    .map((file, i) => `<p>Clip ${i + 1}</p><video controls preload="metadata" src="${artifactURL(id, file)}"></video>`)
+  const filmItems = buildFilmstripItems(id, meta, graph);
+
+  const filmstripThumbsHtml = filmItems
+    .map(
+      (item, idx) =>
+        `<button type="button" class="film-item${idx === 0 ? ' active' : ''}" data-film-index="${idx}">` +
+        `<div><strong>${escape(item.label)}</strong></div>` +
+        `<small>${escape(item.outcome)}</small>` +
+        `<div class="film-thumbs">` +
+        (item.beforeUrl ? `<img src="${item.beforeUrl}" alt="Before ${escape(item.label)}">` : `<div class="thumb-gap">No before</div>`) +
+        (item.afterUrl ? `<img src="${item.afterUrl}" alt="After ${escape(item.label)}">` : `<div class="thumb-gap">No after</div>`) +
+        `</div></button>`,
+    )
     .join('');
-  const actionsHtml = meta.actions
+
+  const filmstripSectionHtml = filmItems.length
+    ? `<div class="film-controls">` +
+      `<div id="film-meta"><strong>${escape(filmItems[0].label)}</strong> · <span class="pill">${escape(filmItems[0].outcome)}</span></div>` +
+      `<div>` +
+      `<button type="button" class="secondary active" data-view-mode="split">Before &amp; After</button> ` +
+      `<button type="button" class="secondary" data-view-mode="before">Before only</button> ` +
+      `<button type="button" class="secondary" data-view-mode="after">After only</button> ` +
+      `<button type="button" class="secondary" id="film-prev">← Prev</button> ` +
+      `<button type="button" class="secondary" id="film-next">Next →</button>` +
+      `</div></div>` +
+      `<div id="film-stage" class="film-stage">` +
+      `<div class="shot-pane" id="pane-before"><h3><span>Before</span><small id="before-label"></small></h3><div id="before-body"></div></div>` +
+      `<div class="shot-pane" id="pane-after"><h3><span>After</span><small id="after-label"></small></h3><div id="after-body"></div></div>` +
+      `</div>` +
+      `<div class="film-strip" id="film-strip">${filmstripThumbsHtml}</div>`
+    : `<p>No screenshots were captured for this run.</p>`;
+
+  const actionsHtml = graph.transitions
     .map(
       a =>
         `<details><summary>${escape(a.action.type)} · ${escape(a.outcome)} · ${escape(a.started_at)}</summary>` +
-        `<p>${escape(a.from || 'Unknown source')} → ${escape(a.to || 'Unknown result')}</p>` +
+        `<p>${escape(a.from || 'Unknown source')} → ${escape(a.to || 'Unknown result')}` +
+        (a.filmstrip?.before ? ` · ${link(a.filmstrip.before, 'Before PNG')}` : '') +
+        (a.filmstrip?.after ? ` · ${link(a.filmstrip.after, 'After PNG')}` : '') +
+        `</p>` +
         `<pre>${escape(JSON.stringify(a.action, null, 2))}</pre></details>`,
     )
     .join('');
+
   const statesHtml = meta.states
-    .map(
-      s =>
+    .map(s => {
+      const candidateBadges = (s.elements || [])
+        .filter(e => e.locator_candidate)
+        .slice(0, 8)
+        .map(
+          e =>
+            `<span class="locator-badge">${escape(e.role)} "${escape(e.name)}"${e.ambiguous ? ' (ambiguous)' : ''}</span>`,
+        )
+        .join('');
+      return (
         `<details><summary>${escape(s.id)} · ${escape(s.title || s.url)} · ${escape(s.frame.id)}</summary>` +
-        `<p>${escape(s.url)}</p><p>${link(s.snapshot, 'Open YAML snapshot')} · ${escape(s.captured_at)}</p>` +
-        `<pre>${escape(JSON.stringify({accessible_elements: s.elements, dom_attributes: s.locator_observations || []}, null, 2))}</pre></details>`,
-    )
+        `<p>${escape(s.url)}</p>` +
+        `<p>${link(s.snapshot, 'Open YAML snapshot')}` +
+        (s.screenshot ? ` · ${link(s.screenshot, 'Open PNG screenshot')}` : '') +
+        ` · ${escape(s.captured_at)}</p>` +
+        (candidateBadges ? `<p>${candidateBadges}</p>` : '') +
+        `<pre>${escape(JSON.stringify({accessible_elements: s.elements, dom_attributes: s.locator_observations || []}, null, 2))}</pre></details>`
+      );
+    })
     .join('');
+
   const annotationsHtml = meta.annotations
-    .filter(a => ['finding', 'behavior'].includes(a.kind))
     .map(
       a =>
-        `<details><summary>${escape(a.kind)} · agent supplied</summary><p>${escape(a.text || a.observed)}</p>` +
+        `<details><summary>${escape(a.kind)} · agent supplied</summary><p>${escape(a.text || a.observed || a.reference)}</p>` +
         (a.observed ? `<p><strong>Observed:</strong> ${escape(a.observed)}</p>` : '') +
         `<p><strong>Expected:</strong> ${escape(a.expected === null || a.expected === undefined ? 'Not specified; needs QA review' : typeof a.expected === 'string' ? a.expected : JSON.stringify(a.expected))}</p>` +
         `<small>Assertion: ${escape(a.assertion_status || 'not_asserted')}</small></details>`,
     )
     .join('');
+
   const gapsHtml = meta.gaps.map(g => `<p class="warning">${escape(g.reason)} ${escape(g.code || '')}</p>`).join('');
   const optionsHtml = [...decisions]
     .map(d => `<option value="${d}" ${d === review.decision ? 'selected' : ''}>${escape(d.replaceAll('_', ' '))}</option>`)
     .join('');
+
+  const script = [
+    `const filmItems=${safeJson(filmItems)};`,
+    `let currentIndex=0,viewMode='split';`,
+    `function renderPane(kind,url,stateId,snapUrl,pageUrl){`,
+    `  const label=document.getElementById(kind+'-label');`,
+    `  const body=document.getElementById(kind+'-body');`,
+    `  label.textContent=stateId||'unavailable';`,
+    `  body.textContent='';`,
+    `  if(url){const img=document.createElement('img');img.src=url;img.alt=kind+' screenshot';body.appendChild(img);}else{const d=document.createElement('div');d.className='shot-empty';d.textContent='No screenshot captured';body.appendChild(d);}`,
+    `  if(pageUrl||snapUrl){const meta=document.createElement('small');meta.style.display='block';meta.style.marginTop='6px';if(pageUrl)meta.append(document.createTextNode(pageUrl+' '));if(snapUrl){const a=document.createElement('a');a.href=snapUrl;a.textContent='YAML';meta.appendChild(a);}body.appendChild(meta);}`,
+    `}`,
+    `function renderFilm(){`,
+    `  if(!filmItems.length)return;`,
+    `  const item=filmItems[currentIndex];`,
+    `  const metaEl=document.getElementById('film-meta');`,
+    `  metaEl.textContent='';`,
+    `  const strong=document.createElement('strong');strong.textContent=item.label;metaEl.appendChild(strong);`,
+    `  metaEl.appendChild(document.createTextNode(' · '));`,
+    `  const pill=document.createElement('span');pill.className='pill';pill.textContent=item.outcome;metaEl.appendChild(pill);`,
+    `  renderPane('before',item.beforeUrl,item.beforeStateId,item.beforeSnapshotUrl,item.beforePageUrl);`,
+    `  renderPane('after',item.afterUrl,item.afterStateId,item.afterSnapshotUrl,item.afterPageUrl);`,
+    `  const stage=document.getElementById('film-stage');`,
+    `  document.getElementById('pane-before').hidden=viewMode==='after';`,
+    `  document.getElementById('pane-after').hidden=viewMode==='before';`,
+    `  stage.classList.toggle('single',viewMode!=='split');`,
+    `  document.getElementById('film-prev').disabled=currentIndex===0;`,
+    `  document.getElementById('film-next').disabled=currentIndex>=filmItems.length-1;`,
+    `  for(const btn of document.querySelectorAll('[data-film-index]'))btn.classList.toggle('active',Number(btn.dataset.filmIndex)===currentIndex);`,
+    `}`,
+    `if(filmItems.length){`,
+    `  for(const btn of document.querySelectorAll('[data-film-index]'))btn.addEventListener('click',()=>{currentIndex=Number(btn.dataset.filmIndex);renderFilm();});`,
+    `  for(const btn of document.querySelectorAll('[data-view-mode]'))btn.addEventListener('click',()=>{viewMode=btn.dataset.viewMode;for(const b of document.querySelectorAll('[data-view-mode]'))b.classList.toggle('active',b===btn);renderFilm();});`,
+    `  document.getElementById('film-prev').addEventListener('click',()=>{if(currentIndex>0){currentIndex--;renderFilm();}});`,
+    `  document.getElementById('film-next').addEventListener('click',()=>{if(currentIndex<filmItems.length-1){currentIndex++;renderFilm();}});`,
+    `  renderFilm();`,
+    `}`,
+    `document.getElementById('review').addEventListener('submit',async e=>{e.preventDefault();const status=document.getElementById('saved');status.textContent='Saving…';try{const r=await fetch('/review/${id}',{method:'POST',headers:{'Content-Type':'application/json','X-Latch-Review':${JSON.stringify(token)}},body:JSON.stringify({decision:document.getElementById('decision').value,note:document.getElementById('note').value})});if(!r.ok)throw Error('Could not save');status.textContent='Review saved on this machine.'}catch{status.textContent='Could not save review. Try again.'}});`,
+  ].join('');
 
   return shell(
     meta.objective,
     `<nav><a href="/">← All explorations</a></nav><span class="pill">${escape(meta.status)}</span>` +
       `<h1>${escape(meta.objective)}</h1>` +
       `<p class="muted">${escape(meta.workspace)} · ${escape(meta.environment || 'Environment not specified')} · ${escape(meta.createdAt)}</p>` +
-      (!integrity.verified ? '<p class="warning">Some evidence has changed or is missing. Review the integrity problems before handing this run off.</p>' : '') +
-      `<div class="grid"><section><div class="card"><h2>Watch the exploration</h2>${clips || '<p>No finalized video is available.</p>'}` +
-      `<p class="warning">A saved video file does not prove every background or short-lived popup state was recorded. Use YAML and capture gaps alongside the clips.</p>` +
-      `<p class="muted">Video: ${escape(meta.video.status)} · mode ${escape(meta.video.mode || 'on')}. Clips can belong to different owned pages; exact per-page timeline alignment is not asserted.</p></div>` +
+      (!integrity.verified
+        ? '<p class="warning">Some evidence has changed or is missing. Review the integrity problems before handing this run off.</p>'
+        : '') +
+      `<div class="grid"><section>` +
+      `<div class="card"><h2>Before / after filmstrip</h2>${filmstripSectionHtml}` +
+      `<p class="muted">Screenshots: ${escape(graph.screenshots.status)} (${escape(graph.screenshots.count)} PNGs captured across states).</p></div>` +
       `<div class="card"><h2>What the agent explored</h2>${actionsHtml || '<p>No managed action steps were recorded.</p>'}</div>` +
-      `<div class="card"><h2>Page states and locators</h2>${statesHtml}</div></section>` +
+      `<div class="card"><h2>Page states and locators</h2>${statesHtml || '<p>No captured states.</p>'}</div></section>` +
       `<aside><div class="card"><h2>Automation handoff</h2><p>${link('exploration.yaml', 'Download exploration.yaml')}</p>` +
-      `<p>${link('artifacts.json', 'Artifact manifest')}</p><small>Contains observed states, transitions and locator candidates. Generated code is excluded.</small></div>` +
+      `<p>${link('exploration.json', 'Download exploration.json')}</p>` +
+      `<p>${link('exploration.schema.json', 'View exploration.schema.json')}</p>` +
+      `<p>${link('artifacts.json', 'Artifact manifest')}</p><small>Contains observed states, before/after screenshot filmstrip, transitions and locator candidates. Generated code is excluded.</small></div>` +
       `<div class="card"><h2>Your next step</h2><form id="review"><label>Decision<select id="decision">${optionsHtml}</select></label>` +
       `<label>Review notes<textarea id="note">${escape(review.note)}</textarea></label><button>Save review</button><p id="saved" role="status"></p></form></div>` +
-      `<div class="card"><h2>Findings and gaps</h2>${annotationsHtml}${gapsHtml || '<p>No capture gaps reported.</p>'}` +
+      `<div class="card"><h2>Checkpoints, findings and gaps</h2>${annotationsHtml}${gapsHtml || '<p>No capture gaps reported.</p>'}` +
       `<p>Cleanup: ${escape(meta.cleanup?.status || 'unconfirmed')}</p></div></aside></div>`,
-    `document.getElementById('review').addEventListener('submit',async e=>{e.preventDefault();const status=document.getElementById('saved');status.textContent='Saving…';try{const r=await fetch('/review/${id}',{method:'POST',headers:{'Content-Type':'application/json','X-Latch-Review':${JSON.stringify(token)}},body:JSON.stringify({decision:document.getElementById('decision').value,note:document.getElementById('note').value})});if(!r.ok)throw Error('Could not save');status.textContent='Review saved on this machine.'}catch{status.textContent='Could not save review. Try again.'}})`,
+    script,
     nonce,
   );
 }
@@ -166,7 +344,7 @@ export async function startLibraryServer({port = 0} = {}) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader(
       'Content-Security-Policy',
-      `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src 'self'; media-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'`,
+      `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'`,
     );
     try {
       const origin = `http://127.0.0.1:${server.address().port}`;
@@ -223,14 +401,14 @@ export async function startLibraryServer({port = 0} = {}) {
           if (!(await isSameRegularFile(link, stat, file))) throw fault('FORBIDDEN', 'Invalid artifact.');
           const ext = path.extname(file);
           const types = {
-            '.webm': 'video/webm',
             '.png': 'image/png',
             '.yaml': 'text/plain; charset=utf-8',
             '.json': 'application/json',
+            '.jsonl': 'application/x-ndjson; charset=utf-8',
             '.md': 'text/plain; charset=utf-8',
           };
           res.setHeader('Content-Type', types[ext] || 'application/octet-stream');
-          if (!['.webm', '.png'].includes(ext)) {
+          if (ext !== '.png') {
             res.setHeader('Content-Disposition', `attachment; filename="${path.basename(file).replaceAll('"', '')}"`);
           }
           let start = 0;
@@ -306,10 +484,7 @@ export async function exportRun(id, destination) {
       throw fault('EVIDENCE_PATH_UNSAFE', 'Invalid export path.');
     }
     await fs.mkdir(path.dirname(path.join(dest, name)), {recursive: true, mode: 0o700});
-    const data = await regularFile(
-      path.join(dir, name),
-      name.endsWith('.webm') ? 512 * 1024 * 1024 : 32 * 1024 * 1024,
-    );
+    const data = await regularFile(path.join(dir, name), LIMITS.artifactBytes);
     const expected = meta.artifacts.find(a => a.path === name);
     if (expected && digest(data) !== expected.sha256) {
       throw fault('EVIDENCE_CHANGED', 'Artifact changed during export; partial export preserved.');
@@ -321,7 +496,7 @@ export async function exportRun(id, destination) {
   return {exported: true, directory: dest, runId: id, files: names.size + 1};
 }
 
-export async function libraryCommand(action, flags) {
+export async function libraryCommand(action = 'list', flags = {}) {
   if (action === 'list') {
     return {
       root: libraryRoot(),
@@ -332,7 +507,7 @@ export async function libraryCommand(action, flags) {
         workspace: r.workspace,
         status: r.status,
         createdAt: r.createdAt,
-        video: r.video?.status,
+        screenshots: r.artifacts?.filter(a => a.type === 'screenshot').length || 0,
         states: r.states?.length || 0,
         transitions: r.actions?.length || 0,
       })),
@@ -369,7 +544,7 @@ export async function libraryCommand(action, flags) {
         meta.status = 'interrupted';
         let completion;
         try {
-          const lines = (await regularFile(path.join(await runPath(meta.id), 'commands.jsonl'), 8 * 1024 * 1024))
+          const lines = (await regularFile(path.join(await runPath(meta.id), 'commands.jsonl'), LIMITS.ledgerBytes))
             .toString('utf8')
             .split('\n')
             .filter(Boolean)
@@ -377,6 +552,13 @@ export async function libraryCommand(action, flags) {
           completion = lines.find(e => e.event === 'finished' && e.step === meta.pending.step);
         } catch {}
         if (!meta.actions.some(a => a.id === meta.pending.step)) {
+          const beforeState = meta.pending.from ? meta.states.find(s => s.id === meta.pending.from) : null;
+          const pair = {
+            before: beforeState?.screenshot || null,
+            after: null,
+            before_state: meta.pending.from || null,
+            after_state: null,
+          };
           meta.actions.push({
             id: meta.pending.step,
             command_id: meta.pending.step,
@@ -384,6 +566,8 @@ export async function libraryCommand(action, flags) {
             to: null,
             action: meta.pending.action || {type: meta.pending.command},
             outcome: completion?.operation?.outcome === 'succeeded' ? 'succeeded' : 'unknown',
+            screenshots: pair,
+            filmstrip: pair,
             provenance: 'recovered_command_ledger',
             resulting_state: 'unavailable',
           });
@@ -407,7 +591,7 @@ export async function libraryCommand(action, flags) {
           type: 'summary',
           summary: {
             status: meta.status,
-            video: meta.video,
+            recording: meta.recording,
             annotations: meta.annotations,
             gaps: meta.gaps,
             finals: meta.finals,
