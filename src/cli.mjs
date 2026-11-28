@@ -68,7 +68,7 @@ const COMMAND_FLAGS = {
   },
   library: {
     boolean: new Set(['all']),
-    value: new Set(['run', 'decision', 'note', 'destination', 'port']),
+    value: new Set(['run', 'decision', 'note', 'verdicts', 'destination', 'port']),
   },
   pair: {
     boolean: new Set(['replace']),
@@ -126,7 +126,7 @@ Actions:
 
 Exploration:
   latch checkpoint <note> [--annotation-file <path>] [--data-ref <ref>]
-  latch library <list|show|serve|review|export|delete|repair> [--run <id>] [--all] [--decision <d>] [--note <text>] [--destination <path>] [--port <n>]
+  latch library <list|show|serve|review|export|delete|repair> [--run <id>] [--all] [--decision <d>] [--note <text>] [--verdicts <b-id=expected|bug|ignore,...>] [--destination <path>] [--port <n>]
 
 Setup & Agents:
   latch install

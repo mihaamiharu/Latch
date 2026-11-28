@@ -89,9 +89,14 @@ test('handoff has observed locators, frame context, before/after screenshot film
   await writeHandoff(meta);
 
   const dir = await runPath(meta.id);
-  const source = await fs.readFile(path.join(dir, 'exploration.yaml'), 'utf8');
-  assert.match(source, /schema_version: 1/);
-  assert.match(source, /strategy: "role"/);
+  await assert.rejects(fs.stat(path.join(dir, 'exploration.yaml')), {code: 'ENOENT'});
+  const handoff = await fs.readFile(path.join(dir, 'handoff.yaml'), 'utf8');
+  assert.match(handoff, /format: "latch.handoff"/);
+  assert.doesNotMatch(handoff, /await page/);
+  assert.ok(await fs.stat(path.join(dir, 'handoff.schema.json')));
+  const source = await fs.readFile(path.join(dir, 'exploration.json'), 'utf8');
+  assert.match(source, /"schema_version": 1/);
+  assert.match(source, /"strategy": "role"/);
   assert.match(source, /final-page1-frame-1\.yaml/);
   assert.match(source, /screenshots\/state-00001\.png/);
   assert.match(source, /screenshots\/state-00002\.png/);
@@ -126,7 +131,8 @@ test('QA review is separate and handoff export is self-contained and never merge
   assert.equal((await loadMeta(f.meta.id)).annotations.length, 0);
   const out = path.join(f.root, 'handoff');
   await exportRun(f.meta.id, out);
-  assert.ok(await fs.stat(path.join(out, 'exploration.yaml')));
+  assert.ok(await fs.stat(path.join(out, 'handoff.yaml')));
+  assert.ok(await fs.stat(path.join(out, 'exploration.json')));
   assert.ok(await fs.stat(path.join(out, 'screenshots/state-00001.png')));
   assert.equal(JSON.parse(await fs.readFile(path.join(out, 'review.json'))).decision, 'automate');
   await assert.rejects(exportRun(f.meta.id, out), {code: 'EEXIST'});

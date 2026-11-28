@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:latch:handoff:2",
+  "title": "Latch agent handoff for UI + API e2e tests",
+  "type": "object",
+  "required": ["format", "schema_version", "run_id", "steps", "behaviors"],
+  "properties": {
+    "format": {"const": "latch.handoff"},
+    "schema_version": {"const": 2},
+    "run_id": {"type": "string"},
+    "objective": {"type": ["string", "null"]},
+    "environment": {"type": ["string", "null"]},
+    "status": {"type": "string"},
+    "base_url": {"type": ["string", "null"]},
+    "pages": {"type": "array", "items": {"type": "object", "required": ["id"]}},
+    "prerequisites": {"type": "array", "items": {"$ref": "#/$defs/note"}},
+    "test_data": {"type": "array", "items": {"type": "object", "properties": {"ref": {"type": "string"}, "step": {"$ref": "#/$defs/stepId"}}}},
+    "on_load": {"type": "array", "items": {"$ref": "#/$defs/request"}},
+    "steps": {"type": "array", "items": {"$ref": "#/$defs/step"}},
+    "behaviors": {"type": "array", "items": {"$ref": "#/$defs/behavior"}},
+    "questions": {"type": "array", "items": {"$ref": "#/$defs/note"}},
+    "gaps": {"type": "array", "items": {"type": "object"}},
+    "notes": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "stepId": {"type": "string", "pattern": "^s[0-9]+$"},
+    "locator": {
+      "type": "object",
+      "description": "Role and accessible name first; fallbacks come from DOM attributes matched by label.",
+      "properties": {
+        "role": {"type": "string"},
+        "name": {"type": "string"},
+        "text": {"type": "string"},
+        "selector": {"type": "string"},
+        "verified": {"type": "boolean"},
+        "ambiguous": {"type": "boolean"},
+        "flags": {"type": "array", "items": {"type": "string"}},
+        "fallbacks": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "body": {
+      "description": "Shape only: {json: <keys and types>}, {form: <keys>}, or a media type. Values are never recorded.",
+      "oneOf": [{"type": "string"}, {"type": "object"}]
+    },
+    "request": {
+      "type": "object",
+      "required": ["method", "path"],
+      "properties": {
+        "method": {"type": "string"},
+        "path": {"type": "string", "description": "Path with id-like segments replaced by {id}."},
+        "query": {"type": "array", "items": {"type": "string"}},
+        "status": {"type": ["integer", "string", "null"]},
+        "failed": {"type": "string"},
+        "auth": {"type": "string", "description": "Authorization scheme only."},
+        "request": {"$ref": "#/$defs/body"},
+        "response": {"$ref": "#/$defs/body"},
+        "late": {"type": "boolean", "description": "Seen after the step's own capture."}
+      }
+    },
+    "effect": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "appeared": {"$ref": "#/$defs/locator"},
+        "disappeared": {"$ref": "#/$defs/locator"},
+        "changed": {"type": "object"}
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": ["id", "ref", "action"],
+      "properties": {
+        "id": {"$ref": "#/$defs/stepId"},
+        "ref": {"type": "string", "description": "Transition id in exploration.json."},
+        "action": {"type": "string"},
+        "opaque": {"type": "boolean"},
+        "page": {"type": "string"},
+        "target": {"$ref": "#/$defs/locator"},
+        "destination": {"$ref": "#/$defs/locator"},
+        "url": {"type": "string"},
+        "value": {"type": "string", "description": "$<test-data ref> or <redacted>."},
+        "navigated_to": {"type": "string"},
+        "outcome": {"type": "string"},
+        "error": {"type": "string"},
+        "network": {"type": "array", "items": {"$ref": "#/$defs/request"}, "description": "Absent when not captured; [] means no same-site API request."},
+        "other_requests": {"type": "integer"},
+        "effects": {"type": "array", "items": {"$ref": "#/$defs/effect"}},
+        "more_effects": {"type": "integer"},
+        "assert": {"type": "array", "items": {"type": "object"}, "description": "Candidates derived from effects and requests."},
+        "evidence": {"type": "object", "properties": {"before": {"type": "string"}, "after": {"type": "string"}, "snapshot": {"type": "string"}}}
+      }
+    },
+    "behavior": {
+      "type": "object",
+      "required": ["id", "text", "source", "verdict"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^b-[0-9a-f]{8}$"},
+        "text": {"type": "string"},
+        "source": {"enum": ["observed", "agent", "finding"]},
+        "steps": {"type": "array", "items": {"$ref": "#/$defs/stepId"}},
+        "expected": {"type": "string"},
+        "evidence": {"type": "array", "items": {"type": "string"}},
+        "verdict": {"enum": ["unreviewed", "expected", "bug", "ignore"]}
+      }
+    },
+    "note": {
+      "type": "object",
+      "properties": {"text": {"type": "string"}, "step": {"$ref": "#/$defs/stepId"}, "evidence": {"type": "array", "items": {"type": "string"}}}
+    }
+  }
+}

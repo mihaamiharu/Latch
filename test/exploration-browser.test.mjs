@@ -70,7 +70,7 @@ test('managed exploration captures centrally, finalizes YAML/filmstrip, reviews 
   assert.match(html, /Before \/ after filmstrip/);
   const exported = await f.latch(0, ['library', 'export', '--run', run, '--destination', path.join(f.evidence, 'handoff')]);
   assert.equal(exported.exported, true);
-  assert.ok(await fs.stat(path.join(exported.directory, 'exploration.yaml')));
+  assert.ok(await fs.stat(path.join(exported.directory, 'handoff.yaml')));
 });
 
 test('YAML includes owned popups, frame locators, transitions and final states without claiming opaque script coverage', {
