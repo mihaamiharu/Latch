@@ -628,7 +628,7 @@ test('API requests attach to the step that caused them, late ones to the previou
   assert.match(handoff, /path: "\/api\/orders\/\{id\}\/status"/);
   assert.match(handoff, /late: true/);
   assert.match(handoff, /other_requests: 1/);
-  assert.doesNotMatch(handoff, /ads\.example\.com/);
+  assert.ok(!handoff.includes('ads.example.com'), 'third-party hosts stay out of the handoff');
 
   const meta = await loadMeta(start.library.runId);
   const {buildHandoff} = await import('../src/exploration-model.mjs');
