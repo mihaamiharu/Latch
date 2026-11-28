@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # Note: playwright-core and ws versions are also pinned in docs/SUPPORT.md,
+  # THIRD_PARTY_NOTICES.md, src/release.mjs and tests, so bumps need those
+  # updated before CI goes green.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels: [dependencies]
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci(deps)
+    labels: [dependencies, ci]
+    groups:
+      actions:
+        patterns: ['*']

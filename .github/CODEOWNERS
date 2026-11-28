@@ -1,0 +1,12 @@
+# Default owner for everything in the repository.
+* @mihaamiharu
+
+# Security-sensitive areas: extension permissions, native host, installers,
+# CI/release pipeline, and dependencies. Listed explicitly so they keep an
+# owner if the default rule above changes when more maintainers join.
+/extension/        @mihaamiharu
+/src/              @mihaamiharu
+/.github/          @mihaamiharu
+/SECURITY.md       @mihaamiharu
+/package.json      @mihaamiharu
+/package-lock.json @mihaamiharu

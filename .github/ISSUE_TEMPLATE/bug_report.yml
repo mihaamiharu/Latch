@@ -1,0 +1,62 @@
+name: Bug report
+description: Something in Latch is not working as expected.
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Security issues go to the private advisory form, not here.**
+        Redact tokens, cookies, URLs, and personal data from anything you paste.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. latch ...
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Latch version
+      placeholder: output of latch --version
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux]
+    validations:
+      required: true
+  - type: input
+    id: chrome
+    attributes:
+      label: Chrome version
+      placeholder: e.g. 131.0.6778.86
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent / client
+      options: [Claude Code, Codex, Antigravity, Plain CLI, Other]
+  - type: textarea
+    id: doctor
+    attributes:
+      label: latch doctor output
+      description: Redact anything private.
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or other context
+      render: text
