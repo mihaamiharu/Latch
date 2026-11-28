@@ -86,12 +86,12 @@ const INSTALL_MATRIX = {
   },
   kit: {
     win: {
-      note: 'Download latch-1.2.0-kit.zip from GitHub Releases, extract to a permanent folder, then run install.',
-      cmd: 'cd C:\\Tools\\latch-1.2.0\nnode src/cli.mjs install',
+      note: 'Download latch-1.1.4-kit.zip from GitHub Releases, extract to a permanent folder, then run install.',
+      cmd: 'cd C:\\Tools\\latch-1.1.4\nnode src/cli.mjs install',
     },
     unix: {
-      note: 'Download latch-1.2.0-kit.zip from GitHub Releases, extract to a permanent folder, then run install.',
-      cmd: 'cd ~/Tools/latch-1.2.0\nnode src/cli.mjs install',
+      note: 'Download latch-1.1.4-kit.zip from GitHub Releases, extract to a permanent folder, then run install.',
+      cmd: 'cd ~/Tools/latch-1.1.4\nnode src/cli.mjs install',
     },
   },
   git: {
