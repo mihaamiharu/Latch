@@ -454,3 +454,14 @@ test('latch config manages artifactsDir with LATCH_ARTIFACT_ROOT env > config.js
   assert.equal(unsetRes.reset, true);
   assert.equal(unsetRes.source, 'default');
 });
+
+test('doctor output tells the user to reload an extension older than the CLI', () => {
+  const stale = formatResult('doctor', {
+    healthy: true,
+    profileAlias: 'work',
+    checks: {extension: {ok: false, version: '1.1.1', expected: '1.1.3', hint: 'Click Reload on Latch in chrome://extensions (or restart Chrome) to load the updated extension.'}},
+  });
+  assert.match(stale, /^Doctor: healthy \(profile "work"\)\nExtension 1\.1\.1 does not match CLI 1\.1\.3: Click Reload on Latch/);
+  const current = formatResult('doctor', {healthy: true, profileAlias: 'work', checks: {extension: {ok: true, version: '1.1.3', expected: '1.1.3'}}});
+  assert.equal(current, 'Doctor: healthy (profile "work")');
+});

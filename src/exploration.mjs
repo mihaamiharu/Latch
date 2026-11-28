@@ -5,6 +5,7 @@ import {ACTIONS, fault} from '../extension/protocol.js';
 import {cliError, resultValue, sessionKey} from './redact.mjs';
 import {readConfig, request} from './local.mjs';
 import {workspaceBindingPath} from './platform.mjs';
+import {ROOT} from './release.mjs';
 import {
   LIMITS,
   idPattern,
@@ -36,6 +37,8 @@ import {
   finishIntegrity,
 } from './exploration-model.mjs';
 import {libraryCommand} from './exploration-library.mjs';
+
+const PACKAGE_VERSION = JSON.parse(await fs.readFile(path.join(ROOT, 'package.json'), 'utf8')).version;
 
 export {libraryCommand};
 
@@ -321,7 +324,7 @@ async function resolveSession(identity) {
   return identity.session;
 }
 
-export async function runWithExploration(invocation, version = '1.1.2', execute) {
+export async function runWithExploration(invocation, version = PACKAGE_VERSION, execute) {
   const inv = invocation;
   const flags = inv.flags || {};
   const core = cleanInvocation(inv);
@@ -635,7 +638,7 @@ export const runExploration = runWithExploration;
 
 export async function checkpointCommand(
   {profile = 'work', session, workspace = process.cwd(), note, annotationFile, dataRef} = {},
-  version = '1.1.2',
+  version = PACKAGE_VERSION,
   execute,
 ) {
   return runWithExploration(
@@ -657,7 +660,7 @@ export async function checkpointCommand(
 
 export async function finishCommand(
   {profile = 'work', session, workspace = process.cwd(), closeTabs = false} = {},
-  version = '1.1.2',
+  version = PACKAGE_VERSION,
   execute,
 ) {
   return runWithExploration(

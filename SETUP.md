@@ -1,4 +1,4 @@
-# Latch v1.0 Setup Guide
+# Latch Setup Guide
 
 Latch connects coding agents to tabs in your real Google Chrome profile across **Windows**, **macOS**, and **Linux**.
 
@@ -123,8 +123,19 @@ latch library serve
   latch library delete <runId>
   latch library delete --all   # removes all inactive runs; skips active ones
   ```
+- If a run was interrupted mid-command (Chrome or the host exited), `latch library repair --run <runId>` recovers its lock and marks it `interrupted` so it can be reviewed or deleted.
 
-## 6. Uninstall
+## 6. Upgrading
+
+```sh
+npm install -g @mihaamiharu/latch@latest
+latch install
+latch doctor
+```
+
+Chrome does not reload unpacked extensions on its own: after upgrading, open `chrome://extensions` and click **Reload** on Latch (or restart Chrome). Until then Chrome keeps running the old extension version even though the `extension/` folder is updated; `latch doctor` reports the mismatch. Pairing survives the reload, because the extension ID is fixed.
+
+## 7. Uninstall
 
 Disconnect active sessions first, then remove agent links and native registration:
 

@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import http from 'node:http';
 import {fileURLToPath} from 'node:url';
-import {chromePath, chromeVersion, eventually, command, stopBrowser, control, HEADLESS_ARGS} from './native-browser.mjs';
+import {chromePath, chromeVersion, eventually, command, stopBrowser, control, HEADLESS_ARGS, HEADED} from './native-browser.mjs';
 import {redact, sessionKey} from '../../src/redact.mjs';
 import {installedControl} from './installed-control.mjs';
 import {
@@ -417,7 +417,7 @@ export async function attachmentFixture(t, app, transport = 'native') {
     env,
     transport,
     versions,
-    headless: true,
+    headless: !HEADED,
     get browserPID() {
       return browser.pid;
     },

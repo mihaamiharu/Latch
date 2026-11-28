@@ -1,6 +1,6 @@
 # Exploration Library
 
-Latch v1.0 unifies opt-in browser recording into the local Exploration Library, capturing before/after PNG screenshot filmstrips, ARIA snapshots, and DOM locator observations alongside a loopback-only review UI.
+Latch unifies opt-in browser recording into the local Exploration Library, capturing before/after PNG screenshot filmstrips, ARIA snapshots, and DOM locator observations alongside a loopback-only review UI.
 
 ## Capture an exploration
 

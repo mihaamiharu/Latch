@@ -304,6 +304,22 @@ export async function doctorCommand(options = {}) {
       : null
     : null;
 
+  // Chrome never reloads an unpacked extension by itself, so after an upgrade
+  // the running extension can lag behind the CLI. It still works; say so.
+  const expectedVersion =
+    options.releaseVersion || JSON.parse(await fs.readFile(path.join(ROOT, 'package.json'), 'utf8')).version;
+  const extensionVersion = health.connection?.extensionVersion;
+  const extensionCheck = extensionVersion
+    ? {
+        ok: extensionVersion === expectedVersion,
+        version: extensionVersion,
+        expected: expectedVersion,
+        ...(extensionVersion === expectedVersion
+          ? {}
+          : {hint: 'Click Reload on Latch in chrome://extensions (or restart Chrome) to load the updated extension.'}),
+      }
+    : {ok: null, expected: expectedVersion};
+
   const baseResult = {
     ...health,
     transport: 'native',
@@ -314,6 +330,7 @@ export async function doctorCommand(options = {}) {
       platform: platformCheck,
       node: nodeCheck,
       nativeHost: nativeHostCheck,
+      extension: extensionCheck,
       bridge: {
         ok: bridgeCheckOk,
         paired: health.configuration?.paired ?? false,

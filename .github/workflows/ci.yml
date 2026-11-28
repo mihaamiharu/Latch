@@ -23,10 +23,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -44,64 +44,5 @@ jobs:
         run: npm pack --dry-run
 
   browser-windows:
-    # Real-browser suites, headless, on the full Chrome for Testing binary pinned
-    # in test/browser-versions.json (never the headless shell). Each suite uses a
-    # disposable profile and a test-only native host (HKCU ...\com.latch.test_*).
-    # Headless results do not establish headed focus or tab-group collapse behavior.
-    name: Browser suites (windows-latest, headless Chrome for Testing)
-    runs-on: windows-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Read pinned Chrome for Testing version
-        id: cft
-        shell: pwsh
-        run: |
-          $pin = (Get-Content test/browser-versions.json -Raw | ConvertFrom-Json).current
-          "version=$($pin.version)" >> $env:GITHUB_OUTPUT
-          "dir=$env:LOCALAPPDATA\ms-playwright\chromium-$($pin.cacheRevision)" >> $env:GITHUB_OUTPUT
-
-      - name: Cache Chrome for Testing
-        id: cft-cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.cft.outputs.dir }}
-          key: cft-win64-${{ steps.cft.outputs.version }}
-
-      - name: Download Chrome for Testing
-        if: steps.cft-cache.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          $dir = '${{ steps.cft.outputs.dir }}'
-          New-Item -ItemType Directory -Force $dir | Out-Null
-          $zip = Join-Path $env:RUNNER_TEMP 'chrome-win64.zip'
-          Invoke-WebRequest "https://storage.googleapis.com/chrome-for-testing-public/${{ steps.cft.outputs.version }}/win64/chrome-win64.zip" -OutFile $zip
-          Expand-Archive $zip -DestinationPath $dir -Force
-
-      - name: Build release kit (popup suite loads dist/latch-<version>/extension)
-        run: npm run build
-
-      - name: Run browser suites headless
-        run: npm run test:browser
-
-      - name: Upload browser evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: browser-evidence-windows
-          path: |
-            work/attachment-compat/*/evidence/
-            work/native-workflow/*/evidence/
-            work/identity-browser/
-          if-no-files-found: warn
+    name: Browser suites
+    uses: ./.github/workflows/browser-suites.yml

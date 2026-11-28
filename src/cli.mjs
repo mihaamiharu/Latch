@@ -126,7 +126,7 @@ Actions:
 
 Exploration:
   latch checkpoint <note> [--annotation-file <path>] [--data-ref <ref>]
-  latch library <list|show|serve|review|export|delete> [--run <id>] [--all] [--decision <d>] [--note <text>] [--destination <path>] [--port <n>]
+  latch library <list|show|serve|review|export|delete|repair> [--run <id>] [--all] [--decision <d>] [--note <text>] [--destination <path>] [--port <n>]
 
 Setup & Agents:
   latch install
@@ -1252,7 +1252,12 @@ export function formatResult(command, result, {json = false, action = null} = {}
     return `Paired profile "${result.profile}" -> ${result.instanceId || result.after} (${result.chromeProfileDir || 'Default'})`;
   }
   if (command === 'doctor') {
-    return `Doctor: ${result.healthy ? 'healthy' : 'unhealthy'} (profile "${result.profileAlias || 'work'}")${result.fixed ? ' [fixed]' : ''}`;
+    const ext = result.checks?.extension;
+    const stale =
+      ext?.ok === false
+        ? `\nExtension ${ext.version} does not match CLI ${ext.expected}: ${ext.hint}`
+        : '';
+    return `Doctor: ${result.healthy ? 'healthy' : 'unhealthy'} (profile "${result.profileAlias || 'work'}")${result.fixed ? ' [fixed]' : ''}${stale}`;
   }
   if (command === 'diagnose') {
     return `Diagnose: ${result.healthy ? 'healthy' : 'unhealthy'} (profile "${result.profileAlias}", host ${result.layers?.host || 'unknown'})`;

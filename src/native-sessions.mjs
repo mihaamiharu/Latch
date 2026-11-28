@@ -9,6 +9,10 @@ const SESSION_KEY_PATTERN = /^[a-f0-9]{64}$/;
 const SESSION_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,60}$/;
 const DEFAULT_ACTION_TIMEOUT_MS = 40000;
 const DEFAULT_CAPTURE_TIMEOUT_MS = 25000;
+// How long a new action/capture waits for engine work that outlived its own
+// deadline (it keeps running in Chrome) before reporting SESSION_BUSY.
+const DEFAULT_LINGER_WAIT_MS = 15000;
+const ENGINE_OPS = new Set(['session-action', 'session-capture-state']);
 
 function withDeadline(promise, ms, code, message) {
   let timer;
@@ -32,6 +36,7 @@ export class NativeSessions {
       engineFactory = defaultEngineFactory,
       actionTimeoutMs = DEFAULT_ACTION_TIMEOUT_MS,
       captureTimeoutMs = DEFAULT_CAPTURE_TIMEOUT_MS,
+      lingerWaitMs = DEFAULT_LINGER_WAIT_MS,
     } = {},
   ) {
     this.identity = identity;
@@ -40,8 +45,10 @@ export class NativeSessions {
     this.engineFactory = engineFactory;
     this.actionTimeoutMs = actionTimeoutMs;
     this.captureTimeoutMs = captureTimeoutMs;
+    this.lingerWaitMs = lingerWaitMs;
     this.sessions = new Map();
     this.busy = new Set();
+    this.lingering = new Map();
   }
 
   resolveSessionKey(p) {
@@ -85,7 +92,41 @@ export class NativeSessions {
       return Promise.reject(fault('SESSION_BUSY', 'Session operation is already in progress.'));
     }
     this.busy.add(key);
-    return this.operate(op, payload).finally(() => this.busy.delete(key));
+    return this.afterLingering(key, op)
+      .then(() => this.operate(op, payload))
+      .finally(() => this.busy.delete(key));
+  }
+
+  // A timed-out action or capture is reported to the caller but cannot be
+  // cancelled inside Chrome. Start the next engine operation only once it has
+  // settled, so captures never overlap each other or a following click.
+  async afterLingering(key, op) {
+    const pending = this.lingering.get(key);
+    if (!pending || !ENGINE_OPS.has(op)) return;
+    await withDeadline(
+      pending,
+      this.lingerWaitMs,
+      'SESSION_BUSY',
+      'A previous action or capture is still finishing in Chrome. Retry shortly.',
+    );
+  }
+
+  async runEngine(key, work, ms, code, message) {
+    try {
+      return await withDeadline(work, ms, code, message);
+    } catch (error) {
+      if (error?.code === code) {
+        const settled = Promise.resolve(work).then(
+          () => {},
+          () => {},
+        );
+        this.lingering.set(key, settled);
+        settled.then(() => {
+          if (this.lingering.get(key) === settled) this.lingering.delete(key);
+        });
+      }
+      throw error;
+    }
   }
 
   async operate(op, p) {
@@ -188,7 +229,8 @@ export class NativeSessions {
       if (!entry.engine) {
         throw fault('SESSION_STALE', 'In-process browser engine is unavailable for this session.');
       }
-      return await withDeadline(
+      return await this.runEngine(
+        key,
         entry.engine.action(p.action, p.args || {}),
         this.actionTimeoutMs,
         'ACTION_TIMEOUT',
@@ -207,7 +249,8 @@ export class NativeSessions {
       if (!entry.engine) {
         throw fault('SESSION_STALE', 'In-process browser engine is unavailable for this session.');
       }
-      return await withDeadline(
+      return await this.runEngine(
+        key,
         entry.engine.captureState({includeScreenshot: p.includeScreenshot !== false}),
         this.captureTimeoutMs,
         'CAPTURE_TIMEOUT',

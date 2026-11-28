@@ -20,6 +20,46 @@ function withTimeout(promise, ms, onTimeout) {
   return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
 }
 
+// Chrome sometimes leaves Page.captureScreenshot waiting for a compositor frame
+// that never comes until another capture is requested (seen in headless Chrome
+// for Testing on Windows, where a post-click capture hung for 27s). While the
+// Playwright screenshot is pending, issue raw capture "nudges" at these delays;
+// each one forces a frame. Playwright's image (animations frozen, fonts ready)
+// wins; a nudge image is used only if Playwright's capture fails or times out.
+export const SCREENSHOT_NUDGE_DELAYS_MS = [1000, 2000, 4000];
+
+export async function screenshotWithNudges(page, {timeout = 10000, nudgeDelays = SCREENSHOT_NUDGE_DELAYS_MS} = {}) {
+  let settled = false;
+  const primary = page.screenshot({type: 'png', timeout, animations: 'disabled'});
+  primary.then(
+    () => (settled = true),
+    () => (settled = true),
+  );
+  const sessions = [];
+  const nudges = [];
+  const nudge = async () => {
+    const session = await page.context().newCDPSession(page);
+    sessions.push(session);
+    const {data} = await session.send('Page.captureScreenshot', {format: 'png'});
+    return Buffer.from(data, 'base64');
+  };
+  try {
+    for (const delay of nudgeDelays) {
+      await Promise.race([primary.catch(() => {}), new Promise(resolve => setTimeout(resolve, delay))]);
+      if (settled) break;
+      const pending = nudge();
+      pending.catch(() => {});
+      nudges.push(pending);
+    }
+    const shot = await withTimeout(primary.catch(() => null), timeout + 1000, () => null);
+    if (shot) return shot;
+    if (!nudges.length) return null;
+    return await withTimeout(Promise.any(nudges).catch(() => null), 2000, () => null);
+  } finally {
+    for (const session of sessions) session.detach().catch(() => {});
+  }
+}
+
 const DOM_OBSERVATION_FN = els => ({
   total: els.length,
   nodes: els.slice(0, 2000).map(el => ({
@@ -707,11 +747,7 @@ export class BrowserEngine {
         let screenshot = null;
         if (includeScreenshot) {
           try {
-            const buf = await withTimeout(
-              p.screenshot({type: 'png', timeout: 10000, animations: 'disabled'}),
-              11000,
-              () => null,
-            );
+            const buf = await screenshotWithNudges(p);
             if (buf) {
               screenshot = buf.toString('base64');
               if (p === active) activeScreenshot = screenshot;

@@ -9,7 +9,7 @@ import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright-core';
 import {WebSocket} from 'ws';
-import {BrowserEngine, parseSnapshotRefs} from '../src/browser-engine.mjs';
+import {BrowserEngine, parseSnapshotRefs, screenshotWithNudges} from '../src/browser-engine.mjs';
 import {createRelay} from '../src/native-relay.mjs';
 import {encode, decoder} from '../src/framing.mjs';
 import {request, socketPath} from '../src/local.mjs';
@@ -642,3 +642,64 @@ test(
     assert.ok(afterTargets.some(tgt => tgt.id === pageTarget.id), 'Disconnect must preserve user tab');
   },
 );
+
+function fakeScreenshotPage({primary, raw}) {
+  const calls = {raw: 0, detached: 0};
+  return {
+    calls,
+    screenshot: () => primary(calls),
+    context: () => ({
+      newCDPSession: async () => ({
+        send: async () => {
+          calls.raw += 1;
+          return raw(calls);
+        },
+        detach: async () => {
+          calls.detached += 1;
+        },
+      }),
+    }),
+  };
+}
+
+test('screenshotWithNudges returns a fast capture without nudging', async () => {
+  const page = fakeScreenshotPage({primary: async () => Buffer.from('pw'), raw: () => ({data: ''})});
+  const shot = await screenshotWithNudges(page, {nudgeDelays: [20, 20]});
+  assert.equal(shot.toString(), 'pw');
+  assert.equal(page.calls.raw, 0);
+});
+
+test('screenshotWithNudges nudges a stalled capture and keeps the Playwright image', async () => {
+  let release;
+  const stalled = new Promise(resolve => (release = resolve));
+  const page = fakeScreenshotPage({
+    primary: () => stalled,
+    raw: () => {
+      release(Buffer.from('pw'));
+      return {data: Buffer.from('raw').toString('base64')};
+    },
+  });
+  const shot = await screenshotWithNudges(page, {nudgeDelays: [20, 20, 20]});
+  assert.equal(shot.toString(), 'pw', 'Playwright image wins once the nudge unblocks it');
+  assert.equal(page.calls.raw, 1, 'Stops nudging once the primary capture settles');
+  assert.equal(page.calls.detached, 1, 'Nudge sessions are detached');
+});
+
+test('screenshotWithNudges falls back to a nudge image when Playwright fails', async () => {
+  const page = fakeScreenshotPage({
+    primary: () => new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout 100ms exceeded')), 100)),
+    raw: () => ({data: Buffer.from('raw').toString('base64')}),
+  });
+  const shot = await screenshotWithNudges(page, {timeout: 100, nudgeDelays: [20]});
+  assert.equal(shot.toString(), 'raw');
+});
+
+test('screenshotWithNudges returns null when nothing can be captured', async () => {
+  const page = fakeScreenshotPage({
+    primary: () => Promise.reject(new Error('closed')),
+    raw: () => {
+      throw new Error('closed');
+    },
+  });
+  assert.equal(await screenshotWithNudges(page, {nudgeDelays: [20]}), null);
+});

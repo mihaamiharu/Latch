@@ -350,3 +350,109 @@ test('hung captureState hits captureTimeoutMs, releases busy lock, and allows im
   const disc = await manager.handle('session-disconnect', {...id, sessionKey: opened.sessionKey, workspace: dir, session: 'hung-qa'});
   assert.equal(disc.disconnected, true);
 });
+
+test('a timed-out capture keeps later captures and actions from overlapping it', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-linger-'));
+  const oldCfg = process.env.LATCH_CONFIG;
+  process.env.LATCH_CONFIG = path.join(dir, 'config.json');
+  t.after(async () => {
+    oldCfg === undefined ? delete process.env.LATCH_CONFIG : (process.env.LATCH_CONFIG = oldCfg);
+    await fs.rm(dir, {recursive: true, force: true});
+  });
+
+  const id = identity();
+  const relayFactory = async (_ext, {expectedTabId}) => ({
+    extensionEndpoint: 'ws://127.0.0.1:1/extension/' + 'c'.repeat(64),
+    cdpEndpoint: 'ws://127.0.0.1:1/cdp/' + 'd'.repeat(64),
+    ready: Promise.resolve(),
+    stop: async () => {},
+    targets: () => [{tabId: expectedTabId, targetId: `target-${expectedTabId}`}],
+    status: () => ({stopped: false, targetId: `target-${expectedTabId}`}),
+  });
+  let active = 0;
+  let maxActive = 0;
+  const durations = [200, 10, 10];
+  const events = [];
+  const busy = async (label, ms) => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+    events.push(`${label}:start`);
+    await new Promise(resolve => setTimeout(resolve, ms));
+    active -= 1;
+    events.push(`${label}:end`);
+    return label;
+  };
+  const engineFactory = async opts => ({
+    activePage: {},
+    pageSummary: async () => ({targetId: opts.targetId, url: 'https://calendar.example/', title: 'Calendar'}),
+    action: async () => busy('action', 10),
+    captureState: async () => ({pages: [], label: await busy('capture', durations.shift() ?? 10)}),
+    selectTarget: async () => ({}),
+    close: async () => {},
+  });
+  const manager = new NativeSessions(
+    id,
+    async op => {
+      if (op === 'native-create-tab') return {tabId: 302};
+      if (op === 'native-inventory') return {rootTabId: 302, targets: [{tabId: 302}], warnings: []};
+      return {};
+    },
+    {relayFactory, engineFactory, captureTimeoutMs: 60, lingerWaitMs: 1000},
+  );
+  const opened = await manager.handle('session-open', {...id, workspace: dir, session: 'linger-qa', url: 'https://calendar.example/'});
+  const key = opened.sessionKey;
+
+  await assert.rejects(manager.handle('session-capture-state', {...id, sessionKey: key}), {code: 'CAPTURE_TIMEOUT'});
+  // The slow capture is still running; the next capture and action must wait for it.
+  const next = await manager.handle('session-capture-state', {...id, sessionKey: key});
+  assert.equal(next.label, 'capture');
+  await manager.handle('session-action', {...id, sessionKey: key, action: 'click', args: {target: 'e1'}});
+  assert.equal(maxActive, 1, `engine work overlapped: ${events.join(', ')}`);
+  assert.equal(manager.lingering.has(key), false);
+});
+
+test('engine work that never settles turns later engine ops into SESSION_BUSY but not disconnect', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'latch-linger-hung-'));
+  const oldCfg = process.env.LATCH_CONFIG;
+  process.env.LATCH_CONFIG = path.join(dir, 'config.json');
+  t.after(async () => {
+    oldCfg === undefined ? delete process.env.LATCH_CONFIG : (process.env.LATCH_CONFIG = oldCfg);
+    await fs.rm(dir, {recursive: true, force: true});
+  });
+  const id = identity();
+  const relayFactory = async (_ext, {expectedTabId}) => ({
+    extensionEndpoint: 'ws://127.0.0.1:1/extension/' + 'c'.repeat(64),
+    cdpEndpoint: 'ws://127.0.0.1:1/cdp/' + 'd'.repeat(64),
+    ready: Promise.resolve(),
+    stop: async () => {},
+    targets: () => [{tabId: expectedTabId, targetId: `target-${expectedTabId}`}],
+    status: () => ({stopped: false, targetId: `target-${expectedTabId}`}),
+  });
+  const engineFactory = async opts => ({
+    activePage: {},
+    pageSummary: async () => ({targetId: opts.targetId, url: 'https://calendar.example/', title: 'Calendar'}),
+    action: async () => ({ok: true}),
+    captureState: () => new Promise(() => {}),
+    selectTarget: async () => ({}),
+    close: async () => {},
+  });
+  const manager = new NativeSessions(
+    id,
+    async op => {
+      if (op === 'native-create-tab') return {tabId: 303};
+      if (op === 'native-inventory') return {rootTabId: 303, targets: [{tabId: 303}], warnings: []};
+      return {};
+    },
+    {relayFactory, engineFactory, captureTimeoutMs: 40, lingerWaitMs: 60},
+  );
+  const opened = await manager.handle('session-open', {...id, workspace: dir, session: 'linger-hung', url: 'https://calendar.example/'});
+  const key = opened.sessionKey;
+  await assert.rejects(manager.handle('session-capture-state', {...id, sessionKey: key}), {code: 'CAPTURE_TIMEOUT'});
+  await assert.rejects(manager.handle('session-action', {...id, sessionKey: key, action: 'click', args: {target: 'e1'}}), {
+    code: 'SESSION_BUSY',
+    message: /still finishing/,
+  });
+  assert.equal(manager.busy.has(key), false, 'busy lock is released after the wait');
+  const disc = await manager.handle('session-disconnect', {...id, sessionKey: key, workspace: dir, session: 'linger-hung'});
+  assert.equal(disc.disconnected, true);
+});

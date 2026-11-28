@@ -13,6 +13,8 @@ const exec = promisify(execFile);
 export const TEST_HOST_PREFIX = 'com.latch.test_';
 const HOSTS_KEY = 'HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts';
 const REAL_KEY = `${HOSTS_KEY}\\${HOST_NAME}`;
+export const HEADED_NOTE =
+  'Headed Chrome for Testing run (explicit LATCH_BROWSER_HEADED=1 opt-in) in a disposable profile with a test-only native host; it does not exercise the installed Work browser.';
 export const HEADLESS_NOTE =
   'Headless Chrome for Testing run. Headless results do not establish headed focus behavior or tab-group collapse behavior.';
 
@@ -159,10 +161,12 @@ export const fixtureEndpoint = (instanceId, runtime) => ipcEndpoint(instanceId, 
 export const fixtureRuntime = prefix =>
   path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), `${prefix}-${crypto.randomBytes(5).toString('hex')}`);
 
-/** Evidence record required by AGENTS.md for every headless run. */
+/** Evidence record required by AGENTS.md for every run (headless or opted-in headed). */
 export function browserEvidence({chrome, version, launchArgs, hostName, registryKey}) {
+  const headed = !launchArgs.some(a => a.startsWith('--headless'));
   return {
-    headless: true,
+    headless: !headed,
+    mode: headed ? 'headed (explicit LATCH_BROWSER_HEADED=1 opt-in)' : 'headless',
     headlessMode: launchArgs.find(a => a.startsWith('--headless')) || null,
     platform: `${process.platform}-${process.arch}`,
     node: process.version,
@@ -170,6 +174,6 @@ export function browserEvidence({chrome, version, launchArgs, hostName, registry
     testOnlyLaunchFlags: launchArgs,
     nativeHost: {name: hostName, registryKey: registryKey || null, realHostTouched: false},
     profile: 'disposable',
-    note: HEADLESS_NOTE,
+    note: headed ? HEADED_NOTE : HEADLESS_NOTE,
   };
 }

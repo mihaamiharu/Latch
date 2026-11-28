@@ -3,7 +3,14 @@ import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
 import {spawn} from 'node:child_process';
-export const HEADLESS_ARGS=['--headless=new','--disable-background-timer-throttling','--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding'];
+// Headless by default (AGENTS.md). LATCH_BROWSER_HEADED=1 is an explicit, manual
+// opt-in for checking headed behavior; it is never an automatic fallback. Headed
+// runs also drop the anti-throttling flags so background tabs behave as in a
+// user's Chrome. Profiles and native hosts stay disposable either way.
+export const HEADED = process.env.LATCH_BROWSER_HEADED === '1';
+export const HEADLESS_ARGS = HEADED
+  ? []
+  : ['--headless=new','--disable-background-timer-throttling','--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding'];
 async function chromePath() {
   const pins = JSON.parse(await fs.readFile(new URL('../browser-versions.json', import.meta.url), 'utf8'));
   const lane = process.env.LATCH_BROWSER_LANE || 'current', pin = pins[lane];

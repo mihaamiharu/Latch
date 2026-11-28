@@ -175,13 +175,18 @@ test('normal Latch CLI: concurrent native workspaces, exact same-URL tabs, isola
   for(const state of telemetry.values()){assert.equal(state.signedIn,true);assert.equal(state.stored,'pre-existing');}
   const active=await wrapper(projectA,['sessions']);
   assert.equal(active.sessions.length,0);
+  // Chrome writes Preferences lazily and stopBrowser force-kills it (taskkill /F
+  // on Windows), so wait for the extension entry to reach disk before stopping.
+  const extensionSettings=async()=>{
+    const settings={};
+    for(const name of ['Preferences','Secure Preferences']) {
+      const d=JSON.parse(await fs.readFile(path.join(temp,'profile/Default',name),'utf8').catch(()=>'{}'));
+      Object.assign(settings,d.extensions?.settings||{});
+    }
+    return settings[extensionId];
+  };
+  assert.ok(await eventually(extensionSettings,30000),'Extension is recorded in the disposable profile');
   await stopBrowser(browser);
-  const settings={};
-  for(const name of ['Preferences','Secure Preferences']) {
-    const d=JSON.parse(await fs.readFile(path.join(temp,'profile/Default',name)).catch(()=>'{}'));
-    Object.assign(settings,d.extensions?.settings||{});
-  }
-  assert.ok(settings[extensionId]);
   const report={...evidenceRecord,outcome:'passed',remoteDebuggingFlags:false,
     sameURL:observedA.url,selectedMarkers:[observedA.marker,observedB.marker],
     targetIds:[connectedA.page.targetId,connectedB.page.targetId],isolation,

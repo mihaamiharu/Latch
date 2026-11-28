@@ -4,7 +4,7 @@
 
 An Apache-2.0 QA browser workbench built for engineers running multiple coding agents from the terminal (**Claude Code**, **Codex**, **Antigravity**, **Cursor**) where there is no built-in IDE browser. Powered by `playwright-core`, Latch drives one authenticated Chrome tab at a time—with zero repo dotfiles, background focus emulation, and a local Exploration Library of before/after PNG filmstrips, observed locators, and triage notes before anything becomes a Playwright test.
 
-**Docs & Showcase:** https://mihaamiharu.github.io/Latch/ · **npm:** `@mihaamiharu/latch` · **Releases:** [v1.1.2](https://github.com/mihaamiharu/Latch/releases/tag/v1.1.2)
+**Docs & Showcase:** https://mihaamiharu.github.io/Latch/ · **npm:** `@mihaamiharu/latch` · **Releases:** [v1.1.3](https://github.com/mihaamiharu/Latch/releases/tag/v1.1.3)
 
 ![Latch Exploration Library showing a before/after PNG filmstrip, observed locators, and local QA triage](site/assets/library-filmstrip.png)
 
@@ -47,13 +47,17 @@ An Apache-2.0 QA browser workbench built for engineers running multiple coding a
 
 ### Option B: Install from a GitHub Release kit or source checkout
 
-1. Download `latch-1.1.2-kit.zip` from Releases and extract it to a permanent folder (or clone the repo and run `npm ci`).
+1. Download `latch-1.1.3-kit.zip` from Releases and extract it to a permanent folder (or clone the repo and run `npm ci`).
 2. Run setup and optionally link `latch` globally:
    ```sh
    node src/cli.mjs install
    npm link   # optional from repo root to expose `latch` globally
    ```
 3. Load `extension/` unpacked in Chrome (`chrome://extensions`, Developer mode, fixed ID `dlkpkeiejlgggeoibejpoajedoelfcli`), then run `latch pair`, `latch doctor`, and `latch agents install`.
+
+### Upgrading
+
+Run `npm install -g @mihaamiharu/latch@latest` (or extract the new kit), then `latch install`. Chrome does not reload unpacked extensions automatically: click **Reload** on Latch in `chrome://extensions` (or restart Chrome) so the extension version matches the CLI. Pairing is kept.
 
 See [SETUP.md](SETUP.md) for full Windows, macOS, and Linux installation details.
 
@@ -74,7 +78,7 @@ latch disconnect
 ```
 
 - **Lifecycle:** `latch tabs`, `latch open <url> [--record] [--objective <text>] [--environment <text>] [--focus-emulation on|off]` (automatically creates a per-session `Latch · <session>` Chrome tab group for the agent and its popups), `latch connect [tabId] [...]`, `latch sessions`, `latch release [tabId]`, `latch disconnect [--close-tabs]`, `latch finish [--close-tabs]` (`--close-tabs` closes only tabs Latch opened via `latch open` and their tracked popups; connected user tabs are never closed)
-- **Actions:** `latch snapshot`, `latch click <ref|selector>`, `latch fill <ref|selector> <value>`, `latch type [ref|selector] <text>`, `latch press <key>`, `latch hover <ref|selector>`, `latch select <ref|selector> <value>`, `latch check <ref|selector>`, `latch uncheck <ref|selector>`, `latch upload <ref|selector> <path...>`, `latch screenshot [--out <path>]`, `latch goto <url>`, `latch back`, `latch forward`, `latch reload`, `latch eval <expr>`, `latch run-code <fn>`, `latch console`, `latch network`, `latch dialog <accept|dismiss> [promptText]`
+- **Actions:** `latch snapshot`, `latch click <ref|selector>`, `latch dblclick <ref|selector>`, `latch fill <ref|selector> <value>`, `latch type [ref|selector] <text>`, `latch press <key>`, `latch hover <ref|selector>`, `latch select <ref|selector> <value>`, `latch check <ref|selector>`, `latch uncheck <ref|selector>`, `latch upload <ref|selector> <path...>`, `latch screenshot [--out <path>]`, `latch goto <url>`, `latch back`, `latch forward`, `latch reload`, `latch eval <expr>`, `latch run-code <fn>`, `latch console`, `latch network`, `latch dialog <accept|dismiss> [promptText]`
 
 ### Recorded explorations
 
@@ -90,7 +94,7 @@ latch library serve
 ```
 
 - `latch checkpoint <note> [--annotation-file <path>]`
-- `latch library <list|show|serve|review|export|delete> [--run <id>] [--all]` (or use the inline **Delete** buttons in the local Exploration Library UI; active runs are protected until finished or disconnected)
+- `latch library <list|show|serve|review|export|delete|repair> [--run <id>] [--all]` (`repair --run <id>` recovers a run interrupted mid-command and marks it `interrupted`) (or use the inline **Delete** buttons in the local Exploration Library UI; active runs are protected until finished or disconnected)
 - `latch config <get|set|unset> artifacts-dir [path]` to inspect or customize the Exploration Library storage folder
 
 ## Extension popup controls
@@ -135,7 +139,7 @@ npm run build
 npm test
 ```
 
-`npm run build` produces `dist/latch/`, `dist/latch-1.1.2/`, and deterministic release archives in `dist/`. Browser integration tests run headless with disposable profiles per [AGENTS.md](AGENTS.md).
+`npm run build` produces `dist/latch/`, `dist/latch-1.1.3/`, and deterministic release archives in `dist/`. Browser integration tests run headless with disposable profiles per [AGENTS.md](AGENTS.md).
 
 Real-browser suites are opt-in and run on macOS and Windows with the full Chrome for Testing binary pinned in `test/browser-versions.json` (never the headless shell). Each suite registers a throwaway `com.latch.test_*` native host (on Windows under `HKCU\Software\Google\Chrome\NativeMessagingHosts`), removes it afterwards, and fails if the real `com.latch.bridge` registration or `config.json` changed. Every run writes `browser-evidence.json` with the headless mode and launch flags; headless results do not establish headed focus or tab-group collapse behavior.
 
@@ -143,6 +147,8 @@ Real-browser suites are opt-in and run on macOS and Windows with the full Chrome
 npm run build          # popup-ui loads dist/latch-<version>/extension
 npm run test:browser   # all suites, or e.g. npm run test:open-tab
 ```
+
+To check headed behavior on purpose, set `LATCH_BROWSER_HEADED=1` (for example `node scripts/test-env.mjs LATCH_BROWSER_HEADED=1 LATCH_EXPLORATION=1 -- --test test/exploration-browser.test.mjs`). This opens visible Chrome for Testing windows with the same disposable profile and test-only host; it is never used as an automatic fallback.
 
 ## More documentation
 

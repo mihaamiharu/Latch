@@ -5,12 +5,12 @@ description: Connect to the user's signed-in Chrome tabs and record step-by-step
 
 # Latch
 
-Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and bundled `playwright-core` (no external `playwright-cli` or `ffmpeg`).
+Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and bundled `playwright-core`.
 
 ## Smart defaults
 
 - `--profile` defaults to the sole/default paired profile (`work`); `--workspace` defaults to `cwd`.
-- `-s` / `--session` auto-generates on `open`/`connect` and binds to `<appDataDir>/sessions/` (no repo dotfiles); later commands reuse it.
+- `-s` / `--session` auto-generates on `open`/`connect` and binds to `<appDataDir>/sessions/`; later commands reuse it.
 - `--json` gives structured `{ ok, ... }` output.
 
 ## Workflow
@@ -20,7 +20,7 @@ Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and b
    latch doctor
    latch tabs
    ```
-   `latch doctor --fix` repairs host registration; `latch pair` pairs.
+   `latch doctor --fix` repairs registration; `latch pair` pairs.
 
 2. **Attach or open a tab**
    ```sh
@@ -37,7 +37,7 @@ Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and b
    latch press Enter
    latch screenshot --out result.png
    ```
-   Actions: `snapshot`, `click <ref|sel>`, `fill <ref|sel> <val>`, `type [ref|sel] <text>`, `press <key>`, `hover <ref|sel>`, `select <ref|sel> <val>`, `check`/`uncheck <ref|sel>`, `upload <ref|sel> <path...>`, `screenshot [--out <path>]`, `goto <url>`, `back`, `forward`, `reload`, `eval <expr>`, `run-code <fn>`, `console`, `network`, `dialog <accept|dismiss> [text]`.
+   Actions: `snapshot`, `click`/`dblclick <ref|sel>`, `fill <ref|sel> <val>`, `type [ref|sel] <text>`, `press <key>`, `hover <ref|sel>`, `select <ref|sel> <val>`, `check`/`uncheck <ref|sel>`, `upload <ref|sel> <path...>`, `screenshot [--out <path>]`, `goto <url>`, `back`, `forward`, `reload`, `eval <expr>`, `run-code <fn>`, `console`, `network`, `dialog <accept|dismiss> [text]`.
 
 4. **Record, finish & review**
    ```sh
@@ -45,7 +45,7 @@ Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and b
    latch finish
    latch library serve
    ```
-   Use `latch checkpoint <note> [--annotation-file <path>]`, `latch finish [--close-tabs]` (capture final states, disconnect), and `latch library <list|show|serve|review|export|delete> [--run <id>]` (or popup **Open Library**) for filmstrip review. Storage: `latch config set artifacts-dir <path>`.
+   `latch checkpoint <note> [--annotation-file <path>]`, `latch finish [--close-tabs]` (final capture, disconnect), and `latch library <list|show|serve|review|export|delete|repair> [--run <id>]` (or popup **Open Library**) for filmstrip review. Storage: `latch config set artifacts-dir <path>`.
 
 5. **Clean up**
    `latch release [tabId]` detaches one tab; `latch disconnect` ends the session, keeping tabs and logins. On finish/disconnect, `--close-tabs` closes only `latch open` tabs and popups, never `connect`ed ones; groups collapse by default.
@@ -59,6 +59,7 @@ Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and b
 
 ## Troubleshooting
 
-- `PROFILE_UNPAIRED` / `PROFILE_UNAVAILABLE`: open Chrome with Latch enabled and run `latch doctor` or `latch pair`.
+- `PROFILE_UNPAIRED` / `PROFILE_UNAVAILABLE`: open Chrome with Latch enabled; run `latch doctor` or `latch pair`.
 - Stale ref: run `latch snapshot` to refresh refs.
+- Interrupted/locked run: `latch library repair --run <id>`.
 - `TAB_OWNED` / `SESSION_COLLISION`: pick another tab or pass `-s <new-session>`.

@@ -11,7 +11,7 @@ test('managed exploration captures centrally, finalizes YAML/filmstrip, reviews 
   // `latch open` creates a background tab (active:false). In headless Chrome for
   // Testing on Windows its first frame after a DOM change takes 3-12s, so the
   // post-click state misses the 10s PNG budget and the run is "partial".
-  skip: suiteGate('LATCH_EXPLORATION', {windows: false, reason: 'Headless CfT on Windows: post-click PNG of the background `latch open` tab exceeds the 10s capture budget (screenshots.status partial). Tracked as a product follow-up.'}),
+  skip: suiteGate('LATCH_EXPLORATION'),
   timeout: 180000,
 }, async t => {
   const app = await evidenceApp();
