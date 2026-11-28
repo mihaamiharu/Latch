@@ -34,7 +34,7 @@ const samplePngBase64 = (byte = 1) =>
     Buffer.from([0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, byte]),
   ]).toString('base64');
 
-async function fixture(t, {screenshotError = false} = {}) {
+async function fixture(t, {screenshotError = false, network} = {}) {
   const workspace = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'latch-life-')));
   const old = {root: process.env.LATCH_ARTIFACT_ROOT, capture: process.env.LATCH_CAPTURE};
   process.env.LATCH_ARTIFACT_ROOT = path.join(workspace, 'library');
@@ -60,6 +60,7 @@ async function fixture(t, {screenshotError = false} = {}) {
       stepCount++;
       return {
         currentTargetId: 'p',
+        ...(network ? {network: network(stepCount)} : {}),
         ...(screenshotError ? {} : {screenshot: samplePngBase64(stepCount)}),
         pages: [
           {
@@ -148,7 +149,7 @@ test('managed --record lifecycle captures before/after filmstrip, secrets scrubb
   assert.equal(graph.filmstrip.length, 2);
   assert.ok(graph.final_states.length);
 
-  for (const rel of ['exploration.json', 'exploration.yaml', 'commands.jsonl', 'events.jsonl']) {
+  for (const rel of ['exploration.json', 'handoff.yaml', 'commands.jsonl', 'events.jsonl']) {
     const content = await fs.readFile(path.join(result.library.directory, rel), 'utf8');
     assert.doesNotMatch(content, /private-input|secret_url_tok|cp_secret/);
   }
@@ -536,12 +537,11 @@ test('redacted fill/type input is an informational notice: clean runs finish as 
   assert.equal(graph.status, 'finished');
   assert.equal(graph.coverage.gaps.length, 0);
   assert.equal(graph.coverage.notices.length, 2);
-  const yamlText = await fs.readFile(path.join(result.library.directory, 'exploration.yaml'), 'utf8');
-  assert.match(yamlText, /Input values are omitted/);
+  assert.match(JSON.stringify(graph.coverage.notices), /Input values are omitted/);
   assert.equal(path.basename(result.library.handoff), 'handoff.yaml');
   const handoffText = await fs.readFile(result.library.handoff, 'utf8');
   assert.match(handoffText, /value: "<redacted>"/);
-  for (const rel of ['exploration.json', 'exploration.yaml', 'handoff.yaml', 'commands.jsonl', 'events.jsonl']) {
+  for (const rel of ['exploration.json', 'handoff.yaml', 'commands.jsonl', 'events.jsonl']) {
     const content = await fs.readFile(path.join(result.library.directory, rel), 'utf8');
     assert.doesNotMatch(content, /typed-private-value|more-private-text/);
   }
@@ -598,4 +598,56 @@ test('finish waits briefly for a just-finished command lock instead of reporting
   await held;
   assert.equal(result.library.status, 'finished');
   assert.equal(result.library.cleanup, 'confirmed');
+});
+
+test('API requests attach to the step that caused them, late ones to the previous action, and verdicts round-trip', async t => {
+  const api = (method, url, status) => ({method, url, status, resource_type: 'fetch', page: 'p', started_at: new Date().toISOString(), request: null, authorization: null, response: {type: 'json', shape: {ok: 'boolean'}}});
+  // Capture 1 = open (page load), 2 = after click, 3 = checkpoint (late), 4 = finish.
+  const byCapture = {
+    1: [api('GET', 'https://fixture/api/cart', 200)],
+    2: [api('POST', 'https://fixture/api/orders/8492', 201), api('GET', 'https://ads.example.com/px', 204)],
+    3: [api('GET', 'https://fixture/api/orders/8492/status', 200)],
+  };
+  const f = await fixture(t, {network: n => byCapture[n] || []});
+  const start = await f.invoke('open', {flags: {url: 'https://fixture', record: true, objective: 'Network'}});
+  await f.invoke('click', {action: 'click', actionArgs: {target: 'e2'}});
+  await checkpointCommand({profile: 'work', session: 'agent', workspace: f.workspace, note: 'Order saved'}, '1.0.0', f.execute);
+  const result = await finishCommand({profile: 'work', session: 'agent', workspace: f.workspace}, '1.0.0', f.execute);
+
+  const graph = JSON.parse(await fs.readFile(path.join(result.library.directory, 'exploration.json'), 'utf8'));
+  assert.deepEqual(graph.load_network.map(e => e.url), ['https://fixture/api/cart']);
+  assert.deepEqual(graph.transitions[0].network.map(e => [e.url, e.late || false]), [
+    ['https://fixture/api/orders/8492', false],
+    ['https://ads.example.com/px', false],
+    ['https://fixture/api/orders/8492/status', true],
+  ]);
+
+  const handoff = await fs.readFile(result.library.handoff, 'utf8');
+  assert.match(handoff, /on_load:/);
+  assert.match(handoff, /path: "\/api\/orders\/\{id\}"/);
+  assert.match(handoff, /path: "\/api\/orders\/\{id\}\/status"/);
+  assert.match(handoff, /late: true/);
+  assert.match(handoff, /other_requests: 1/);
+  assert.doesNotMatch(handoff, /ads\.example\.com/);
+
+  const meta = await loadMeta(start.library.runId);
+  const {buildHandoff} = await import('../src/exploration-model.mjs');
+  const behaviors = (await buildHandoff(meta)).behaviors;
+  const observed = behaviors.find(b => b.source === 'observed');
+  assert.match(observed.text, /sends POST \/api\/orders\/\{id\} \(201\)/);
+  await libraryCommand('review', {run: meta.id, decision: 'automate', verdicts: `${observed.id}=expected`});
+  const review = JSON.parse(await fs.readFile(path.join(result.library.directory, 'review.json'), 'utf8'));
+  assert.deepEqual(review.behaviors, {[observed.id]: 'expected'});
+  // A decision-only update keeps earlier verdicts.
+  await libraryCommand('review', {run: meta.id, decision: 'report_bug'});
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(result.library.directory, 'review.json'), 'utf8')).behaviors, {
+    [observed.id]: 'expected',
+  });
+
+  const ui = await startLibraryServer({port: 0});
+  t.after(() => ui.close());
+  const html = await (await fetch(`${ui.url}/run/${meta.id}`)).text();
+  assert.match(html, /Behaviors to review \(\d+\)/);
+  assert.match(html, new RegExp(`data-verdict="${observed.id}"[^>]*><option value="unreviewed" >Not reviewed</option><option value="expected" selected>`));
+  assert.doesNotMatch(html.match(/Behaviors to review[\s\S]*?Your next step/)[0], /fallbacks|test_id/);
 });

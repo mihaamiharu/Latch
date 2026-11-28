@@ -24,8 +24,8 @@ import {
   deleteRun,
   deleteAllRuns,
 } from './exploration-storage.mjs';
-import {graphOf, writeHandoff} from './exploration-model.mjs';
-import {handoffFileOf} from './exploration-handoff.mjs';
+import {buildHandoff, graphOf, writeHandoff} from './exploration-model.mjs';
+import {VERDICTS, handoffFileOf} from './exploration-handoff.mjs';
 
 export {deleteRun, deleteAllRuns};
 
@@ -38,20 +38,60 @@ const decisions = new Set(['unreviewed', 'automate', 'investigate', 'report_bug'
 // file carries the detail, so the prompt only states the task and where to read.
 export const HANDOFF_TASKS = {
   unreviewed: 'Review Latch exploration run {run}.',
-  automate: 'Implement Playwright e2e tests for Latch run {run}. Follow the steps in order and assert the observed behavior.',
+  automate: 'Implement Playwright e2e tests for Latch run {run}.',
   investigate: 'Investigate the findings and gaps in Latch run {run} and report what is still unknown.',
   report_bug: 'Write a bug report for Latch run {run} with reproduction steps, expected vs. actual, and evidence paths.',
   closed: 'Latch run {run} is closed. Use it as reference only.',
 };
 
 // Serialized into the library page, so it must stay self-contained.
-export function handoffPrompt(run, decision, note, tasks) {
+// behaviors: [{id, verdict}] as currently selected by QA.
+export function handoffPrompt(run, decision, note, tasks, behaviors) {
   const label = run.id + (run.objective ? ' (' + run.objective + ')' : '');
   const task = (tasks[decision] || tasks.unreviewed).replace('{run}', label);
-  return [task, 'Read: ' + run.handoffPath, note ? 'QA notes: ' + note : ''].filter(Boolean).join('\n');
+  const ids = verdict => (behaviors || []).filter(b => b.verdict === verdict).map(b => b.id);
+  const expected = ids('expected');
+  const bug = ids('bug');
+  const ignore = ids('ignore');
+  const lines = [task, 'Read: ' + run.handoffPath];
+  if (expected.length) lines.push('Cover expected behaviors: ' + expected.join(', ') + '.');
+  if (bug.length) lines.push('Bug behaviors (assert the correct behavior; these tests should fail until fixed): ' + bug.join(', ') + '.');
+  if (ignore.length) lines.push('Skip: ' + ignore.join(', ') + '.');
+  if ((behaviors || []).length && !expected.length && !bug.length) {
+    lines.push('No behaviors have a QA verdict yet; treat them as candidates and confirm with QA.');
+  }
+  if (decision === 'automate') {
+    lines.push('Drive the UI from the steps and add API assertions from each step’s network. Re-verify locators against the live app.');
+  }
+  if (note) lines.push('QA notes: ' + note);
+  return lines.join('\n');
 }
 
-export async function saveReview(id, {decision, note = ''}) {
+// "b-1a2b3c4d=expected,b-5e6f7a8b=bug" (CLI) or {id: verdict} (library page).
+export function parseVerdicts(input) {
+  if (input === undefined || input === null) return undefined;
+  const entries =
+    typeof input === 'string'
+      ? input
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+          .map(s => s.split('=').map(x => x.trim()))
+      : typeof input === 'object' && !Array.isArray(input)
+        ? Object.entries(input)
+        : null;
+  if (!entries || entries.length > 500) throw fault('INVALID_REVIEW', 'Give behavior verdicts as b-<id>=<verdict>, at most 500.');
+  const out = {};
+  for (const [bid, verdict] of entries) {
+    if (!/^b-[0-9a-f]{8}$/.test(bid || '') || !VERDICTS.includes(verdict)) {
+      throw fault('INVALID_REVIEW', `Use behavior IDs from the handoff and one of ${VERDICTS.join(', ')}.`);
+    }
+    if (verdict !== 'unreviewed') out[bid] = verdict;
+  }
+  return out;
+}
+
+export async function saveReview(id, {decision, note = '', behaviors, verdicts}) {
   if (!decisions.has(decision) || typeof note !== 'string' || note.length > 8000) {
     throw fault(
       'INVALID_REVIEW',
@@ -59,11 +99,15 @@ export async function saveReview(id, {decision, note = ''}) {
     );
   }
   await loadMeta(id);
+  const parsed = parseVerdicts(behaviors ?? verdicts);
+  const previous = await reviewOf(id);
   const review = {
     schema: 1,
     run_id: id,
     decision,
     note: scrub(note),
+    // Omitted verdicts keep what QA saved before (e.g. a CLI decision-only update).
+    behaviors: parsed ?? previous.behaviors ?? {},
     updated_at: new Date().toISOString(),
     provenance: 'qa_review',
   };
@@ -73,9 +117,9 @@ export async function saveReview(id, {decision, note = ''}) {
 
 async function reviewOf(id) {
   try {
-    return JSON.parse(await regularFile(path.join(await runPath(id), 'review.json'), 16384));
+    return JSON.parse(await regularFile(path.join(await runPath(id), 'review.json'), 65536));
   } catch (e) {
-    if (e.code === 'ENOENT') return {decision: 'unreviewed', note: ''};
+    if (e.code === 'ENOENT') return {decision: 'unreviewed', note: '', behaviors: {}};
     throw e;
   }
 }
@@ -122,6 +166,7 @@ const style = [
   'button.danger-ghost{background:transparent;color:var(--danger);border:1px solid #e7c6c2;padding:5px 10px;font-size:12px}',
   'button.danger-ghost:hover{background:#fdf2f1}',
   'button.compact{padding:5px 10px;font-size:12px}',
+  '.behavior{border-top:1px solid var(--line);padding:10px 0}.behavior:first-of-type{border-top:0}.behavior-text{margin:0 0 4px;line-height:1.45}.behavior-expected{margin:0 0 4px;font-size:12px}.behavior-meta{font-size:12px;margin-bottom:6px}.behavior select{width:100%}',
   'button:disabled{opacity:.42;cursor:not-allowed}',
   'a{color:var(--emerald)}',
   'input,select,textarea{width:100%;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff;color:var(--ink)}',
@@ -380,6 +425,36 @@ async function runHTML(id, token, nonce) {
   const groupedNotices = summarizeGaps(notices);
   const handoffFile = handoffFileOf(meta);
   const handoffPath = path.join(await runPath(id), handoffFile);
+  // Behaviors are what QA reviews. Legacy runs (exploration.yaml only) have none to cite.
+  const handoff =
+    handoffFile === 'handoff.yaml'
+      ? await buildHandoff(meta, scrub(graph), {verdicts: review.behaviors || {}}).catch(() => null)
+      : null;
+  const behaviors = handoff?.behaviors || [];
+  const filmIndexOfStep = new Map();
+  for (const step of handoff?.steps || []) {
+    const idx = graph.filmstrip.findIndex(f => f.transition_id === step.ref);
+    if (idx >= 0) filmIndexOfStep.set(step.id, idx);
+  }
+  const verdictLabels = {unreviewed: 'Not reviewed', expected: 'Expected (test it)', bug: 'Bug (should fail)', ignore: 'Ignore'};
+  const sourceLabels = {observed: 'Observed', agent: 'Agent note', finding: 'Finding'};
+  const behaviorsHtml = behaviors.length
+    ? behaviors
+        .map(b => {
+          const jump = filmIndexOfStep.has(b.steps?.[0])
+            ? ` · <button type="button" class="secondary compact" data-jump-step="${filmIndexOfStep.get(b.steps[0])}">Show step</button>`
+            : '';
+          const opts = VERDICTS.map(v => `<option value="${v}" ${v === b.verdict ? 'selected' : ''}>${escape(verdictLabels[v])}</option>`).join('');
+          return (
+            `<div class="behavior" data-behavior="${escape(b.id)}">` +
+            `<p class="behavior-text">${escape(b.text)}</p>` +
+            (b.expected ? `<p class="muted behavior-expected">Expected: ${escape(b.expected)}</p>` : '') +
+            `<div class="behavior-meta"><span class="muted">${escape(sourceLabels[b.source] || b.source)} · ${escape(b.id)}</span>${jump}</div>` +
+            `<select data-verdict="${escape(b.id)}" aria-label="Verdict for ${escape(b.id)}">${opts}</select></div>`
+          );
+        })
+        .join('')
+    : '<p class="muted">No behaviors were recorded for this run.</p>';
 
   const filmstripThumbsHtml = filmItems
     .map(
@@ -502,6 +577,7 @@ async function runHTML(id, token, nonce) {
     `const filmItems=${safeJson(filmItems)};`,
     `const runMeta=${safeJson({id, objective: meta.objective, handoffPath, status: meta.status})};`,
     `const handoffTasks=${safeJson(HANDOFF_TASKS)};`,
+    `const currentVerdicts=()=>[...document.querySelectorAll('[data-verdict]')].map(s=>({id:s.dataset.verdict,verdict:s.value}));`,
     `const handoffPrompt=${handoffPrompt.toString()};`,
     `let currentIndex=${initialIndex},viewMode='split',onlyShots=false;`,
     `function visibleIndices(){return filmItems.filter(i=>!onlyShots||i.hasShot).map(i=>i.index);}`,
@@ -558,8 +634,8 @@ async function runHTML(id, token, nonce) {
     `}`,
     `for(const btn of document.querySelectorAll('[data-action-filter]'))btn.addEventListener('click',()=>{const mode=btn.dataset.actionFilter;for(const b of document.querySelectorAll('[data-action-filter]'))b.classList.toggle('active',b===btn);for(const row of document.querySelectorAll('[data-action-row]')){row.hidden=mode==='mutate'?row.dataset.kind!=='mutate':mode==='fail'?row.dataset.outcome!=='fail':false;}});`,
     `document.getElementById('show-frames')?.addEventListener('change',e=>{const show=e.target.checked;for(const row of document.querySelectorAll('[data-state-row][data-frame="child"]'))row.hidden=!show;});`,
-    `document.getElementById('copy-handoff')?.addEventListener('click',async()=>{const st=document.getElementById('copy-status');const dec=document.getElementById('decision').value;const note=document.getElementById('note').value.trim();const prompt=handoffPrompt(runMeta,dec,note,handoffTasks);try{await navigator.clipboard.writeText(prompt);st.textContent='Copied agent handoff prompt.';}catch{st.textContent='Clipboard unavailable; copy handoff path from above.';}});`,
-    `document.getElementById('review').addEventListener('submit',async e=>{e.preventDefault();const status=document.getElementById('saved');status.textContent='Saving…';try{const r=await fetch('/review/${id}',{method:'POST',headers:{'Content-Type':'application/json','X-Latch-Review':${JSON.stringify(token)}},body:JSON.stringify({decision:document.getElementById('decision').value,note:document.getElementById('note').value})});if(!r.ok)throw Error('Could not save');status.textContent='Review saved on this machine.'}catch{status.textContent='Could not save review. Try again.'}});`,
+    `document.getElementById('copy-handoff')?.addEventListener('click',async()=>{const st=document.getElementById('copy-status');const dec=document.getElementById('decision').value;const note=document.getElementById('note').value.trim();const prompt=handoffPrompt(runMeta,dec,note,handoffTasks,currentVerdicts());try{await navigator.clipboard.writeText(prompt);st.textContent='Copied agent handoff prompt.';}catch{st.textContent='Clipboard unavailable; copy handoff path from above.';}});`,
+    `document.getElementById('review').addEventListener('submit',async e=>{e.preventDefault();const status=document.getElementById('saved');status.textContent='Saving…';try{const r=await fetch('/review/${id}',{method:'POST',headers:{'Content-Type':'application/json','X-Latch-Review':${JSON.stringify(token)}},body:JSON.stringify({decision:document.getElementById('decision').value,note:document.getElementById('note').value,behaviors:Object.fromEntries(currentVerdicts().map(b=>[b.id,b.verdict]))})});if(!r.ok)throw Error('Could not save');status.textContent='Review saved on this machine.'}catch{status.textContent='Could not save review. Try again.'}});`,
     `{const start=document.getElementById('delete-start'),confirm=document.getElementById('delete-confirm'),cancel=document.getElementById('delete-cancel'),st=document.getElementById('delete-status');`,
     `if(start&&confirm&&cancel){`,
     `  start.addEventListener('click',()=>{start.hidden=true;confirm.hidden=false;cancel.hidden=false;st.textContent='';});`,
@@ -615,6 +691,8 @@ async function runHTML(id, token, nonce) {
       `</div><div class="list-scroll">${statesHtml || '<p class="muted">No captured states.</p>'}</div></div>` +
       `</section>` +
       `<aside>` +
+      `<div class="panel"><div class="panel-head"><h2>Behaviors to review (${behaviors.length})</h2></div>` +
+      `<p class="muted" style="margin-top:0">Mark what the agent should test. Saved with the review.</p>${behaviorsHtml}</div>` +
       `<div class="panel"><div class="panel-head"><h2>Your next step</h2></div>` +
       `<form id="review"><label>Decision<select id="decision">${optionsHtml}</select></label>` +
       `<label>Review notes<textarea id="note" placeholder="Add bug details or test assertions to cover…">${escape(review.note)}</textarea></label>` +
@@ -685,7 +763,7 @@ export async function startLibraryServer({port = 0} = {}) {
         let body = '';
         for await (const b of req) {
           body += b;
-          if (Buffer.byteLength(body) > 16384) throw fault('INVALID_REVIEW', 'Review too large.');
+          if (Buffer.byteLength(body) > 65536) throw fault('INVALID_REVIEW', 'Review too large.');
         }
         const result = await saveReview(review[1], JSON.parse(body));
         res.setHeader('Content-Type', 'application/json');
@@ -865,7 +943,7 @@ export async function libraryCommand(action = 'list', flags = {}) {
       handoff: path.join(await runPath(meta.id), handoffFileOf(meta)),
     };
   }
-  if (action === 'review') return saveReview(flags.run, {decision: flags.decision, note: flags.note});
+  if (action === 'review') return saveReview(flags.run, {decision: flags.decision, note: flags.note, verdicts: flags.verdicts});
   if (action === 'export') return exportRun(flags.run, flags.destination);
   if (action === 'repair') {
     await recoverLibraryLock(flags.run);

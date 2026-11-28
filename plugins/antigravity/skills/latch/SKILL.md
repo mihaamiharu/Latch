@@ -45,21 +45,21 @@ Drive tabs in the user's paired Chrome profile via Chrome's `debugger` API and b
    latch finish
    latch library serve
    ```
-   `latch checkpoint <note> [--annotation-file <path>]`, `latch finish [--close-tabs]` (final capture, disconnect), and `latch library <list|show|serve|review|export|delete|repair> [--run <id>]` (or popup **Open Library**) for filmstrip review. Storage: `latch config set artifacts-dir <path>`.
+   `latch checkpoint <note> [--annotation-file <path>]`, `latch finish [--close-tabs]` (final capture, disconnect; writes `handoff.yaml`: steps, locators, API calls, behaviors), and `latch library <list|show|serve|review|export|delete|repair> [--run <id>]` where QA marks behavior verdicts. Storage: `latch config set artifacts-dir <path>`.
 
 5. **Clean up**
-   `latch release [tabId]` detaches one tab; `latch disconnect` ends the session, keeping tabs and logins. On finish/disconnect, `--close-tabs` closes only `latch open` tabs and popups, never `connect`ed ones; groups collapse by default.
+   `latch release [tabId]` detaches one tab; `latch disconnect` ends the session (keeps tabs, logins). On finish/disconnect, `--close-tabs` closes only `latch open` tabs and popups, never `connect`ed ones; groups collapse by default.
 
 ## Safety rules
 
 - Refresh `latch snapshot` before using refs (`e1`, `e2`); refs are not durable across DOM changes.
-- Never close unrelated Chrome tabs, clear cookies/storage as cleanup, or steal another task's session.
+- Never close unrelated tabs, clear cookies/storage, or steal another task's session.
 - Never store passwords, cookies, or auth tokens in checkpoints or reports.
-- After a timeout, inspect `snapshot`, `console`, or `network` before retrying mutations.
+- After a timeout, check `snapshot`/`console`/`network` before retrying.
 
 ## Troubleshooting
 
 - `PROFILE_UNPAIRED` / `PROFILE_UNAVAILABLE`: open Chrome with Latch enabled; run `latch doctor` or `latch pair`.
 - Stale ref: run `latch snapshot` to refresh refs.
 - Interrupted/locked run: `latch library repair --run <id>`.
-- `TAB_OWNED` / `SESSION_COLLISION`: pick another tab or pass `-s <new-session>`.
+- `TAB_OWNED` / `SESSION_COLLISION`: use another tab or `-s <new-session>`.

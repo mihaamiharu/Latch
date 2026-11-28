@@ -54,6 +54,7 @@ const metaFlags = new Set([
   'note',
   'run',
   'decision',
+  'verdicts',
   'destination',
   'port',
   'annotation-file',
@@ -163,6 +164,28 @@ async function invokeDisconnect(meta, execute, {closeTabs = false} = {}) {
   });
 }
 
+// API exchanges from the latest capture, waiting for the action they belong to.
+const pendingNetwork = new WeakMap();
+const takeNetwork = meta => {
+  const entries = pendingNetwork.get(meta) || [];
+  pendingNetwork.delete(meta);
+  return entries;
+};
+
+// Requests seen by a capture that has no action of its own (checkpoint, finish,
+// a refreshed "before" state) were started after the previous action: they are
+// late responses to it. Before any action they are page-load traffic.
+async function attachLateNetwork(meta, entries) {
+  if (!entries.length) return;
+  const last = meta.actions.at(-1);
+  if (!last) {
+    (meta.loadNetwork ||= []).push(...entries);
+    return;
+  }
+  (last.network ||= []).push(...entries.map(e => ({...e, late: true})));
+  await appendObservation(meta, {type: 'action', action: last});
+}
+
 async function capture(meta, execute, {final = false, label = 'capture'} = {}) {
   const step = id(label);
   try {
@@ -172,6 +195,9 @@ async function capture(meta, execute, {final = false, label = 'capture'} = {}) {
     const beforePages = new Set(meta.states.map(s => s.page));
     const stateStart = meta.states.length;
     const result = await addStates(meta, value, {final, step});
+    const network = Array.isArray(value.network) ? scrub(value.network).slice(0, 200) : [];
+    if (['state', 'initial'].includes(label)) pendingNetwork.set(meta, network);
+    else await attachLateNetwork(meta, network);
     const addedMainStates = meta.states.slice(stateStart).filter(s => s.frame?.id === 'main');
     if (addedMainStates.some(s => !s.screenshot)) {
       meta.gaps.push({step, reason: 'PNG screenshot unavailable for one or more captured pages.'});
@@ -226,6 +252,7 @@ async function persist(meta) {
       annotations: meta.annotations,
       gaps: meta.gaps,
       notices: meta.notices || [],
+      loadNetwork: meta.loadNetwork || [],
       finals: meta.finals,
       cleanup: meta.cleanup,
       finishedAt: meta.finishedAt,
@@ -581,8 +608,11 @@ export async function runWithExploration(invocation, version = PACKAGE_VERSION, 
     if (actionCommand) {
       const action = actionOf(meta, inv, {step, before, after, error, startedAt});
       action.observed_states = meta.states.slice(stateStart).map(s => s.id);
+      action.network = takeNetwork(meta);
       await appendObservation(meta, {type: 'action', action});
     }
+
+    if (!actionCommand) await attachLateNetwork(meta, takeNetwork(meta));
 
     delete meta.pending;
     await persist(meta);

@@ -11,7 +11,7 @@ import {
   verifyArtifacts,
   appendObservation,
 } from './exploration-storage.mjs';
-import {HANDOFF_FILE, handoffOf} from './exploration-handoff.mjs';
+import {HANDOFF_FILE, HANDOFF_SCHEMA_FILE, handoffOf} from './exploration-handoff.mjs';
 
 const SCREENSHOT_PATH_RE = /^screenshots\/[a-zA-Z0-9_-]+\.png$/;
 const SNAPSHOT_PATH_RE = /^snapshots\/[a-zA-Z0-9_-]+\.yaml$/;
@@ -209,6 +209,7 @@ export function graphOf(meta) {
         frames: [...new Set(states.map(s => s.frame.id))],
       };
     }),
+    load_network: meta.loadNetwork || [],
     prerequisites: annotations.filter(a => a.kind === 'prerequisite'),
     states: meta.states,
     transitions,
@@ -236,6 +237,25 @@ export function graphOf(meta) {
   });
 }
 
+// Snapshot text for the before/after states of recorded steps, keyed by path.
+async function stepSnapshots(meta, graph) {
+  const dir = await runPath(meta.id);
+  const wanted = new Set();
+  for (const t of graph.transitions) for (const id of [t.from, t.to]) if (id) wanted.add(id);
+  const map = new Map();
+  for (const state of graph.states) {
+    if (!wanted.has(state.id) || !SNAPSHOT_PATH_RE.test(state.snapshot || '')) continue;
+    try {
+      map.set(state.snapshot, await fs.readFile(path.join(dir, state.snapshot), 'utf8'));
+    } catch {}
+  }
+  return map;
+}
+
+export async function buildHandoff(meta, graph = scrub(graphOf(meta)), {verdicts} = {}) {
+  return handoffOf(graph, {snapshots: await stepSnapshots(meta, graph), verdicts});
+}
+
 export async function writeHandoff(meta) {
   const dir = await runPath(meta.id);
   const schema = await fs.readFile(new URL('./schemas/exploration.schema.json', import.meta.url));
@@ -248,12 +268,13 @@ export async function writeHandoff(meta) {
       if (e.code !== 'ENOENT') throw e;
     }
   }
+  const handoffSchema = await fs.readFile(new URL('./schemas/handoff.schema.json', import.meta.url));
+  await atomic(path.join(dir, HANDOFF_SCHEMA_FILE), handoffSchema);
+  await indexArtifact(meta, HANDOFF_SCHEMA_FILE, 'schema');
   const graph = graphOf(meta);
-  await atomic(path.join(dir, 'exploration.yaml'), yaml(scrub(graph)) + '\n');
-  await indexArtifact(meta, 'exploration.yaml', 'handoff');
   await atomic(path.join(dir, 'exploration.json'), JSON.stringify(scrub(graph), null, 2) + '\n');
   await indexArtifact(meta, 'exploration.json', 'handoff');
-  await atomic(path.join(dir, HANDOFF_FILE), yaml(handoffOf(scrub(graph))) + '\n');
+  await atomic(path.join(dir, HANDOFF_FILE), yaml(await buildHandoff(meta, scrub(graph))) + '\n');
   await indexArtifact(meta, HANDOFF_FILE, 'handoff');
   await atomic(path.join(dir, 'artifacts.json'), JSON.stringify({schema: 1, run_id: meta.id, artifacts: meta.artifacts}, null, 2) + '\n');
   await saveMeta(meta);

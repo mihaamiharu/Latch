@@ -45,6 +45,7 @@
     "findings": {"type": "array"},
     "prerequisites": {"type": "array"},
     "test_data": {"type": "array"},
+    "load_network": {"type": "array", "items": {"$ref": "#/$defs/api_exchange"}},
     "final_states": {"type": "array", "items": {"type": "object", "required": ["page", "state", "status"]}},
     "cleanup": {"type": "object", "required": ["status"]},
     "coverage": {
@@ -79,7 +80,26 @@
         "to": {"type": ["string", "null"]},
         "outcome": {"enum": ["succeeded", "succeeded_assertion_failed", "failed_or_unknown", "unknown"]},
         "screenshots": {"$ref": "#/$defs/before_after"},
-        "filmstrip": {"$ref": "#/$defs/before_after"}
+        "filmstrip": {"$ref": "#/$defs/before_after"},
+        "network": {"type": "array", "items": {"$ref": "#/$defs/api_exchange"}}
+      }
+    },
+    "api_exchange": {
+      "type": "object",
+      "description": "XHR/fetch request seen while this step ran. Bodies are shapes (keys and types), never values.",
+      "required": ["method", "url"],
+      "properties": {
+        "method": {"type": "string"},
+        "url": {"type": "string"},
+        "resource_type": {"type": ["string", "null"]},
+        "page": {"type": ["string", "null"]},
+        "started_at": {"type": "string"},
+        "status": {"type": ["integer", "null"]},
+        "authorization": {"type": ["string", "null"]},
+        "request": {"type": ["object", "null"]},
+        "response": {"type": ["object", "null"]},
+        "failure": {"type": "string"},
+        "late": {"type": "boolean"}
       }
     },
     "before_after": {

@@ -1,6 +1,6 @@
 # Handoff v2 design
 
-Status: phase 1 implemented (`src/exploration-handoff.mjs`); phases 2–5 pending.
+Status: implemented (`src/exploration-handoff.mjs`, `src/network-shape.mjs`). Not built: the opt-in full-body side file. User docs: [EXPLORATION-LIBRARY.md](EXPLORATION-LIBRARY.md).
 
 ## Problem
 
@@ -24,7 +24,7 @@ Behaviors are the contract: the human decides **what** is tested, the agent deci
 ## Decisions
 
 - **Network scope:** XHR/fetch only, app origin plus configured API hosts. No assets, fonts, analytics.
-- **Bodies:** shape (keys, types), status, content-type, with values redacted by default. Full bodies only behind an opt-in flag, stored in a side file.
+- **Bodies:** shape (keys, types), status, content-type, with values redacted by default. Full bodies behind an opt-in flag in a side file are deferred: shapes cover structural API assertions without storing user data.
 - **Files:** new compact `handoff.yaml` is primary and is what the copy prompt references. `exploration.json` stays as the full graph for tooling. The duplicate `exploration.yaml` is dropped.
 - **Steps:** only user interactions (navigate, click, fill, select, press, …). Observation commands go to evidence, not steps.
 - **Elements:** only those acted on, asserted on, or changed. Full snapshots remain in `snapshots/*.yaml`.
@@ -75,9 +75,9 @@ steps:
       - {no_request: {method: POST, url: /api/orders}}
 
 behaviors:
-  - {id: b1, text: "Applying promo QA10 reduces total from $49.00 to $39.00", steps: [s3], verdict: expected}
-  - {id: b2, text: "Pay now with empty card number shows a required error and submits no order", steps: [s4], verdict: expected}
-  - {id: b3, text: "Promo discount text is shown before Apply is clicked", steps: [s2], verdict: bug}
+  - {id: b-1a2b3c4d, source: observed, text: "Applying promo QA10 reduces total from $49.00 to $39.00", steps: [s3], verdict: expected}
+  - {id: b-5e6f7a8b, source: observed, text: "Pay now with empty card number shows a required error and submits no order", steps: [s4], verdict: expected}
+  - {id: b-9c0d1e2f, source: finding, text: "Promo discount text is shown before Apply is clicked", steps: [s2], verdict: bug}
 
 gaps: [Card number never filled; happy-path payment not explored]
 ```
@@ -87,14 +87,15 @@ gaps: [Card number never filled; happy-path payment not explored]
 ```
 Implement Playwright e2e tests for Latch run <id> (<objective>).
 Read: <path>/handoff.yaml
-Cover behaviors marked expected (b1, b2) and bug (b3, assert the correct behavior; it should fail until fixed).
+Cover expected behaviors: b-1a2b3c4d, b-5e6f7a8b.
+Bug behaviors (assert the correct behavior; these tests should fail until fixed): b-9c0d1e2f.
 Use UI steps plus API assertions from `network`. Re-verify locators against the live app.
 ```
 
 ## Implementation phases
 
 1. **Compact steps (done):** emit `handoff.yaml` with steps-only transitions, pruned elements, target locators, evidence; repoint the copy prompt. No new capture.
-2. **Network:** filter engine entries to XHR/fetch, attribute to steps by time window, derive redacted shapes; opt-in full bodies side file.
-3. **Effects and assertions:** snapshot diffs per step, generated assertion candidates.
-4. **Behaviors:** draft at finish, merge checkpoints, per-behavior verdicts in the library UI and review JSON, verdict-aware copy prompt.
-5. **Cleanup:** schema v2, drop `exploration.yaml`, update docs, skills and tests.
+2. **Network (done; full bodies deferred):** filter engine entries to XHR/fetch, attribute to steps by time window, derive redacted shapes; opt-in full bodies side file.
+3. **Effects and assertions (done):** snapshot diffs per step, generated assertion candidates.
+4. **Behaviors (done):** draft at finish, merge checkpoints, per-behavior verdicts in the library UI and review JSON, verdict-aware copy prompt.
+5. **Cleanup (done):** schema v2, drop `exploration.yaml`, update docs, skills and tests.

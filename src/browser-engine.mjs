@@ -2,9 +2,13 @@ import path from 'node:path';
 import {chromium} from 'playwright-core';
 import {ACTIONS, fault, webUrl} from '../extension/protocol.js';
 import {redact} from './redact.mjs';
+import {MAX_BODY_BYTES, bodyShape} from './network-shape.mjs';
 
 const MAX_CONSOLE_ENTRIES = 500;
 const MAX_NETWORK_ENTRIES = 500;
+const MAX_API_EXCHANGES = 200;
+const API_RESOURCE_TYPES = new Set(['xhr', 'fetch']);
+const BODY_SETTLE_MS = 1500;
 const MAX_CAPTURED_FRAMES = 8;
 const REF_PATTERN = /^(?:f\d+)?e\d+$/;
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -102,6 +106,15 @@ export function parseSnapshotRefs(snapshotText) {
   return refs;
 }
 
+// Only the scheme name, never a credential.
+function authScheme(value) {
+  const text = String(value).trim();
+  const scheme = text.split(/\s+/)[0];
+  return /\s/.test(text) && /^(?:Bearer|Basic|Digest|Token|Negotiate|HOBA|Mutual|AWS4-HMAC-SHA256)$/i.test(scheme)
+    ? scheme
+    : 'present';
+}
+
 function boundedRingPush(list, item, max) {
   list.push(item);
   if (list.length > max) list.splice(0, list.length - max);
@@ -177,7 +190,77 @@ export class BrowserEngine {
     this.trackedPages = new WeakSet();
     this.consoleEntries = [];
     this.networkEntries = [];
+    // XHR/fetch exchanges with value-free body shapes, drained by captureState so
+    // each recorded step gets the API calls made since the previous capture.
+    this.apiExchanges = [];
+    this.apiByRequest = new WeakMap();
+    this.apiSeq = 0;
+    this.apiCursor = 0;
+    this.apiPending = new Set();
     this.pendingDialogs = [];
+  }
+
+  recordApiRequest(req, targetId) {
+    const resourceType = req.resourceType?.() || null;
+    if (!API_RESOURCE_TYPES.has(resourceType)) return;
+    let headers = {};
+    try {
+      headers = req.headers?.() || {};
+    } catch {}
+    let postData = null;
+    try {
+      postData = req.postData?.() ?? null;
+    } catch {}
+    const exchange = {
+      seq: ++this.apiSeq,
+      method: req.method?.() || 'GET',
+      url: redact(req.url?.() || ''),
+      resource_type: resourceType,
+      page: targetId,
+      started_at: new Date().toISOString(),
+      request: postData && postData.length <= MAX_BODY_BYTES ? bodyShape(postData, headers['content-type']) : null,
+      authorization: headers.authorization ? authScheme(headers.authorization) : null,
+      status: null,
+      response: null,
+    };
+    this.apiByRequest.set(req, exchange);
+    boundedRingPush(this.apiExchanges, exchange, MAX_API_EXCHANGES);
+  }
+
+  recordApiResponse(res) {
+    const req = res.request?.();
+    const exchange = req && this.apiByRequest.get(req);
+    if (!exchange) return;
+    exchange.status = res.status?.() ?? null;
+    let headers = {};
+    try {
+      headers = res.headers?.() || {};
+    } catch {}
+    const contentType = headers['content-type'] || null;
+    const length = Number(headers['content-length']);
+    if (Number.isFinite(length) && length > MAX_BODY_BYTES) {
+      exchange.response = {type: String(contentType || 'unknown').split(';')[0], shape: 'too_large'};
+      return;
+    }
+    if (typeof res.text !== 'function' || exchange.status === 204 || (exchange.status >= 300 && exchange.status < 400)) return;
+    const pending = res
+      .text()
+      .then(text => {
+        exchange.response = text.length > MAX_BODY_BYTES ? {type: 'unknown', shape: 'too_large'} : bodyShape(text, contentType);
+      })
+      .catch(() => {})
+      .finally(() => this.apiPending.delete(pending));
+    this.apiPending.add(pending);
+  }
+
+  // Exchanges started since the previous drain. Waits briefly for body reads.
+  async drainApiExchanges() {
+    if (this.apiPending.size) {
+      await withTimeout(Promise.allSettled([...this.apiPending]), BODY_SETTLE_MS, () => null);
+    }
+    const fresh = this.apiExchanges.filter(e => e.seq > this.apiCursor);
+    this.apiCursor = this.apiSeq;
+    return fresh.map(({seq, ...rest}) => ({...rest}));
   }
 
   async connect({targetId} = {}) {
@@ -250,6 +333,9 @@ export class BrowserEngine {
     });
     page.on?.('request', req => {
       const targetId = this.pageTargets.get(page) || null;
+      try {
+        this.recordApiRequest(req, targetId);
+      } catch {}
       boundedRingPush(
         this.networkEntries,
         {
@@ -266,6 +352,9 @@ export class BrowserEngine {
     page.on?.('response', res => {
       const req = res.request?.();
       const targetId = this.pageTargets.get(page) || null;
+      try {
+        this.recordApiResponse(res);
+      } catch {}
       boundedRingPush(
         this.networkEntries,
         {
@@ -283,6 +372,8 @@ export class BrowserEngine {
     });
     page.on?.('requestfailed', req => {
       const targetId = this.pageTargets.get(page) || null;
+      const exchange = this.apiByRequest.get(req);
+      if (exchange) exchange.failure = redact(req.failure?.()?.errorText || 'Request failed');
       boundedRingPush(
         this.networkEntries,
         {
@@ -771,6 +862,7 @@ export class BrowserEngine {
     return {
       currentTargetId,
       pages,
+      network: await this.drainApiExchanges().catch(() => []),
       ...(activeScreenshot ? {screenshot: activeScreenshot} : {}),
     };
   }
