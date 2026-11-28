@@ -11,6 +11,7 @@ import {
   verifyArtifacts,
   appendObservation,
 } from './exploration-storage.mjs';
+import {HANDOFF_FILE, handoffOf} from './exploration-handoff.mjs';
 
 const SCREENSHOT_PATH_RE = /^screenshots\/[a-zA-Z0-9_-]+\.png$/;
 const SNAPSHOT_PATH_RE = /^snapshots\/[a-zA-Z0-9_-]+\.yaml$/;
@@ -252,6 +253,8 @@ export async function writeHandoff(meta) {
   await indexArtifact(meta, 'exploration.yaml', 'handoff');
   await atomic(path.join(dir, 'exploration.json'), JSON.stringify(scrub(graph), null, 2) + '\n');
   await indexArtifact(meta, 'exploration.json', 'handoff');
+  await atomic(path.join(dir, HANDOFF_FILE), yaml(handoffOf(scrub(graph))) + '\n');
+  await indexArtifact(meta, HANDOFF_FILE, 'handoff');
   await atomic(path.join(dir, 'artifacts.json'), JSON.stringify({schema: 1, run_id: meta.id, artifacts: meta.artifacts}, null, 2) + '\n');
   await saveMeta(meta);
   return graph;

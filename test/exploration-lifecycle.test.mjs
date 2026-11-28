@@ -538,7 +538,10 @@ test('redacted fill/type input is an informational notice: clean runs finish as 
   assert.equal(graph.coverage.notices.length, 2);
   const yamlText = await fs.readFile(path.join(result.library.directory, 'exploration.yaml'), 'utf8');
   assert.match(yamlText, /Input values are omitted/);
-  for (const rel of ['exploration.json', 'exploration.yaml', 'commands.jsonl', 'events.jsonl']) {
+  assert.equal(path.basename(result.library.handoff), 'handoff.yaml');
+  const handoffText = await fs.readFile(result.library.handoff, 'utf8');
+  assert.match(handoffText, /value: "<redacted>"/);
+  for (const rel of ['exploration.json', 'exploration.yaml', 'handoff.yaml', 'commands.jsonl', 'events.jsonl']) {
     const content = await fs.readFile(path.join(result.library.directory, rel), 'utf8');
     assert.doesNotMatch(content, /typed-private-value|more-private-text/);
   }

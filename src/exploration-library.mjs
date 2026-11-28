@@ -25,6 +25,7 @@ import {
   deleteAllRuns,
 } from './exploration-storage.mjs';
 import {graphOf, writeHandoff} from './exploration-model.mjs';
+import {handoffFileOf} from './exploration-handoff.mjs';
 
 export {deleteRun, deleteAllRuns};
 
@@ -32,6 +33,23 @@ const escape = value =>
   String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const safeJson = value => JSON.stringify(value).replace(/</g, '\\u003c');
 const decisions = new Set(['unreviewed', 'automate', 'investigate', 'report_bug', 'closed']);
+
+// Copied by the library page's "Copy QA handoff prompt" button. The handoff
+// file carries the detail, so the prompt only states the task and where to read.
+export const HANDOFF_TASKS = {
+  unreviewed: 'Review Latch exploration run {run}.',
+  automate: 'Implement Playwright e2e tests for Latch run {run}. Follow the steps in order and assert the observed behavior.',
+  investigate: 'Investigate the findings and gaps in Latch run {run} and report what is still unknown.',
+  report_bug: 'Write a bug report for Latch run {run} with reproduction steps, expected vs. actual, and evidence paths.',
+  closed: 'Latch run {run} is closed. Use it as reference only.',
+};
+
+// Serialized into the library page, so it must stay self-contained.
+export function handoffPrompt(run, decision, note, tasks) {
+  const label = run.id + (run.objective ? ' (' + run.objective + ')' : '');
+  const task = (tasks[decision] || tasks.unreviewed).replace('{run}', label);
+  return [task, 'Read: ' + run.handoffPath, note ? 'QA notes: ' + note : ''].filter(Boolean).join('\n');
+}
 
 export async function saveReview(id, {decision, note = ''}) {
   if (!decisions.has(decision) || typeof note !== 'string' || note.length > 8000) {
@@ -360,7 +378,8 @@ async function runHTML(id, token, nonce) {
   const groupedGaps = summarizeGaps(meta.gaps);
   const notices = Array.isArray(meta.notices) ? meta.notices : [];
   const groupedNotices = summarizeGaps(notices);
-  const handoffPath = path.join(await runPath(id), 'exploration.yaml');
+  const handoffFile = handoffFileOf(meta);
+  const handoffPath = path.join(await runPath(id), handoffFile);
 
   const filmstripThumbsHtml = filmItems
     .map(
@@ -482,6 +501,8 @@ async function runHTML(id, token, nonce) {
   const script = [
     `const filmItems=${safeJson(filmItems)};`,
     `const runMeta=${safeJson({id, objective: meta.objective, handoffPath, status: meta.status})};`,
+    `const handoffTasks=${safeJson(HANDOFF_TASKS)};`,
+    `const handoffPrompt=${handoffPrompt.toString()};`,
     `let currentIndex=${initialIndex},viewMode='split',onlyShots=false;`,
     `function visibleIndices(){return filmItems.filter(i=>!onlyShots||i.hasShot).map(i=>i.index);}`,
     `function openLightbox(src,caption){const lb=document.getElementById('lightbox');document.getElementById('lb-img').src=src;document.getElementById('lb-cap').textContent=caption;lb.hidden=false;}`,
@@ -537,7 +558,7 @@ async function runHTML(id, token, nonce) {
     `}`,
     `for(const btn of document.querySelectorAll('[data-action-filter]'))btn.addEventListener('click',()=>{const mode=btn.dataset.actionFilter;for(const b of document.querySelectorAll('[data-action-filter]'))b.classList.toggle('active',b===btn);for(const row of document.querySelectorAll('[data-action-row]')){row.hidden=mode==='mutate'?row.dataset.kind!=='mutate':mode==='fail'?row.dataset.outcome!=='fail':false;}});`,
     `document.getElementById('show-frames')?.addEventListener('change',e=>{const show=e.target.checked;for(const row of document.querySelectorAll('[data-state-row][data-frame="child"]'))row.hidden=!show;});`,
-    `document.getElementById('copy-handoff')?.addEventListener('click',async()=>{const st=document.getElementById('copy-status');const dec=document.getElementById('decision').value;const note=document.getElementById('note').value.trim();const prompt=['Review Latch exploration run '+runMeta.id+' ('+runMeta.objective+').','Handoff file: '+runMeta.handoffPath,'QA decision: '+dec,note?'QA notes: '+note:''].filter(Boolean).join('\\n');try{await navigator.clipboard.writeText(prompt);st.textContent='Copied agent handoff prompt.';}catch{st.textContent='Clipboard unavailable; copy handoff path from above.';}});`,
+    `document.getElementById('copy-handoff')?.addEventListener('click',async()=>{const st=document.getElementById('copy-status');const dec=document.getElementById('decision').value;const note=document.getElementById('note').value.trim();const prompt=handoffPrompt(runMeta,dec,note,handoffTasks);try{await navigator.clipboard.writeText(prompt);st.textContent='Copied agent handoff prompt.';}catch{st.textContent='Clipboard unavailable; copy handoff path from above.';}});`,
     `document.getElementById('review').addEventListener('submit',async e=>{e.preventDefault();const status=document.getElementById('saved');status.textContent='Saving…';try{const r=await fetch('/review/${id}',{method:'POST',headers:{'Content-Type':'application/json','X-Latch-Review':${JSON.stringify(token)}},body:JSON.stringify({decision:document.getElementById('decision').value,note:document.getElementById('note').value})});if(!r.ok)throw Error('Could not save');status.textContent='Review saved on this machine.'}catch{status.textContent='Could not save review. Try again.'}});`,
     `{const start=document.getElementById('delete-start'),confirm=document.getElementById('delete-confirm'),cancel=document.getElementById('delete-cancel'),st=document.getElementById('delete-status');`,
     `if(start&&confirm&&cancel){`,
@@ -600,7 +621,7 @@ async function runHTML(id, token, nonce) {
       `<button type="submit">Save review</button><p id="saved" role="status"></p></form></div>` +
       `<div class="panel"><div class="panel-head"><h2>Automation handoff</h2></div>` +
       `<div class="link-list">` +
-      `<a class="link-item" href="${artifactURL(id, 'exploration.yaml')}"><span>exploration.yaml</span><small>Handoff</small></a>` +
+      `<a class="link-item" href="${artifactURL(id, handoffFile)}"><span>${escape(handoffFile)}</span><small>Agent handoff</small></a>` +
       `<a class="link-item" href="${artifactURL(id, 'exploration.json')}"><span>exploration.json</span><small>JSON</small></a>` +
       `<a class="link-item" href="${artifactURL(id, 'exploration.schema.json')}"><span>exploration.schema.json</span><small>Schema</small></a>` +
       `<a class="link-item" href="${artifactURL(id, 'artifacts.json')}"><span>artifacts.json</span><small>Manifest</small></a>` +
@@ -780,7 +801,7 @@ export async function exportRun(id, destination) {
   await fs.mkdir(path.dirname(dest), {recursive: true, mode: 0o700});
   await fs.mkdir(dest, {mode: 0o700});
   const dir = await runPath(id);
-  const names = new Set(['exploration.yaml', 'exploration.json', 'artifacts.json', ...meta.artifacts.map(a => a.path)]);
+  const names = new Set([handoffFileOf(meta), 'exploration.json', 'artifacts.json', ...meta.artifacts.map(a => a.path)]);
   for (const name of names) {
     if (path.isAbsolute(name) || name.split(/[\\/]/).some(p => p === '..')) {
       throw fault('EVIDENCE_PATH_UNSAFE', 'Invalid export path.');
@@ -841,7 +862,7 @@ export async function libraryCommand(action = 'list', flags = {}) {
       run: meta,
       review: await reviewOf(meta.id),
       integrity: await verifyArtifacts(meta),
-      handoff: path.join(await runPath(meta.id), 'exploration.yaml'),
+      handoff: path.join(await runPath(meta.id), handoffFileOf(meta)),
     };
   }
   if (action === 'review') return saveReview(flags.run, {decision: flags.decision, note: flags.note});

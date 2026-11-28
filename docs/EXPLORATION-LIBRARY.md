@@ -16,9 +16,10 @@ latch finish
 
 Use fresh snapshot refs (`e1`, `e2`, ...) or semantic selectors; refs from an earlier state are historical, not durable selectors. Each action links before/after states (`screenshots/state-NNNNN.png`) and captured main-page/iframe YAML includes accessible roles/names plus DOM attributes (IDs, labels, `data-testid`) with ambiguity warnings.
 
-- `latch finish` captures final states for owned open pages, verifies SHA-256 artifact hashes, writes `exploration.yaml`, `exploration.json`, and `exploration.schema.json`, and disconnects while keeping your Chrome tabs and logins intact.
+- `latch finish` captures final states for owned open pages, verifies SHA-256 artifact hashes, writes the agent handoff `handoff.yaml` plus the full state graph (`exploration.yaml`, `exploration.json`, `exploration.schema.json`), and disconnects while keeping your Chrome tabs and logins intact.
 - Normal `latch disconnect` also finalizes an active recorded run.
 - `--focus-emulation` defaults to `on` so background tabs complete actionability checks cleanly; pass `--focus-emulation off` only when testing real focus/visibility events.
+- `handoff.yaml` is the compact file for AI agents writing e2e tests: user steps in order (observation commands such as `snapshot` or `network` are left out), each step's target locator with fallbacks, redacted input values, before/after evidence paths, and findings, behaviors and gaps linked to steps. The library's **Copy QA handoff prompt** button copies a short task for the selected QA decision that points at this file. Runs finished before `handoff.yaml` existed keep pointing at `exploration.yaml`.
 - Without `--record` / `--objective`, `latch open` and `latch connect` run lightweight unrecorded sessions.
 
 ## Describe behavior without generating code
@@ -52,9 +53,9 @@ latch library delete --all
 
 (`--run <id>` is also accepted instead of a positional `<runId>`.)
 
-- **Before/after filmstrip & QA review:** Search runs across projects, step through before/after PNG screenshots, inspect ARIA/DOM locator candidates, download `exploration.yaml` / `exploration.json`, and save QA decisions (`unreviewed`, `automate`, `investigate`, `report_bug`, `closed`) in `review.json` separately from source evidence.
+- **Before/after filmstrip & QA review:** Search runs across projects, step through before/after PNG screenshots, inspect ARIA/DOM locator candidates, download `handoff.yaml` / `exploration.json`, and save QA decisions (`unreviewed`, `automate`, `investigate`, `report_bug`, `closed`) in `review.json` separately from source evidence.
 - **Loopback security:** The server binds only to `127.0.0.1` and requires a same-origin page token (`X-Latch-Review`) for reviews and deletions.
-- **Export:** Verifies indexed SHA-256 hashes before copying the self-contained handoff bundle (`exploration.yaml`, `exploration.json`, snapshots, screenshots, manifest, and `review.json`) into a new directory.
+- **Export:** Verifies indexed SHA-256 hashes before copying the self-contained handoff bundle (`handoff.yaml`, `exploration.yaml`, `exploration.json`, snapshots, screenshots, manifest, and `review.json`) into a new directory.
 - **Delete:** Both the Library UI **Delete** buttons and `latch library delete` refuse to delete active or locked runs (`EXPLORATION_BUSY` / HTTP `409`) until `latch finish` or `latch disconnect` completes. `latch library delete --all` removes all inactive runs and skips active ones.
 
 ## Storage location, failures, and limits

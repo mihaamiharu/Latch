@@ -37,6 +37,7 @@ import {
   finishIntegrity,
 } from './exploration-model.mjs';
 import {libraryCommand} from './exploration-library.mjs';
+import {handoffFileOf} from './exploration-handoff.mjs';
 
 const PACKAGE_VERSION = JSON.parse(await fs.readFile(path.join(ROOT, 'package.json'), 'utf8')).version;
 
@@ -306,7 +307,7 @@ export async function finishRun(meta, _version, execute, {disconnect = true, clo
     library: {
       runId: meta.id,
       directory: dir,
-      handoff: path.join(dir, 'exploration.yaml'),
+      handoff: path.join(dir, handoffFileOf(meta)),
       status: meta.status,
       screenshots: meta.artifacts.filter(a => a.type === 'screenshot').length,
       cleanup: meta.cleanup?.status,
@@ -384,7 +385,7 @@ export async function runWithExploration(invocation, version = PACKAGE_VERSION, 
           alreadyFinished: true,
           library: {
             runId: prior.id,
-            handoff: path.join(await runPath(prior.id), 'exploration.yaml'),
+            handoff: path.join(await runPath(prior.id), handoffFileOf(prior)),
             status: prior.status,
           },
         };
@@ -466,7 +467,7 @@ export async function runWithExploration(invocation, version = PACKAGE_VERSION, 
         checkpoint: true,
         library: {
           runId: meta.id,
-          handoff: path.join(await runPath(meta.id), 'exploration.yaml'),
+          handoff: path.join(await runPath(meta.id), handoffFileOf(meta)),
           states: meta.states.length,
           screenshots: meta.artifacts.filter(a => a.type === 'screenshot').length,
         },
@@ -588,7 +589,7 @@ export async function runWithExploration(invocation, version = PACKAGE_VERSION, 
     const library = {
       runId: meta.id,
       directory: dir,
-      handoff: path.join(dir, 'exploration.yaml'),
+      handoff: path.join(dir, handoffFileOf(meta)),
       screenshots: meta.artifacts.filter(a => a.type === 'screenshot').length,
       capture: meta.gaps.length ? 'partial' : 'active',
       gaps: meta.gaps.length,
